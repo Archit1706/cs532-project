@@ -228,6 +228,102 @@ def location():
             "results": []
         }), 500
 
+##########################################################################################################################################
+
+import json
+import datetime
+import boto3
+from botocore.config import Config
+import logging
+
+# R2 Storage Service
+class S3Service:
+    def __init__(self, s3_client, bucket):
+        self.s3_client = s3_client
+        self.bucket = bucket
+
+    def upload_json_to_r2(self, key, json_data, content_type='application/json'):
+        if isinstance(json_data, dict):
+            json_data = json.dumps(json_data)
+        
+        json_bytes = json_data.encode('utf-8')
+        
+        logging.info(f"Uploading to bucket: {self.bucket}, key: {key}")
+        
+        self.s3_client.put_object(
+            Bucket=self.bucket,
+            Key=key,
+            Body=json_bytes,
+            ContentType=content_type
+        )
+
+def new_r2_service():
+    # Use your hardcoded values
+    account = os.environ.get('CLOUDFLARE_ACCOUNT')
+    access_key = os.environ.get('CLOUDFLARE_KEY')
+    secret_key = os.environ.get('CLOUDFLARE_SECRET')
+    bucket = "dialogue-json"
+    
+    logging.info(f"Initializing R2 service for account: {account[:4]}... and bucket: {bucket}")
+    
+    r2_config = Config(
+        s3={"addressing_style": "virtual"},
+        retries={"max_attempts": 10, "mode": "standard"}
+    )
+    
+    s3_client = boto3.client(
+        's3',
+        endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=r2_config
+    )
+    
+    return S3Service(s3_client, bucket)
+
+# Add a route to save chat history
+@app.route('/api/save_chat', methods=['POST'])
+def save_chat():
+    try:
+        data = request.json
+        logger.info(f"Save chat request received: {len(data.get('messages', []))} messages")
+        
+        session_id = data.get('session_id', 'unknown')
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        file_key = f"chat_{session_id}_{timestamp}.json"
+        
+        # Create the chat history object
+        chat_data = {
+            "session_id": session_id,
+            "timestamp": timestamp,
+            "messages": data.get('messages', []),
+            "zipCodes": data.get('zipCodes', [])
+        }
+        
+        # Upload to R2
+        try:
+            s3_service = new_r2_service()
+            s3_service.upload_json_to_r2(file_key, chat_data)
+            logger.info(f"Chat data uploaded to R2 successfully: {file_key}")
+            r2_upload_success = True
+        except Exception as e:
+            logger.error(f"R2 upload failed: {str(e)}")
+            r2_upload_success = False
+        
+        return jsonify({
+            "success": True, 
+            "r2_upload": r2_upload_success,
+            "file_key": file_key,
+            "timestamp": timestamp
+        })
+        
+    except Exception as e:
+        logger.error(f"Failed to save chat: {str(e)}")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+##########################################################################################################################################
+
+
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:

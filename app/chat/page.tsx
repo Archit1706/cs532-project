@@ -43,6 +43,9 @@ const Chat = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [backendStatus, setBackendStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const [searchedZipCodes, setSearchedZipCodes] = useState<string[]>([]);
+    const [saveStatus, setSaveStatus] = useState<string | null>(null);
     
     // Zip code and location data
     const [zipCode, setZipCode] = useState<string>('02108'); // Default Boston zip code
@@ -183,20 +186,56 @@ const Chat = () => {
         }
     };
 
+    // Update handleZipCodeChange to track zip codes
     const handleZipCodeChange = async (e: React.FormEvent) => {
         e.preventDefault();
+        
+        // Add the zip code to the list if it's not already there
+        if (!searchedZipCodes.includes(zipCode)) {
+            setSearchedZipCodes(prev => [...prev, zipCode]);
+        }
+        
         fetchLocationData(zipCode);
     };
+
+
+    
+
+ // Update saveChatHistory function to accept messages as parameter
+const saveChatHistory = async (messagesToSave = messages) => {
+    if (messagesToSave.length <= 1) return; // Don't save if only system message
+    
+    try {
+        const response = await fetch('/api/save_chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                session_id: sessionId,
+                messages: messagesToSave,
+                zipCodes: searchedZipCodes
+            }),
+        });
+        
+        const data = await response.json();
+        console.log("Chat saved automatically:", data.file_key);
+    } catch (error) {
+        console.error('Error auto-saving chat:', error);
+    }
+};
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputMessage.trim()) return;
 
+        // When creating user messages
         const userMessage: Message = {
-            id: messages.length + 1,
+            id: Date.now(), // Use timestamp instead of length
             type: 'user',
             content: inputMessage
         };
+
         setMessages(prev => [...prev, userMessage]);
         setInputMessage('');
         setIsLoading(true);
@@ -246,13 +285,25 @@ const Chat = () => {
             }
 
             // Format the bot message
+            // When creating bot messages
             const botMessage: Message = {
-                id: messages.length + 2,
+                id: Date.now() + 1, // Ensure uniqueness
                 type: 'bot',
                 content: data.response
             };
             
-            setMessages(prev => [...prev, botMessage]);
+            //setMessages(prev => [...prev, botMessage]);
+
+        // After receiving the response and updating messages
+        setMessages(prev => {
+            const updatedMessages = [...prev, botMessage];
+            // Automatically save chat history after updating messages
+            saveChatHistory(updatedMessages);
+            return updatedMessages;
+        }
+    
+    );
+
         } catch (error) {
             console.error('Error sending message:', error);
             
@@ -359,6 +410,8 @@ const Chat = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                                     </svg>
                                 </button>
+
+
                             </form>
                         </div>
                     </div>
