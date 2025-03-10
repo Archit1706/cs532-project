@@ -1,0 +1,40 @@
+services:
+  # Backend Flask API
+  - type: web
+    name: real-estate-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --chdir backend
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: AZURE_OPENAI_VARE_KEY
+        sync: false
+      - key: AZURE_ENDPOINT
+        sync: false
+      - key: SERPAPI_KEY
+        sync: false
+      - key: FLASK_ENV
+        value: production
+
+  # Frontend Next.js
+  - type: web
+    name: real-estate-frontend
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: real-estate-api
+          type: web
+          property: host
+      - key: NEXT_PUBLIC_API_PORT
+        fromService:
+          name: real-estate-api
+          type: web
+          property: port
+
+# Add any databases or other resources if needed
