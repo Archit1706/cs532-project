@@ -98,13 +98,15 @@ def get_lat_long(address):
             return zip_coords.get(zip_code)
         return None
 
-# Update in the search_nearby_places function in app.py
 def search_nearby_places(location, query_type="Restaurants"):
     logger.info(f"Searching for {query_type} near {location}")
     
     # Check if location is a zip code
     if isinstance(location, str) and location.isdigit() and len(location) == 5:
-        location = f"{location}, USA"  # Convert zip to address format
+        zip_code = location
+        location = f"{location}, USA"  # For geocoding
+    else:
+        zip_code = None
     
     coords = get_lat_long(location)
     if not coords:
@@ -112,76 +114,39 @@ def search_nearby_places(location, query_type="Restaurants"):
     
     latitude, longitude = coords
     
-    # SerpAPI search using latitude/longitude
+    # SerpAPI search
     serpapi_key = os.environ.get('SERPAPI_KEY')
     if not serpapi_key:
-        logger.error("Missing SerpAPI key. Check your environment variables.")
-        return {"error": "Missing API configuration for location search.", "results": []}
+        return {"error": "Missing API key", "results": []}
+        
+    params = {
+        "engine": "google_local",
+        "q": query_type,
+        "ll": f"@{latitude},{longitude},15z",
+        "location": zip_code if zip_code else location,  # Use numeric zip when possible
+        "google_domain": "google.com",
+        "gl": "us",
+        "hl": "en",
+        "api_key": serpapi_key
+    }
     
-    # For transit stations, use a more reliable query approach
-    query = query_type
-    # For transit stations, use a more reliable query approach
-    if query_type.lower() == "transit station":
-        params = {
-            "engine": "google_local",
-            "q": "train OR subway OR metro OR bus station",
-            "type": "Transit station",
-            "ll": f"@{latitude},{longitude},15z",
-            "location": f"{location}",
-            "google_domain": "google.com",
-            "gl": "us",
-            "hl": "en",
-            "api_key": serpapi_key
-        }
-    else:
-        params = {
-            "engine": "google_local",
-            "q": query,
-            "ll": f"@{latitude},{longitude},15z",
-            "location": "United States",  # Restrict to US locations
-            "google_domain": "google.com",  # Use US Google domain
-            "gl": "us",  # Set geolocation to US
-            "hl": "en",  # Set language to English
-            "api_key": serpapi_key
-        }
-
-    try:     
-        # Rest of the function remains the same...
+    try:
         search = GoogleSearch(params)
         results = search.get_dict()
         local_results = results.get("local_results", [])
         
-        # Filter results to ensure they're in the US (look for US state abbreviations or "USA" in address)
-        # Update the US filtering logic in search_nearby_places
-        # Replace the existing filtering code with this:
-
-        # Less strict filtering for US results
-        us_results = []
+        # Calculate distance for each result
         for place in local_results:
-            # Accept results without explicit filtering until we have better detection
-            us_results.append(place)
-            
-            # Calculate distance
             if "gps_coordinates" in place:
                 lat = place["gps_coordinates"].get("latitude")
                 lon = place["gps_coordinates"].get("longitude")
                 if lat is not None and lon is not None:
                     place["distance"] = round(geodesic(coords, (lat, lon)).miles, 2)
-
-        logger.info(f"Found {len(us_results)} results")
         
-        # If we don't have any US results, return an empty list rather than international results
-        if not us_results and local_results:
-            logger.warning(f"Found {len(local_results)} results but none in the US. Returning empty list.")
-            return {
-                "coordinates": {"latitude": latitude, "longitude": longitude},
-                "results": []
-            }
-            
-        # Sort results based on distance
-        sorted_results = sorted(us_results, key=lambda x: x.get("distance", float('inf')))
+        # Sort by distance
+        sorted_results = sorted(local_results, key=lambda x: x.get("distance", float('inf')))
         
-        # Format the results for frontend display
+        # Format results
         formatted_results = []
         for place in sorted_results:
             formatted_results.append({
@@ -191,14 +156,13 @@ def search_nearby_places(location, query_type="Restaurants"):
                 "distance": place.get("distance", None)
             })
         
-        logger.info(f"Found {len(formatted_results)} US results")
         return {
             "coordinates": {"latitude": latitude, "longitude": longitude},
             "results": formatted_results
         }
     except Exception as e:
-        logger.error(f"Error in SerpAPI search: {str(e)}")
-        return {"error": f"Error searching for nearby places: {str(e)}"}
+        logger.error(f"Error in search: {str(e)}")
+        return {"error": str(e), "results": []}
 
 # Simple mock data for property examples
 property_examples = [
