@@ -45,8 +45,8 @@ const Chat = () => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const [searchedZipCodes, setSearchedZipCodes] = useState<string[]>([]);
-    const [saveStatus, setSaveStatus] = useState<string | null>(null);
-    
+    // const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
     // Zip code and location data
     const [zipCode, setZipCode] = useState<string>('02108'); // Default Boston zip code
     const [locationData, setLocationData] = useState<LocationData | null>(null);
@@ -59,7 +59,7 @@ const Chat = () => {
             try {
                 const response = await fetch('/api/health');
                 const data = await response.json();
-                
+
                 if (data.backend === 'connected') {
                     console.log('Backend connected:', data);
                     setBackendStatus('connected');
@@ -72,7 +72,7 @@ const Chat = () => {
                 setBackendStatus('error');
             }
         };
-        
+
         checkBackendStatus();
         fetchLocationData('02108'); // Load default Boston data on mount
     }, []);
@@ -87,10 +87,10 @@ const Chat = () => {
     // Fetch location data based on zip code
     const fetchLocationData = async (zip: string) => {
         if (!zip || zip.length < 5) return;
-        
+
         setIsLoadingLocation(true);
         setLocationError(null);
-        
+
         try {
             // Fetch restaurants near the zip code
             const restaurantsResponse = await fetch('/api/location', {
@@ -120,64 +120,64 @@ const Chat = () => {
             if (!restaurantsResponse.ok) {
                 console.warn(`Restaurant search failed: ${restaurantsResponse.status}`);
             }
-            
+
             if (!transitResponse.ok) {
                 console.warn(`Transit search failed: ${transitResponse.status}`);
             }
 
-        // These are safe parsings that won't throw if the response returns a proper JSON error
-// These are safe parsings that won't throw if the response returns a proper JSON error
-    let restaurantsData: LocationResponse = { results: [] };
-    let transitData: LocationResponse = { results: [] };
-        
-        if (restaurantsResponse.ok) {
-            restaurantsData = await restaurantsResponse.json();
-        } else {
-            // Still try to get error message
-            try {
-                const errorData = await restaurantsResponse.json();
-                restaurantsData = { results: [], error: errorData.error || "Failed to fetch restaurants" };
-            } catch (e) {
-                restaurantsData = { results: [], error: "Failed to fetch restaurants" };
-            }
-        }
+            // These are safe parsings that won't throw if the response returns a proper JSON error
+            // These are safe parsings that won't throw if the response returns a proper JSON error
+            let restaurantsData: LocationResponse = { results: [] };
+            let transitData: LocationResponse = { results: [] };
 
-                // Same for transit data
-                if (transitResponse.ok) {
-                    transitData = await transitResponse.json();
-                } else {
-                    try {
-                        const errorData = await transitResponse.json();
-                        transitData = { results: [], error: errorData.error || "Failed to fetch transit stations" };
-                    } catch (e) {
-                        transitData = { results: [], error: "Failed to fetch transit stations" };
-                    }
+            if (restaurantsResponse.ok) {
+                restaurantsData = await restaurantsResponse.json();
+            } else {
+                // Still try to get error message
+                try {
+                    const errorData = await restaurantsResponse.json();
+                    restaurantsData = { results: [], error: errorData.error || "Failed to fetch restaurants" };
+                } catch (e) {
+                    restaurantsData = { results: [], error: "Failed to fetch restaurants" };
                 }
-                
+            }
+
+            // Same for transit data
+            if (transitResponse.ok) {
+                transitData = await transitResponse.json();
+            } else {
+                try {
+                    const errorData = await transitResponse.json();
+                    transitData = { results: [], error: errorData.error || "Failed to fetch transit stations" };
+                } catch (e) {
+                    transitData = { results: [], error: "Failed to fetch transit stations" };
+                }
+            }
+
             // Handle case where we have valid responses but no data
             if (restaurantsData.results?.length === 0 && transitData.results?.length === 0) {
 
-                    setLocationError(
-                        "Unable to find location data for this zip code"
-                    );
-                    //setLocationError("No nearby restaurants or transit stations found for this zip code.");
+                setLocationError(
+                    "Unable to find location data for this zip code"
+                );
+                //setLocationError("No nearby restaurants or transit stations found for this zip code.");
             }
 
-        // Update state with whatever data we have - even if partial
-        setLocationData({
-            restaurants: restaurantsData.results || [],
-            transit: transitData.results || [],
-            zipCode: zip
-        });
+            // Update state with whatever data we have - even if partial
+            setLocationData({
+                restaurants: restaurantsData.results || [],
+                transit: transitData.results || [],
+                zipCode: zip
+            });
 
-        if (restaurantsData.error || transitData.error) {
-            setLocationError(
-                `${restaurantsData.error || ""} ${transitData.error || ""}`.trim() || 
-                "Unable to find location data for this zip code"
-            );
-        } else {
-            setLocationError(null);
-        }
+            if (restaurantsData.error || transitData.error) {
+                setLocationError(
+                    `${restaurantsData.error || ""} ${transitData.error || ""}`.trim() ||
+                    "Unable to find location data for this zip code"
+                );
+            } else {
+                setLocationError(null);
+            }
         } catch (error) {
             console.error('Error fetching location data:', error);
             setLocationError("Failed to fetch location data. Please try again.");
@@ -189,41 +189,41 @@ const Chat = () => {
     // Update handleZipCodeChange to track zip codes
     const handleZipCodeChange = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         // Add the zip code to the list if it's not already there
         if (!searchedZipCodes.includes(zipCode)) {
             setSearchedZipCodes(prev => [...prev, zipCode]);
         }
-        
+
         fetchLocationData(zipCode);
     };
 
 
-    
 
- // Update saveChatHistory function to accept messages as parameter
-const saveChatHistory = async (messagesToSave = messages) => {
-    if (messagesToSave.length <= 1) return; // Don't save if only system message
-    
-    try {
-        const response = await fetch('/api/save_chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                session_id: sessionId,
-                messages: messagesToSave,
-                zipCodes: searchedZipCodes
-            }),
-        });
-        
-        const data = await response.json();
-        console.log("Chat saved automatically:", data.file_key);
-    } catch (error) {
-        console.error('Error auto-saving chat:', error);
-    }
-};
+
+    // Update saveChatHistory function to accept messages as parameter
+    const saveChatHistory = async (messagesToSave = messages) => {
+        if (messagesToSave.length <= 1) return; // Don't save if only system message
+
+        try {
+            const response = await fetch('/api/save_chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    messages: messagesToSave,
+                    zipCodes: searchedZipCodes
+                }),
+            });
+
+            const data = await response.json();
+            console.log("Chat saved automatically:", data.file_key);
+        } catch (error) {
+            console.error('Error auto-saving chat:', error);
+        }
+    };
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -245,18 +245,18 @@ const saveChatHistory = async (messagesToSave = messages) => {
             let locationContext = '';
             if (locationData) {
                 locationContext = `User's location: Zip code ${locationData.zipCode}. `;
-                
+
                 if (locationData.restaurants.length > 0) {
                     locationContext += `Nearby restaurants: ${locationData.restaurants.slice(0, 3).map(r => r.title).join(', ')}. `;
                 }
-                
+
                 if (locationData.transit.length > 0) {
                     locationContext += `Nearby transit: ${locationData.transit.slice(0, 3).map(t => t.title).join(', ')}. `;
                 }
             }
-            
+
             console.log('Sending message to backend with location context:', locationContext);
-            
+
             // Make API call to the Next.js API route
             const response = await fetch('/api/chat', {
                 method: 'POST',
@@ -271,14 +271,14 @@ const saveChatHistory = async (messagesToSave = messages) => {
             });
 
             console.log('Response status:', response.status);
-            
+
             if (!response.ok) {
                 throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
             console.log('Response data:', data);
-            
+
             // Save the session ID if it's the first message
             if (!sessionId && data.session_id) {
                 setSessionId(data.session_id);
@@ -291,29 +291,29 @@ const saveChatHistory = async (messagesToSave = messages) => {
                 type: 'bot',
                 content: data.response
             };
-            
+
             //setMessages(prev => [...prev, botMessage]);
 
-        // After receiving the response and updating messages
-        setMessages(prev => {
-            const updatedMessages = [...prev, botMessage];
-            // Automatically save chat history after updating messages
-            saveChatHistory(updatedMessages);
-            return updatedMessages;
-        }
-    
-    );
+            // After receiving the response and updating messages
+            setMessages(prev => {
+                const updatedMessages = [...prev, botMessage];
+                // Automatically save chat history after updating messages
+                saveChatHistory(updatedMessages);
+                return updatedMessages;
+            }
+
+            );
 
         } catch (error) {
             console.error('Error sending message:', error);
-            
+
             // Show detailed error message
             const errorMessage: Message = {
                 id: messages.length + 2,
                 type: 'bot',
                 content: `Error: I couldn't process your request. ${error instanceof Error ? error.message : 'Please try again later.'}`
             };
-            
+
             setMessages(prev => [...prev, errorMessage]);
             setBackendStatus('error');
         } finally {
@@ -327,24 +327,24 @@ const saveChatHistory = async (messagesToSave = messages) => {
 
     // Fixed formatMessageContent function
     const formatMessageContent = (content: string) => {
-      // Check if content likely contains markdown
-      if (content.includes('#') || content.includes('**') || content.includes('*')) {
-        return (
-            <div className="markdown">
-            <ReactMarkdown>
-                {content}
-            </ReactMarkdown>
-            </div>
-        );
-      }
-      
-      // Fallback for non-markdown content
-      return content.split('\n').map((line, i) => (
-        <React.Fragment key={i}>
-          {line}
-          {i < content.split('\n').length - 1 && <br />}
-        </React.Fragment>
-      ));
+        // Check if content likely contains markdown
+        if (content.includes('#') || content.includes('**') || content.includes('*')) {
+            return (
+                <div className="markdown">
+                    <ReactMarkdown>
+                        {content}
+                    </ReactMarkdown>
+                </div>
+            );
+        }
+
+        // Fallback for non-markdown content
+        return content.split('\n').map((line, i) => (
+            <React.Fragment key={i}>
+                {line}
+                {i < content.split('\n').length - 1 && <br />}
+            </React.Fragment>
+        ));
     };
 
     return (
@@ -359,7 +359,7 @@ const saveChatHistory = async (messagesToSave = messages) => {
                                 ⚠️ Backend connection issue. Chat responses may be unavailable.
                             </div>
                         )}
-                        
+
                         {/* Messages Container */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
                             {messages.map((message) => (
@@ -452,7 +452,7 @@ const saveChatHistory = async (messagesToSave = messages) => {
                             </button>
                         </form>
                     </div>
-                    
+
                     {/* Location Error */}
                     {locationError && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-yellow-800 text-sm">
@@ -462,14 +462,14 @@ const saveChatHistory = async (messagesToSave = messages) => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Location Data */}
                     {locationData && (
                         <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-slate-200">
                             <h2 className="text-xl font-semibold text-slate-800 mb-4">
                                 Area Information: {locationData.zipCode}
                             </h2>
-                            
+
                             {/* Restaurants */}
                             <div className="mb-5">
                                 <h3 className="text-md font-medium text-slate-700 mb-2 flex items-center">
@@ -493,7 +493,7 @@ const saveChatHistory = async (messagesToSave = messages) => {
                                     )}
                                 </div>
                             </div>
-                            
+
                             {/* Transit */}
                             <div>
                                 <h3 className="text-md font-medium text-slate-700 mb-2 flex items-center">
@@ -519,7 +519,7 @@ const saveChatHistory = async (messagesToSave = messages) => {
                             </div>
                         </div>
                     )}
-                    
+
                     {/* Market Overview */}
                     <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-slate-200">
                         <h2 className="text-xl font-semibold text-slate-800 mb-4">Market Overview</h2>
