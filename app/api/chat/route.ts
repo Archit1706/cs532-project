@@ -4,9 +4,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     console.log('Request received at Next.js API route:', body);
-    
+
     // Forward the request to the Flask backend
-    const flaskResponse = await fetch('http://localhost:5000/api/chat', {
+    const flaskResponse = await fetch('https://cs532-project.onrender.com/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
 
     const data = await flaskResponse.json();
     console.log('Response from Flask backend:', data);
-    
+
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in API route:', error);
