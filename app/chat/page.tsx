@@ -43,12 +43,13 @@ const Chat = () => {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [backendStatus, setBackendStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [zipCode, setZipCode] = useState<string>(''); // Changed to empty by default
+    const [selectedProperty, setSelectedProperty] = useState<Property | null>(null); // Added for property details view
 
     const [searchedZipCodes, setSearchedZipCodes] = useState<string[]>([]);
     // const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
     // Zip code and location data
-    const [zipCode, setZipCode] = useState<string>('02108'); // Default Boston zip code
     const [locationData, setLocationData] = useState<LocationData | null>(null);
     const [isLoadingLocation, setIsLoadingLocation] = useState<boolean>(false);
     const [locationError, setLocationError] = useState<string | null>(null);
@@ -58,6 +59,17 @@ const Chat = () => {
     const [activeTab, setActiveTab] = useState<'restaurants' | 'transit' | 'properties' | 'market' | null>('restaurants');
     const [properties, setProperties] = useState<any[]>([]);
     const [isLoadingProperties, setIsLoadingProperties] = useState<boolean>(false);
+
+    interface Property {
+        imgSrc?: string;
+        address: string;
+        price: number | string;
+        beds: number;
+        baths: number;
+        sqft: number | string;
+        type: string;
+    }
+    
 
     // Check backend connectivity on component mount
     useEffect(() => {
@@ -84,9 +96,13 @@ const Chat = () => {
     }, []);
 
     // Auto-scroll to bottom when messages change
+    // Use a single useEffect for scroll behavior
     useEffect(() => {
         if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        const chatContainer = document.getElementById('chat-container');
+        if (chatContainer) {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
         }
     }, [messages]);
 
@@ -385,7 +401,7 @@ const Chat = () => {
             <div className="w-2/5">
               <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl border border-slate-200 flex flex-col h-[600px]">
                 {/* Messages Container */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-4 chat-scroll">
+                <div id="chat-container" className="flex-1 overflow-y-auto p-6 space-y-4 chat-scroll">
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -414,29 +430,29 @@ const Chat = () => {
                   )}
                   <div ref={messagesEndRef} />
                 </div>
-       
+      
                 {/* Quick question buttons */}
                 <div className="p-3 border-t border-slate-200 flex flex-wrap gap-2">
                   <button 
                     onClick={() => setInputMessage("What's the market like in this area?")} 
-                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300"
+                    className="px-4 py-2 text-sm font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200"
                   >
                     Market trends?
                   </button>
                   <button 
                     onClick={() => setInputMessage("What are property taxes like here?")} 
-                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300"
+                    className="px-4 py-2 text-sm font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200"
                   >
                     Property taxes?
                   </button>
                   <button 
                     onClick={() => setInputMessage("Are home prices rising or falling here?")} 
-                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 rounded-lg border border-slate-300"
+                    className="px-4 py-2 text-sm font-medium bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg border border-blue-200"
                   >
                     Price trends?
                   </button>
                 </div>
-       
+      
                 {/* Message Input with Zip Code */}
                 <div className="p-4 border-t border-slate-200">
                   <div className="flex gap-2 mb-2">
@@ -459,7 +475,7 @@ const Chat = () => {
                         </svg>
                       </button>
                     </div>
-       
+      
                     <div className="w-32">
                       <div className="bg-teal-500 text-white rounded-xl overflow-hidden">
                         <input
@@ -488,16 +504,66 @@ const Chat = () => {
                 </div>
               </div>
             </div>
-       
+      
             {/* Right Panel */}
             <div className="w-3/5 space-y-4">
-              {locationData ? (
+              {selectedProperty ? (
+                <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-slate-200 animate-fadeIn relative">
+                  <button 
+                    onClick={() => setSelectedProperty(null)} 
+                    className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100"
+                  >
+                    <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                  
+                  <h2 className="text-xl font-semibold text-slate-800 mb-4">Property Listing</h2>
+                  
+                  {/* Full Property Details */}
+                  <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                    <div className="h-64 overflow-hidden">
+                      <img 
+                        src={selectedProperty.imgSrc || "https://via.placeholder.com/800x400?text=No+Image"} 
+                        alt={selectedProperty.address} 
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-4">
+                      <div className="font-bold text-2xl text-slate-800">
+                        {typeof selectedProperty.price === 'number' ? `$${selectedProperty.price.toLocaleString()}` : selectedProperty.price}
+                      </div>
+                      <div className="text-slate-600 mb-3">{selectedProperty.address}</div>
+                      
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="bg-slate-50 p-3 rounded-lg text-center">
+                          <div className="font-bold text-slate-800">{selectedProperty.beds}</div>
+                          <div className="text-slate-600 text-sm">Beds</div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg text-center">
+                          <div className="font-bold text-slate-800">{selectedProperty.baths}</div>
+                          <div className="text-slate-600 text-sm">Baths</div>
+                        </div>
+                        <div className="bg-slate-50 p-3 rounded-lg text-center">
+                          <div className="font-bold text-slate-800">{typeof selectedProperty.sqft === 'number' ? selectedProperty.sqft.toLocaleString() : selectedProperty.sqft}</div>
+                          <div className="text-slate-600 text-sm">Sq Ft</div>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t border-slate-200 pt-3">
+                        <div className="font-semibold text-slate-800 mb-2">Property Type</div>
+                        <div className="text-slate-600">{selectedProperty.type}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : locationData ? (
                 <>
                   <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-slate-200 animate-fadeIn">
                     <h2 className="text-xl font-semibold text-slate-800 mb-4">
                       Area Information: {locationData.zipCode}
                     </h2>
-       
+      
                     {/* Thick tabs with counters */}
                     <div className="flex border-b border-slate-200 mb-4">
                       <button
@@ -550,7 +616,7 @@ const Chat = () => {
                         📊 Market
                       </button>
                     </div>
-       
+      
                     {/* Tab Content */}
                     {activeTab && (
                       <div className="max-h-72 overflow-y-auto space-y-2 pr-2 animate-fadeIn">
@@ -567,7 +633,12 @@ const Chat = () => {
                           ) : properties.length > 0 ? (
                             <div className="grid grid-cols-2 gap-4">
                               {properties.slice(0, 6).map((property, index) => (
-                                <div key={index} className="bg-white rounded-lg border border-slate-200 overflow-hidden h-64 flex flex-col">
+                                <div 
+                                  key={index} 
+                                  onClick={() => setSelectedProperty(property)}
+                                  className="bg-white rounded-lg border border-slate-200 overflow-hidden h-64 flex flex-col transition-all duration-200 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+
+                                >
                                   {property.imgSrc ? (
                                     <div className="h-32 overflow-hidden">
                                       <img 
@@ -585,38 +656,42 @@ const Chat = () => {
                                     </div>
                                   )}
                                   <div className="p-3 flex-1 flex flex-col">
-                                    <div className="font-medium text-slate-800 text-lg">{typeof property.price === 'number' ? `$${property.price.toLocaleString()}` : property.price}</div>
-                                    <div className="text-xs text-slate-500 line-clamp-2 mb-1">{property.address}</div>
+                                    <div className="font-medium text-slate-800 text-lg">
+                                      {typeof property.price === 'number' ? `$${property.price.toLocaleString()}` : property.price}
+                                    </div>
+                                    <div className="text-xs text-slate-700 line-clamp-2 mb-1">{property.address}</div>
                                     <div className="flex flex-wrap gap-2 mt-auto">
-                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs">{property.beds} beds</span>
-                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs">{property.baths} baths</span>
-                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs">{typeof property.sqft === 'number' ? `${property.sqft.toLocaleString()} sqft` : `${property.sqft} sqft`}</span>
+                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-700">{property.beds} beds</span>
+                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-700">{property.baths} baths</span>
+                                      <span className="px-2 py-1 bg-slate-100 rounded text-xs text-slate-700">
+                                        {typeof property.sqft === 'number' ? `${property.sqft.toLocaleString()} sqft` : `${property.sqft} sqft`}
+                                      </span>
                                     </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <div className="text-slate-500 text-sm p-2">No properties found in this area.</div>
+                            <div className="text-slate-700 text-sm p-2">No properties found in this area.</div>
                           )
                         )}
-       
+      
                         {/* Restaurants Tab */}
                         {activeTab === 'restaurants' && (
                           locationData.restaurants.length > 0 ? (
                             locationData.restaurants.slice(0, 5).map((restaurant, index) => (
-                              <div key={index} className="p-2 bg-white rounded-lg border border-slate-200">
+                              <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
                                 <div className="font-medium text-slate-800">{restaurant.title}</div>
-                                <div className="text-sm text-slate-500">{restaurant.address}</div>
+                                <div className="text-sm text-slate-700">{restaurant.address}</div>
                                 {restaurant.distance && (
-                                  <div className="text-sm text-slate-600 mt-1">
+                                  <div className="text-sm text-slate-700 mt-1">
                                     {restaurant.distance.toFixed(1)} miles away
                                   </div>
                                 )}
                               </div>
                             ))
                           ) : (
-                            <div className="text-slate-500 text-sm p-2">No restaurants found nearby.</div>
+                            <div className="text-slate-700 text-sm p-2">No restaurants found nearby.</div>
                           )
                         )}
                         
@@ -624,21 +699,21 @@ const Chat = () => {
                         {activeTab === 'transit' && (
                           locationData.transit.length > 0 ? (
                             locationData.transit.slice(0, 5).map((station, index) => (
-                              <div key={index} className="p-2 bg-white rounded-lg border border-slate-200">
+                              <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
                                 <div className="font-medium text-slate-800">{station.title}</div>
-                                <div className="text-sm text-slate-500">{station.address}</div>
+                                <div className="text-sm text-slate-700">{station.address}</div>
                                 {station.distance && (
-                                  <div className="text-sm text-slate-600 mt-1">
+                                  <div className="text-sm text-slate-700 mt-1">
                                     {station.distance.toFixed(1)} miles away
                                   </div>
                                 )}
                               </div>
                             ))
                           ) : (
-                            <div className="text-slate-500 text-sm p-2">No transit stations found nearby.</div>
+                            <div className="text-slate-700 text-sm p-2">No transit stations found nearby.</div>
                           )
                         )}
-       
+      
                         {/* Market Tab */}
                         {activeTab === 'market' && (
                           <div className="p-4 bg-white rounded-xl border border-slate-200">
@@ -652,21 +727,21 @@ const Chat = () => {
                             </div>
                             <div className="space-y-2">
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-600">Median Home Price</span>
+                                <span className="text-slate-700">Median Home Price</span>
                                 <div>
                                   <span className="font-medium text-slate-800">$785,000</span>
                                   <span className="ml-2 text-emerald-600 text-sm">+3.2%</span>
                                 </div>
                               </div>
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-600">Days on Market</span>
+                                <span className="text-slate-700">Days on Market</span>
                                 <div>
                                   <span className="font-medium text-slate-800">24 days</span>
                                   <span className="ml-2 text-rose-600 text-sm">-5%</span>
                                 </div>
                               </div>
                               <div className="flex justify-between items-center">
-                                <span className="text-slate-600">Buyer Demand</span>
+                                <span className="text-slate-700">Buyer Demand</span>
                                 <span className="font-medium text-slate-800">High</span>
                               </div>
                             </div>
@@ -675,7 +750,7 @@ const Chat = () => {
                       </div>
                     )}
                   </div>
-       
+      
                   {/* Links/Actions Panel */}
                   <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl p-6 border border-slate-200">
                     <h2 className="text-xl font-semibold text-slate-800 mb-4">Explore More</h2>
@@ -709,6 +784,8 @@ const Chat = () => {
               )}
             </div>
           </div>
+
+
           <style jsx global>{`
             @keyframes fadeIn {
               from { opacity: 0; }
@@ -726,6 +803,6 @@ const Chat = () => {
             }
           `}</style>
         </div>
-       );
+      );
     }
 export default Chat;
