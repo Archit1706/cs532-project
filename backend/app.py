@@ -10,6 +10,9 @@ from geopy.distance import geodesic
 import uuid
 import logging
 from flask_cors import CORS
+import http.client
+import json
+import urllib.parse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -164,6 +167,82 @@ def search_nearby_places(location, query_type="Restaurants"):
         logger.error(f"Error in search: {str(e)}")
         return {"error": str(e), "results": []}
 
+
+# get api_key from https://rapidapi.com/s.mahmoud97/api/zillow56/playground/apiendpoint_444379e9-126c-4fd2-b584-1c9c355e3d8f
+def search_nearby_houses(zipcode, query_type="house"):
+    logger.info(f"Searching for {query_type} near {zipcode}")
+    
+    if not isinstance(zipcode, str) or not zipcode.isdigit() or len(zipcode) != 5:
+        return {"error": "Please input 5 digits zipcode.", "results": []}
+    
+    zillowapi_key = os.environ.get('ZILLOW_KEY')
+    if not zillowapi_key:
+        return {"error": "Missing Zillow API key", "results": []}
+        
+    # Try with zip code in the format of "zipcode, USA"
+    location = f"{zipcode}, USA"
+    
+    params = {
+        "location": location,
+        "output": "json",
+        "status": "forSale",
+        "sortSelection": "priorityscore",
+        "listing_type": "by_agent",
+        "doz": "any"
+    }
+    
+    query_string = urllib.parse.urlencode(params)
+    request_path = f"/search?{query_string}"
+    
+    logger.info(f"Zillow API request path: {request_path}")
+    
+    headers = {
+        'x-rapidapi-key': zillowapi_key,
+        'x-rapidapi-host': "zillow56.p.rapidapi.com"
+    }
+    
+    try:
+        conn = http.client.HTTPSConnection("zillow56.p.rapidapi.com")
+        conn.request("GET", request_path, headers=headers)
+        response = conn.getresponse()
+        
+        # Log response status
+        logger.info(f"Zillow API response status: {response.status}")
+        
+        data = response.read().decode('utf-8')
+        
+        # Log a snippet of the response for debugging
+        logger.info(f"Zillow API response snippet: {data[:200]}...")
+        
+        formatted_results = json.loads(data)
+        
+        # Check if we got any results
+        results_count = len(formatted_results.get("results", []))
+        logger.info(f"Zillow API returned {results_count} results")
+        
+        if results_count == 0:
+            logger.warning("No properties found from Zillow API")
+        
+        property_listings = []
+        for property in formatted_results.get("results", []):
+            listing = {
+                "address": f"{property.get('streetAddress', 'N/A')}, {property.get('city', 'N/A')}, {property.get('state', 'N/A')} {property.get('zipcode', 'N/A')}",
+                "price": property.get("price", "N/A"),
+                "beds": property.get("bedrooms", "N/A"),
+                "baths": property.get("bathrooms", "N/A"),
+                "sqft": property.get("livingArea", "N/A"),
+                "type": property.get("homeType", "N/A"),
+                "imgSrc": property.get("imgSrc", ""),
+                "zpid": property.get("zpid", "")
+            }
+            property_listings.append(listing)
+        
+        return {"results": property_listings}
+    except Exception as e:
+        logger.error(f"Error in Zillow search: {str(e)}")
+        return {"error": str(e), "results": []}
+    
+    
 # Simple mock data for property examples
 property_examples = [
     {
@@ -222,6 +301,34 @@ def location():
         
     except Exception as e:
         error_message = f"Unexpected error in location endpoint: {str(e)}"
+        logger.error(error_message)
+        return jsonify({
+            "error": error_message,
+            "results": []
+        }), 500
+    
+
+
+
+@app.route('/api/properties', methods=['POST'])
+def properties():
+    try:
+        data = request.json
+        logger.info(f"Received property search request: {data}")
+        
+        zip_code = data.get('zipCode')
+        
+        if not zip_code or not zip_code.isdigit() or len(zip_code) != 5:
+            return jsonify({"error": "Invalid zip code", "results": []}), 400
+            
+        # Search for properties
+        results = search_nearby_houses(zip_code)
+        logger.info(f"Found {len(results.get('results', []))} properties")
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        error_message = f"Unexpected error in properties endpoint: {str(e)}"
         logger.error(error_message)
         return jsonify({
             "error": error_message,
