@@ -102,7 +102,7 @@ def get_lat_long(address):
         return None
 
 
-# get api from https://rapidapi.com/s.mahmoud97/api/zillow56/playground/apiendpoint_444379e9-126c-4fd2-b584-1c9c355e3d8f
+# get api_key from https://rapidapi.com/s.mahmoud97/api/zillow56/playground/apiendpoint_444379e9-126c-4fd2-b584-1c9c355e3d8f
 def search_nearby_houses(zipcode, query_type="house"):
     logger.info(f"Searching for {query_type} near {zipcode}")
     
