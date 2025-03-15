@@ -10,6 +10,9 @@ from geopy.distance import geodesic
 import uuid
 import logging
 from flask_cors import CORS
+import http.client
+import json
+import urllib.parse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -97,6 +100,62 @@ def get_lat_long(address):
             logger.info(f"Using fallback coordinates for {zip_code}")
             return zip_coords.get(zip_code)
         return None
+
+
+# get api from https://rapidapi.com/s.mahmoud97/api/zillow56/playground/apiendpoint_444379e9-126c-4fd2-b584-1c9c355e3d8f
+def search_nearby_houses(zipcode, query_type="house"):
+    logger.info(f"Searching for {query_type} near {zipcode}")
+    
+    # Check if location is a zip code
+    if isinstance(zipcode, str) and zipcode.isdigit() and len(zipcode) == 5:
+        zip_code = zipcode
+    else:
+        return {"error": "please input 5 digits zipcode. ", "results": []}
+    
+    # zillowAPI search
+    zillowapi_key = os.environ.get('ZILLOW_KEY')
+    if not zillowapi_key:
+        return {"error": "Missing zillow API key", "results": []}
+    params = {
+    "location": zip_code,
+    "output": "json",
+    "status": "forSale",
+    "sortSelection": "priorityscore",
+    "listing_type": "by_agent",
+    "doz": "any"
+    }
+    query_string = urllib.parse.urlencode(params)
+    request_path = f"/search?{query_string}"
+    headers = {
+        'x-rapidapi-key': zillowapi_key,
+        'x-rapidapi-host': "zillow56.p.rapidapi.com"
+    }
+    try:
+        conn = http.client.HTTPSConnection("zillow56.p.rapidapi.com")
+        conn.request("GET", request_path, headers=headers)
+        results = conn.getresponse()
+        formatted_results = results.read()
+        # Format results
+        formatted_results = json.loads(formatted_results)
+        property_listings = []
+        for property in formatted_results.get("results", []):
+            listing = {
+                "address": f"{property.get('streetAddress', 'N/A')}, {property.get('city', 'N/A')}, {property.get('state', 'N/A')} {property.get('zipcode', 'N/A')}",
+                "price": property.get("price", "N/A"),
+                "beds": property.get("bedrooms", "N/A"),
+                "baths": property.get("bathrooms", "N/A"),
+                "sqft": property.get("livingArea", "N/A"),
+                "type": property.get("homeType", "N/A"),
+            }
+            property_listings.append(listing)
+        return {
+            "results": property_listings
+        }
+    except Exception as e:
+        logger.error(f"Error in search: {str(e)}")
+        return {"error": str(e), "results": []}
+
+
 
 def search_nearby_places(location, query_type="Restaurants"):
     logger.info(f"Searching for {query_type} near {location}")
