@@ -1,102 +1,131 @@
-# Real Estate Chat Assistant
+# RealEstateAI
 
-This application integrates a real estate chatbot powered by Azure OpenAI into a Next.js frontend.
+A conversational AI platform for real estate inquiries, property searches, and market insights.
 
 ## Features
 
-- Intelligent AI chatbot for real estate queries
-- Property search functionality
+- AI chat assistant for real estate questions
+- Property listings by zip code
+- Nearby restaurants and transit information
 - Market trend analysis
-- Location-based searches
-- Session persistence for continuous conversations
+- Interactive property details
 
-## Architecture
+## Directory Structure
 
-The application consists of two main components:
+```
+cs532-project/
+├── backend/
+│   ├── app.py                 # Flask API 
+│   ├── property_retriever.py  # Property search functionality
+│   ├── requirements.txt       # Python dependencies
+│   └── .env                   # Environment variables (create this)
+├── app/
+│   ├── api/
+│   │   ├── chat/
+│   │   │   └── route.ts       # Chat API endpoint
+│   │   ├── health/
+│   │   │   └── route.ts       # Health check endpoint
+│   │   ├── location/
+│   │   │   └── route.ts       # Location search endpoint
+│   │   └── properties/
+│   │       └── route.ts       # Property listings endpoint
+│   ├── chat/
+│   │   └── page.tsx           # Main chat interface
+│   ├── find_homes/
+│   │   └── page.tsx           # Property search page
+│   ├── legal/
+│   │   └── page.tsx           # Legal information page
+│   ├── market-trends/
+│   │   └── page.tsx           # Market trends page
+│   ├── preferences/
+│   │   └── page.tsx           # User preferences page
+│   ├── onboarding/
+│   │   └── page.tsx           # User onboarding page
+│   ├── globals.css            # Global styles
+│   ├── layout.tsx             # App layout
+│   └── page.tsx               # Homepage
+├── public/                    # Static assets
+├── .env.local                 # Frontend environment variables
+├── next.config.js             # Next.js configuration
+├── package.json               # Node dependencies
+└── README.md                  # Project documentation
+```
 
-1. **Frontend**: Next.js React application
-2. **Backend**: Flask API with LLM integration
+## Requirements
 
-## Setup Instructions
+- Node.js 18+
+- Python 3.8+
+- API keys:
+  - Azure OpenAI
+  - SerpAPI
+  - Zillow (RapidAPI)
+  - Cloudflare R2 (optional)
 
-### Prerequisites
+## Setup
 
-- Node.js (v14+)
-- Python (v3.8+)
-- Azure OpenAI API access
-- SerpAPI key (for location searches)
-
-### Backend Setup
+### Backend
 
 1. Create a virtual environment:
    ```bash
+   cd backend
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
 2. Install dependencies:
    ```bash
-   pip install flask langchain geopy python-dotenv azure-openai google-search-results
+   pip install -r requirements.txt
    ```
 
-3. Create a `.env` file in the backend directory with your API keys (see `.env.example`).
+3. Create `.env` file with API keys:
+   ```
+   AZURE_OPENAI_VARE_KEY=your_key_here
+   AZURE_ENDPOINT=your_endpoint_here
+   SERPAPI_KEY=your_key_here
+   ZILLOW_KEY=your_key_here
+   CLOUDFLARE_ACCOUNT=account_id
+   CLOUDFLARE_KEY=access_key
+   CLOUDFLARE_SECRET=secret_key
+   ```
 
 4. Start the Flask server:
    ```bash
-   flask run
+   python app.py
    ```
 
-### Frontend Setup
+### Frontend
 
 1. Install dependencies:
    ```bash
    npm install
    ```
 
-2. Start the development server:
+2. Create `.env.local` file:
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:5000
+   ```
+
+3. Start the development server:
    ```bash
    npm run dev
    ```
 
-3. Open your browser and navigate to `http://localhost:3000`.
+4. Access the application at http://localhost:3000
 
-## Project Structure
+## Usage
 
-```
-├── backend/
-│   ├── app.py                 # Flask application
-│   ├── property_retriever.py  # Property search functionality
-│   └── requirements.txt       # Python dependencies
-│
-├── frontend/
-│   ├── components/            # React components
-│   ├── pages/                 # Next.js pages
-│   │   ├── index.tsx          # Home page
-│   │   ├── chat.tsx           # Chat interface
-│   │   └── api/               # API routes
-│   ├── public/                # Static assets
-│   └── package.json           # Node.js dependencies
-│
-└── README.md                  # Project documentation
-```
+1. Enter a 5-digit US zip code to view area information
+2. Chat with the AI assistant about real estate topics
+3. Click on properties to view detailed information
+4. Explore nearby restaurants and transit options
 
-## Integration Details
+## Technologies
 
-### LLM Integration
-
-The application uses Azure OpenAI's GPT models to provide intelligent responses to user queries. The integration happens through LangChain, which provides a framework for connecting with the Azure OpenAI API.
-
-### API Flows
-
-1. User sends a message from the frontend
-2. The message is sent to the Next.js API route
-3. The API route forwards the request to the Flask backend
-4. The Flask backend processes the message:
-   - For property searches, it uses the PropertyRetriever
-   - For location queries, it uses SerpAPI
-   - For general questions, it uses the Azure OpenAI LLM
-5. The response is sent back to the frontend
-6. The frontend displays the response to the user
+- **Frontend**: Next.js, React, Tailwind CSS
+- **Backend**: Flask, LangChain
+- **AI**: Azure OpenAI
+- **APIs**: SerpAPI (location data), Zillow/RapidAPI (property listings)
+- **Storage**: Cloudflare R2 (chat history)
 
 ## Future Improvements
 
