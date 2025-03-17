@@ -2,6 +2,8 @@
 
 A conversational AI platform for real estate inquiries, property searches, and market insights.
 
+![Screenshot from the website](https://github.com/Archit1706/cs532-project/blob/b3c8f1ef0725064c2bb3f15fe939987865140497/screenshot.png)
+
 ## Features
 
 - AI chat assistant for real estate questions
