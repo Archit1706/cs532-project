@@ -473,9 +473,12 @@ def chat():
         message = data.get('message', '')
         session_id = data.get('session_id')
         location_context = data.get('location_context', '')  # Get location context if provided
-        query_type = data.get('query_type', 'general')  # Get query classification
+        query_type = data.get('query_type', 'general')  # Get query classification using text classification
+        logger.info(f"Query classified as: {query_type} via text classification")
         
-        logger.info(f"Query classified as: {query_type}")
+        query_type = classify_query(message) # Update query_type with LLM classification
+        
+        logger.info(f"Query classified as: {query_type} via LLM")
         
         # Create a new session if none exists
         if not session_id or session_id not in chat_histories:
