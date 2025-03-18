@@ -92,7 +92,7 @@ const Chat = () => {
     };
 
     checkBackendStatus();
-    fetchLocationData('02108'); // Load default Boston data on mount
+    //fetchLocationData('02108'); // Load default Boston data on mount
   }, []);
 
   // Auto-scroll to bottom when messages change
@@ -105,6 +105,80 @@ const Chat = () => {
       }
     }
   }, [messages]);
+
+
+  // Add this function to classify queries and extract zip codes
+const analyzeUserQuery = (query: string) => {
+  // Extract zip code if present (5-digit number)
+  const zipCodeMatch = query.match(/\b(\d{5})\b/);
+  const extractedZipCode = zipCodeMatch ? zipCodeMatch[1] : null;
+  
+  // Auto-fill zip code field if found
+  if (extractedZipCode) {
+    setZipCode(extractedZipCode);
+    fetchLocationData(extractedZipCode);
+  }
+  
+  // Classify query type
+  let queryType = 'general';
+  
+  // FAQ patterns
+  const faqPatterns = [
+    /how (do|can|to|does)/i,
+    /what (is|are|should)/i,
+    /when (should|to|is)/i,
+    /where (can|to|should)/i,
+    /steps (to|for)/i,
+    /process/i,
+    /explain/i
+  ];
+  
+  // Regional info patterns
+  const regionalPatterns = [
+    /in (the )?([a-z\s]+)/i,
+    /near (the )?([a-z\s]+)/i,
+    /around (the )?([a-z\s]+)/i,
+    /neighborhood/i,
+    /area/i,
+    /community/i,
+    /market in/i,
+    /zip code/i,
+    /location/i,
+    /city/i
+  ];
+  
+  // Legal query patterns
+  const legalPatterns = [
+    /legal/i,
+    /law/i,
+    /regulation/i,
+    /tax(es)?/i,
+    /disclosure/i,
+    /contract/i,
+    /zoning/i,
+    /permit/i,
+    /inspection/i,
+    /liability/i,
+    /rights/i,
+    /required by law/i
+  ];
+  
+  // Check patterns
+  if (faqPatterns.some(pattern => pattern.test(query))) {
+    queryType = 'faq';
+  } else if (regionalPatterns.some(pattern => pattern.test(query))) {
+    queryType = 'regional';
+  } else if (legalPatterns.some(pattern => pattern.test(query))) {
+    queryType = 'legal';
+  }
+  
+  console.log(`Query classified as: ${queryType}, extracted zip code: ${extractedZipCode || 'none'}`);
+  
+  return {
+    queryType,
+    extractedZipCode
+  };
+};
 
   // Fetch location data based on zip code
   const fetchLocationData = async (zip: string) => {
@@ -276,6 +350,9 @@ const Chat = () => {
     e.preventDefault();
     if (!inputMessage.trim()) return;
 
+      // Analyze the query before sending
+      const analysis = analyzeUserQuery(inputMessage);
+
     // When creating user messages
     const userMessage: Message = {
       id: Date.now(), // Use timestamp instead of length
@@ -313,7 +390,8 @@ const Chat = () => {
         body: JSON.stringify({
           message: userMessage.content,
           session_id: sessionId,
-          location_context: locationContext
+          location_context: locationContext,
+          query_type: analysis.queryType // Add the query classification
         }),
       });
 

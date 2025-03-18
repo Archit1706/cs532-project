@@ -430,6 +430,39 @@ def save_chat():
 
 ##########################################################################################################################################
 
+# On the backend, add a function to classify queries with the LLM
+def classify_query(query):
+    try:
+        classification_prompt = f"""
+        Classify the following real estate question into exactly one of these categories:
+        - FAQ: General questions about processes, definitions, or explanations
+        - Regional: Questions about specific areas, neighborhoods, or locations
+        - Legal: Questions about laws, regulations, taxes, or legal requirements
+        
+        Question: {query}
+        
+        Classification (FAQ/Regional/Legal):
+        """
+        
+        messages = [{"role": "user", "content": classification_prompt}]
+        response = LLM.invoke(messages)
+        
+        # Extract classification from response
+        classification = response.content.strip().lower()
+        
+        if "faq" in classification:
+            return "faq"
+        elif "regional" in classification:
+            return "regional"
+        elif "legal" in classification:
+            return "legal"
+        else:
+            return "general"
+            
+    except Exception as e:
+        logger.error(f"Classification error: {str(e)}")
+        return "general"
+
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
@@ -440,6 +473,9 @@ def chat():
         message = data.get('message', '')
         session_id = data.get('session_id')
         location_context = data.get('location_context', '')  # Get location context if provided
+        query_type = data.get('query_type', 'general')  # Get query classification
+        
+        logger.info(f"Query classified as: {query_type}")
         
         # Create a new session if none exists
         if not session_id or session_id not in chat_histories:
@@ -500,8 +536,9 @@ def chat():
             else:
                 try:
                     # Direct call to LLM for general questions
+                    # When creating the system message, include the query type
                     messages = [
-                        {"role": "system", "content": "You are an expert real estate assistant named REbot. You help users find properties, answer real estate questions, and provide market insights. Be helpful, conversational, and informative."},
+                        {"role": "system", "content": f"You are an expert real estate assistant named REbot. You are handling a {query_type} question. You help users find properties, answer real estate questions, and provide market insights. Be helpful, conversational, and informative."},
                     ]
                     
                     # Add location context if provided
