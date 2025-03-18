@@ -13,6 +13,7 @@ from flask_cors import CORS
 import http.client
 import json
 import urllib.parse
+from transformers import MarianMTModel, MarianTokenizer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
