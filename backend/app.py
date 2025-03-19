@@ -14,6 +14,8 @@ import http.client
 import json
 import urllib.parse
 from transformers import MarianMTModel, MarianTokenizer
+import torch
+import time
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -22,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Dictionary to cache tokenizers and models (to avoid reloading for each request)
+translation_models = {}
 
 # Define prompts
 CONDENSE_PROMPT = PromptTemplate.from_template("""
@@ -335,7 +340,423 @@ def properties():
             "error": error_message,
             "results": []
         }), 500
+    
+##########################################################################################################################################
 
+# Translate functions
+##########################################################################################################################################
+
+
+# Function to get or load a translation model and tokenizer
+def get_translation_model(source_lang, target_lang):
+    model_key = f"{source_lang}-{target_lang}"
+    
+    # Handle English as source language directly
+    if source_lang == 'en':
+        model_name = f"Helsinki-NLP/opus-mt-en-{target_lang}"
+    # Handle English as target language directly
+    elif target_lang == 'en':
+        model_name = f"Helsinki-NLP/opus-mt-{source_lang}-en"
+    # Handle non-English to non-English by translating to English first
+    else:
+        return None  # Will handle this case with two separate translations
+    
+    # Check if the model is already loaded
+    if model_key not in translation_models:
+        try:
+            logger.info(f"Loading translation model: {model_name}")
+            tokenizer = MarianTokenizer.from_pretrained(model_name)
+            model = MarianMTModel.from_pretrained(model_name)
+            
+            translation_models[model_key] = {
+                "tokenizer": tokenizer,
+                "model": model
+            }
+            logger.info(f"Model {model_name} loaded successfully")
+        except Exception as e:
+            logger.error(f"Error loading translation model {model_name}: {str(e)}")
+            return None
+    
+    return translation_models[model_key]
+
+# Function to identify and preserve proper nouns
+def preserve_proper_nouns(text):
+    # Pattern for addresses, names of places, etc.
+    patterns = [
+        r'\b\d+\s+[A-Z][a-z]+\s+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Pl|Place)\b',  # Addresses
+        r'\b[A-Z][a-z]+\s+(?:Park|Square|Plaza|Center|Mall|Station|Restaurant)\b',  # Named places
+        r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'  # Proper names with 2-4 words
+    ]
+    
+    # Find all matches
+    proper_nouns = []
+    for pattern in patterns:
+        matches = re.finditer(pattern, text)
+        for match in matches:
+            proper_nouns.append((match.group(), match.start(), match.end()))
+    
+    # Sort by position to process from end to beginning (to avoid offset issues)
+    proper_nouns.sort(key=lambda x: x[1], reverse=True)
+    
+    # Replace proper nouns with placeholders
+    modified_text = text
+    replacements = {}
+    
+    for i, (noun, start, end) in enumerate(proper_nouns):
+        placeholder = f"__PROPER_NOUN_{i}__"
+        modified_text = modified_text[:start] + placeholder + modified_text[end:]
+        replacements[placeholder] = noun
+    
+    return modified_text, replacements
+
+# Function to restore proper nouns after translation
+def restore_proper_nouns(translated_text, replacements):
+    restored_text = translated_text
+    for placeholder, original in replacements.items():
+        restored_text = restored_text.replace(placeholder, original)
+    return restored_text
+
+# Main translation function
+def translate_text(text, source_lang, target_lang):
+    # Early return if languages are the same
+    if source_lang == target_lang:
+        return text
+    
+    try:
+        # Preserve proper nouns
+        modified_text, replacements = preserve_proper_nouns(text)
+        
+        # Direct translation if we have a model for this language pair
+        translation_model = get_translation_model(source_lang, target_lang)
+        
+        if translation_model:
+            # Translate text
+            tokenizer = translation_model["tokenizer"]
+            model = translation_model["model"]
+            
+            # Process markdown structure to preserve it
+            # Split text by code blocks and other markdown elements
+            # This is a simplified approach - real implementation would need more robust markdown parsing
+            text_chunks = []
+            is_code_block = False
+            current_chunk = ""
+            
+            for line in modified_text.split('\n'):
+                if line.strip().startswith('```'):
+                    if current_chunk:
+                        text_chunks.append((current_chunk, is_code_block))
+                        current_chunk = ""
+                    is_code_block = not is_code_block
+                    text_chunks.append((line, True))  # Treat markdown symbols as code
+                else:
+                    current_chunk += line + '\n'
+            
+            if current_chunk:
+                text_chunks.append((current_chunk, is_code_block))
+            
+            # Translate each non-code chunk
+            translated_chunks = []
+            for chunk, is_code in text_chunks:
+                if is_code:
+                    translated_chunks.append(chunk)  # Don't translate code or markdown symbols
+                else:
+                    # Split into smaller pieces if chunk is too large
+                    if len(chunk) > 500:
+                        sentences = chunk.split('. ')
+                        translated_sentences = []
+                        
+                        for sentence in sentences:
+                            if not sentence.strip():
+                                translated_sentences.append(sentence)
+                                continue
+                                
+                            inputs = tokenizer.encode(sentence, return_tensors="pt", max_length=512, truncation=True)
+                            outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
+                            translated_sentence = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                            translated_sentences.append(translated_sentence)
+                        
+                        translated_chunk = '. '.join(translated_sentences)
+                    else:
+                        inputs = tokenizer.encode(chunk, return_tensors="pt", max_length=512, truncation=True)
+                        outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
+                        translated_chunk = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    
+                    translated_chunks.append(translated_chunk)
+            
+            translated_text = ''.join(translated_chunks)
+            
+        else:
+            # Two-step translation: source -> English -> target
+            if source_lang != 'en':
+                # First translate to English
+                en_model = get_translation_model(source_lang, 'en')
+                if not en_model:
+                    logger.error(f"No translation model available for {source_lang} to en")
+                    return text
+                
+                tokenizer = en_model["tokenizer"]
+                model = en_model["model"]
+                
+                inputs = tokenizer.encode(modified_text, return_tensors="pt", max_length=512, truncation=True)
+                outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
+                english_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            else:
+                english_text = modified_text
+            
+            # Then translate from English to target
+            if target_lang != 'en':
+                target_model = get_translation_model('en', target_lang)
+                if not target_model:
+                    logger.error(f"No translation model available for en to {target_lang}")
+                    return text if source_lang == 'en' else english_text
+                
+                tokenizer = target_model["tokenizer"]
+                model = target_model["model"]
+                
+                inputs = tokenizer.encode(english_text, return_tensors="pt", max_length=512, truncation=True)
+                outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
+                translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            else:
+                translated_text = english_text
+        
+        # Restore proper nouns
+        final_text = restore_proper_nouns(translated_text, replacements)
+        return final_text
+        
+    except Exception as e:
+        logger.error(f"Translation error: {str(e)}")
+        return text  # Return original text on error
+    
+
+import requests
+import json   
+
+
+# Option 1: Use a free external translation API (more reliable for deployment)
+def translate_with_external_api(text, source_lang, target_lang):
+    """Use an external translation API (LibreTranslate) for more reliable service"""
+    try:
+        logger.info(f"Using external API to translate from {source_lang} to {target_lang}, text length: {len(text)}")
+        
+        # Use LibreTranslate or similar service
+        # Note: For production use, consider setting up your own LibreTranslate instance
+        # or using a paid service with an API key
+        api_url = "https://libretranslate.de/translate"
+        
+        # Convert language codes if needed (e.g., 'zh' to 'zh-CN')
+        lang_map = {
+            'zh': 'zh-CN',
+            'hi': 'hi', # Add if LibreTranslate uses a different code
+            'es': 'es',
+            'fr': 'fr',
+            'de': 'de',
+            'en': 'en'
+        }
+        
+        source = lang_map.get(source_lang, source_lang)
+        target = lang_map.get(target_lang, target_lang)
+        
+        payload = {
+            "q": text,
+            "source": source,
+            "target": target,
+            "format": "text",
+            "api_key": ""  # Add API key if you have one
+        }
+        
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
+        
+        if response.status_code != 200:
+            logger.error(f"External translation API error: {response.status_code}, {response.text}")
+            return None
+            
+        result = response.json()
+        translated_text = result.get("translatedText")
+        
+        if translated_text:
+            logger.info(f"Translation successful: {len(text)} chars → {len(translated_text)} chars")
+            return translated_text
+        else:
+            logger.error(f"Translation failed, no translated text returned: {result}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"External translation API error: {str(e)}")
+        return None
+
+# Option 2: Simple mock translation for testing - use this if the API is not working
+def mock_translate(text, source_lang, target_lang):
+    """Mock translation for testing purposes"""
+    logger.info(f"Using MOCK translation from {source_lang} to {target_lang}")
+    
+    # Just add a prefix to indicate "translation" happened
+    return f"[{target_lang}] {text}"
+
+# Option 3: Improved HuggingFace translation (use if you have GPU resources)
+def translate_with_huggingface(text, source_lang, target_lang):
+    """Use HuggingFace models for translation with improved error handling"""
+    try:
+        logger.info(f"Using HuggingFace to translate from {source_lang} to {target_lang}, text length: {len(text)}")
+        
+        # Import here to avoid loading unless needed
+        from transformers import MarianMTModel, MarianTokenizer
+        import torch
+        
+        # Set a flag to indicate if we're in testing mode
+        testing_mode = False
+        
+        if testing_mode:
+            logger.info("TESTING MODE: Using mock translation")
+            return mock_translate(text, source_lang, target_lang)
+        
+        # Handle language code mapping
+        lang_code_map = {
+            'en': 'en',
+            'es': 'es',
+            'fr': 'fr',
+            'de': 'de',
+            'hi': 'hi',
+            'zh': 'zh',
+        }
+        
+        source = lang_code_map.get(source_lang, source_lang)
+        target = lang_code_map.get(target_lang, target_lang)
+        
+        # Define model name based on source and target
+        if source == 'en':
+            model_name = f"Helsinki-NLP/opus-mt-en-{target}"
+        elif target == 'en':
+            model_name = f"Helsinki-NLP/opus-mt-{source}-en"
+        else:
+            # For language pairs without direct models, translate through English
+            logger.info(f"No direct {source}-{target} model, translating via English")
+            
+            # First translate to English
+            english_text = translate_with_huggingface(text, source, 'en')
+            if not english_text:
+                logger.error(f"Failed to translate {source} to en")
+                return None
+                
+            # Then translate from English to target
+            return translate_with_huggingface(english_text, 'en', target)
+        
+        logger.info(f"Loading translation model: {model_name}")
+        
+        try:
+            tokenizer = MarianTokenizer.from_pretrained(model_name)
+            model = MarianMTModel.from_pretrained(model_name)
+            
+            # Split text into chunks to handle long text
+            max_length = 512
+            words = text.split()
+            chunks = []
+            current_chunk = []
+            
+            for word in words:
+                current_chunk.append(word)
+                if len(' '.join(current_chunk)) > max_length:
+                    chunks.append(' '.join(current_chunk[:-1]))
+                    current_chunk = [current_chunk[-1]]
+            
+            if current_chunk:
+                chunks.append(' '.join(current_chunk))
+                
+            if not chunks:
+                chunks = [text]
+                
+            logger.info(f"Split text into {len(chunks)} chunks for translation")
+            
+            translated_chunks = []
+            for i, chunk in enumerate(chunks):
+                logger.info(f"Translating chunk {i+1}/{len(chunks)}")
+                tokens = tokenizer(chunk, return_tensors="pt", padding=True, truncation=True, max_length=max_length)
+                translated = model.generate(**tokens)
+                translated_text = tokenizer.batch_decode(translated, skip_special_tokens=True)[0]
+                translated_chunks.append(translated_text)
+            
+            result = ' '.join(translated_chunks)
+            logger.info(f"Translation successful: {len(text)} chars → {len(result)} chars")
+            return result
+            
+        except Exception as e:
+            logger.error(f"HuggingFace translation error for {model_name}: {str(e)}")
+            # Fall back to external API if HuggingFace fails
+            logger.info("Falling back to external translation API")
+            return translate_with_external_api(text, source_lang, target_lang)
+            
+    except Exception as e:
+        logger.error(f"Translation error: {str(e)}")
+        return None
+
+@app.route('/api/translate', methods=['POST'])
+def translate_api():
+    """API endpoint for translation with enhanced logging and fallbacks"""
+    start_time = time.time()
+    
+    try:
+        data = request.json
+        logger.info(f"📝 Received translation request: {data.get('sourceLanguage')} → {data.get('targetLanguage')}")
+        
+        text = data.get('text', '')
+        source_language = data.get('sourceLanguage', 'en')
+        target_language = data.get('targetLanguage', 'en')
+        
+        # Debug info
+        logger.info(f"Text length: {len(text)} characters")
+        logger.info(f"First 50 chars: {text[:50]}...")
+        
+        if not text:
+            logger.warning("Empty text received for translation")
+            return jsonify({"error": "Missing text to translate", "translatedText": ""}), 400
+            
+        # Always translate to the target language, regardless of input language
+        logger.info(f"🔄 Starting translation from {source_language} to {target_language}")
+        
+        # IMPORTANT: Choose which translation function to use based on your resources
+        # Option 1: External API (recommended for most deployments)
+        #translated_text = translate_with_external_api(text, source_language, target_language)
+        
+        # Option 2: Mock translation (for testing)
+        # translated_text = mock_translate(text, source_language, target_language)
+        
+        # Option 3: HuggingFace (if you have sufficient resources)
+        translated_text = translate_with_huggingface(text, source_language, target_language)
+        
+        # If translation failed, use original text
+        if translated_text is None:
+            logger.warning("❌ Translation failed, using original text")
+            translated_text = text
+            
+        elapsed_time = time.time() - start_time
+        logger.info(f"✅ Translation completed in {elapsed_time:.2f} seconds")
+        
+        return jsonify({
+            "translatedText": translated_text,
+            "sourceLanguage": source_language,
+            "targetLanguage": target_language,
+            "processingTime": f"{elapsed_time:.2f}s"
+        })
+        
+    except Exception as e:
+        elapsed_time = time.time() - start_time
+        error_message = f"❌ Translation error after {elapsed_time:.2f}s: {str(e)}"
+        logger.error(error_message)
+        
+        # Always return something usable, even on error
+        return jsonify({
+            "error": error_message,
+            "translatedText": data.get('text', '') if 'data' in locals() else "",
+            "sourceLanguage": data.get('sourceLanguage', 'unknown') if 'data' in locals() else "unknown",
+            "targetLanguage": data.get('targetLanguage', 'unknown') if 'data' in locals() else "unknown"
+        }), 500
+
+##########################################################################################################################################
+
+# R2 Storage Service
 ##########################################################################################################################################
 
 import json

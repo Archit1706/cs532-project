@@ -5,6 +5,7 @@ import Link from 'next/link';
 // At the top with other imports
 import ReactMarkdown from 'react-markdown';
 
+
 interface Message {
   id: number;
   type: 'user' | 'bot';
@@ -54,9 +55,12 @@ const Chat = () => {
   const [isLoadingLocation, setIsLoadingLocation] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+// Add this to your Chat component's state declarations
+const [selectedLanguage, setSelectedLanguage] = useState('en');
+const [isTranslating, setIsTranslating] = useState(false);
 
   // Add to your state variables
-  const [activeTab, setActiveTab] = useState<'restaurants' | 'transit' | 'properties' | 'market' | null>('restaurants');
+  const [activeTab, setActiveTab] = useState<'restaurants' | 'transit' | 'properties' | 'market' | null>('properties');
   const [properties, setProperties] = useState<any[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState<boolean>(false);
 
@@ -69,6 +73,16 @@ const Chat = () => {
     sqft: number | string;
     type: string;
   }
+
+  const languageOptions = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'de', name: 'German' }
+  ];
+  
 
 
   // Check backend connectivity on component mount
@@ -105,6 +119,105 @@ const Chat = () => {
       }
     }
   }, [messages]);
+
+
+// Add this function to handle language selection
+const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  setSelectedLanguage(e.target.value);
+};
+
+// Language selector with translation indicator
+const LanguageSelectorWithIndicator = () => {
+  return (
+    <div className="p-3 border-t border-slate-200">
+      <div className="flex items-center justify-between">
+        <label htmlFor="language-select" className="block text-sm font-medium text-slate-700">
+          Chat Language:
+        </label>
+        {isTranslating && (
+          <div className="flex items-center text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+            <svg className="animate-spin -ml-1 mr-2 h-3 w-3 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Translating...
+          </div>
+        )}
+      </div>
+      <div className="relative mt-1">
+        <select
+          id="language-select"
+          value={selectedLanguage}
+          onChange={handleLanguageChange}
+          className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+          disabled={isTranslating}
+        >
+          {languageOptions.map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.name}
+            </option>
+          ))}
+        </select>
+        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700">
+          <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+// Add floating translation indicator (more visible)
+const TranslationIndicator = () => {
+  if (!isTranslating) return null;
+  
+  return (
+    <div className="fixed bottom-6 right-6 bg-white/90 backdrop-blur shadow-lg rounded-full px-4 py-2 flex items-center space-x-2 border border-blue-200 z-50 animate-pulse">
+      <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span className="text-blue-800 font-medium">Translating {selectedLanguage !== 'en' ? 'to ' + languageOptions.find(l => l.code === selectedLanguage)?.name : ''}...</span>
+    </div>
+  );
+};
+
+// Add this helper function for translating text
+const translateText = async (text: string, sourceLanguage: string, targetLanguage: string) => {
+  // Skip translation if source and target are the same
+  if (sourceLanguage === targetLanguage) {
+    return text;
+  }
+
+  setIsTranslating(true);
+  try {
+    const response = await fetch('/api/translate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        sourceLanguage,
+        targetLanguage
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Translation failed');
+    }
+
+    const data = await response.json();
+    return data.translatedText;
+  } catch (error) {
+    console.error('Translation error:', error);
+    return text; // Return original text on error
+  } finally {
+    setIsTranslating(false);
+  }
+};
 
 
   // Add this function to classify queries and extract zip codes
@@ -349,96 +462,155 @@ const analyzeUserQuery = (query: string) => {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputMessage.trim()) return;
-
-      // Analyze the query before sending
-      const analysis = analyzeUserQuery(inputMessage);
-
-    // When creating user messages
+  
+    // Analyze the query before sending
+    const analysis = analyzeUserQuery(inputMessage);
+  
+    // Create user message with original input
     const userMessage: Message = {
-      id: Date.now(), // Use timestamp instead of length
+      id: Date.now(),
       type: 'user',
       content: inputMessage
     };
-
+  
+    // Update UI immediately with user's message
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsLoading(true);
-
+  
     try {
-      // Prepare location context to send to the LLM
+      console.log(`🗣️ Processing message in ${selectedLanguage} mode`);
+      
+      // Step 1: Translate user message to English if needed for LLM processing
+      let translatedUserMessage = inputMessage;
+      let sourceLanguageDetected = selectedLanguage; // Assume input is in selected language
+      
+      if (selectedLanguage !== 'en') {
+        setIsTranslating(true);
+        console.log(`🔄 Translating user input from ${selectedLanguage} to English for processing`);
+        
+        try {
+          const translationResponse = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: inputMessage,
+              sourceLanguage: selectedLanguage,
+              targetLanguage: 'en'
+            }),
+          });
+          
+          const translationData = await translationResponse.json();
+          if (translationData.translatedText) {
+            translatedUserMessage = translationData.translatedText;
+            console.log(`✅ Input translated to English: "${translatedUserMessage.substring(0, 50)}..."`);
+          } else {
+            console.warn(`⚠️ Input translation failed, using original: "${inputMessage.substring(0, 50)}..."`);
+          }
+        } catch (translationError) {
+          console.error('❌ Input translation error:', translationError);
+          // Continue with original message if translation fails
+        } finally {
+          setIsTranslating(false);
+        }
+      }
+  
+      // Prepare location context
       let locationContext = '';
       if (locationData) {
         locationContext = `User's location: Zip code ${locationData.zipCode}. `;
-
         if (locationData.restaurants.length > 0) {
           locationContext += `Nearby restaurants: ${locationData.restaurants.slice(0, 3).map(r => r.title).join(', ')}. `;
         }
-
         if (locationData.transit.length > 0) {
           locationContext += `Nearby transit: ${locationData.transit.slice(0, 3).map(t => t.title).join(', ')}. `;
         }
       }
-
-      console.log('Sending message to backend with location context:', locationContext);
-
-      // Make API call to the Next.js API route
+  
+      // Step 2: Send translated message to LLM
+      console.log(`🤖 Sending to LLM: query_type=${analysis.queryType}`);
+      
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMessage.content,
+          message: translatedUserMessage, // Use the translated message
           session_id: sessionId,
           location_context: locationContext,
-          query_type: analysis.queryType // Add the query classification
+          query_type: analysis.queryType
         }),
       });
-
-      console.log('Response status:', response.status);
-
+  
       if (!response.ok) {
         throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
       }
-
+  
       const data = await response.json();
-      console.log('Response data:', data);
-
-      // Save the session ID if it's the first message
+      console.log('✅ Received LLM response');
+  
+      // Save session ID if needed
       if (!sessionId && data.session_id) {
         setSessionId(data.session_id);
       }
-
-      // Format the bot message
-      // When creating bot messages
+  
+      // Step 3: Translate LLM response to selected language
+      let translatedResponse = data.response;
+      
+      // Always translate to selected language, even if input was in English
+      if (selectedLanguage !== 'en') {
+        console.log(`🔄 Translating LLM response from English to ${selectedLanguage}`);
+        setIsTranslating(true);
+        
+        try {
+          const responseTranslation = await fetch('/api/translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: data.response,
+              sourceLanguage: 'en',
+              targetLanguage: selectedLanguage
+            }),
+          });
+          
+          const responseTranslationData = await responseTranslation.json();
+          if (responseTranslationData.translatedText) {
+            translatedResponse = responseTranslationData.translatedText;
+            console.log(`✅ Response translated to ${selectedLanguage}`);
+          } else {
+            console.warn('⚠️ Response translation failed, using original English response');
+          }
+        } catch (translationError) {
+          console.error('❌ Response translation error:', translationError);
+          // Continue with original response if translation fails
+        } finally {
+          setIsTranslating(false);
+        }
+      }
+  
+      // Step 4: Display the translated response
       const botMessage: Message = {
-        id: Date.now() + 1, // Ensure uniqueness
+        id: Date.now() + 1,
         type: 'bot',
-        content: data.response
+        content: translatedResponse
       };
-
-      //setMessages(prev => [...prev, botMessage]);
-
-      // After receiving the response and updating messages
+  
       setMessages(prev => {
         const updatedMessages = [...prev, botMessage];
-        // Automatically save chat history after updating messages
+        // Save chat history after updating messages
         saveChatHistory(updatedMessages);
         return updatedMessages;
-      }
-
-      );
-
+      });
+  
     } catch (error) {
-      console.error('Error sending message:', error);
-
-      // Show detailed error message
+      console.error('❌ Error in message flow:', error);
+      
+      // Show error message
       const errorMessage: Message = {
-        id: messages.length + 2,
+        id: Date.now() + 2,
         type: 'bot',
         content: `Error: I couldn't process your request. ${error instanceof Error ? error.message : 'Please try again later.'}`
       };
-
+  
       setMessages(prev => [...prev, errorMessage]);
       setBackendStatus('error');
     } finally {
@@ -478,36 +650,77 @@ const analyzeUserQuery = (query: string) => {
         {/* Left Panel: Chat UI */}
         <div className="w-2/5">
           <div className="bg-white/70 backdrop-blur-lg rounded-2xl shadow-xl border border-slate-200 flex flex-col h-[600px]">
+
+
             {/* Messages Container */}
-            <div id="chat-container" className="flex-1 overflow-y-auto p-6 space-y-4 chat-scroll">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`max-w-[80%] p-4 rounded-2xl ${message.type === 'user'
-                      ? 'bg-slate-900 text-white rounded-tr-none'
-                      : 'bg-white/95 text-slate-800 border border-slate-200 rounded-tl-none'
-                      }`}
-                  >
-                    {formatMessageContent(message.content)}
-                  </div>
-                </div>
-              ))}
-              {isLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-white/95 border border-slate-200 p-4 rounded-2xl rounded-tl-none">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-                      <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+<div id="chat-container" className="flex-1 overflow-y-auto p-6 space-y-4 chat-scroll">
+  {messages.map((message) => (
+    <div
+      key={message.id}
+      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+    >
+      <div
+        className={`max-w-[80%] p-4 rounded-2xl ${message.type === 'user'
+          ? 'bg-slate-900 text-white rounded-tr-none'
+          : 'bg-white/95 text-slate-800 border border-slate-200 rounded-tl-none'
+          }`}
+      >
+        {formatMessageContent(message.content)}
+      </div>
+    </div>
+  ))}
+  {isLoading && (
+    <div className="flex justify-start">
+      <div className="bg-white/95 border border-slate-200 p-4 rounded-2xl rounded-tl-none">
+        <div className="flex space-x-2">
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+        </div>
+      </div>
+    </div>
+  )}
+  {isTranslating && (
+    <div className="text-center text-sm text-slate-500 mt-2">
+      <div className="inline-flex items-center">
+        <span>Translating</span>
+        <span className="ml-1 flex space-x-1">
+          <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+          <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+          <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+        </span>
+      </div>
+    </div>
+  )}
+  <div ref={messagesEndRef} />
+</div>
+
+{/* Language Selector */}
+<div className="p-3 border-t border-slate-200">
+  <label htmlFor="language-select" className="block text-sm font-medium text-slate-700 mb-1">
+    Chat Language:
+  </label>
+  <div className="relative">
+    <select
+      id="language-select"
+      value={selectedLanguage}
+      onChange={handleLanguageChange}
+      className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+    >
+      {languageOptions.map((lang) => (
+        <option key={lang.code} value={lang.code}>
+          {lang.name}
+        </option>
+      ))}
+    </select>
+    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-700">
+      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+      </svg>
+    </div>
+  </div>
+</div>
+
 
             {/* Quick question buttons */}
             <div className="p-3 border-t border-slate-200 flex flex-wrap gap-2">
@@ -578,6 +791,8 @@ const analyzeUserQuery = (query: string) => {
                     />
                   </div>
                 </div>
+
+
               </div>
             </div>
           </div>
@@ -858,7 +1073,7 @@ const analyzeUserQuery = (query: string) => {
           )}
         </div>
       </div>
-
+      <TranslationIndicator />
 
       <style jsx global>{`
             @keyframes fadeIn {
