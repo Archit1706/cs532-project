@@ -2,6 +2,8 @@
 import json
 import os
 from typing import Dict, List, Any, Optional
+import requests
+import statistics
 
 class PropertyRetriever:
     """
@@ -142,39 +144,210 @@ class PropertyRetriever:
             location: City or neighborhood
             
         Returns:
-            Market trend data
+            A dictionary containing all computed market trend data.
         """
-        # In a real implementation, this would call an external API or database
-        if "boston" in location.lower():
-            return {
-                "median_price": 785000,
-                "price_change_percent": 3.2,
-                "days_on_market": 24,
-                "inventory_count": 142,
-                "inventory_change_percent": -5.3,
-                "price_per_sqft": 675,
-                "trend": "Seller's market"
+        url = "https://zillow56.p.rapidapi.com/market_data"
+        querystring = {"location": location}
+        headers = {
+            "x-rapidapi-key": "36c8c52dc3mshbb39ff413419e97p100586jsn4a24c1387fbd",
+            "x-rapidapi-host": "zillow56.p.rapidapi.com"
+        }
+
+        response = requests.get(url, headers=headers, params=querystring)
+        json_data = response.json()  # Parse JSON response
+        properties = json_data.get("results", [])
+
+        # Initialize lists for our metrics
+        prices = []
+        price_per_sqft = []
+        bedrooms = []
+        bathrooms = []
+        living_areas = []
+        lot_sizes = []
+        tax_assessed_values = []
+        zestimates = []
+        price_to_assessed_ratios = []
+        price_reductions = []
+        rent_zestimates = []
+        time_on_zillow_list = []
+        latitudes = []
+        longitudes = []
+        rental_yields = []  # list of tuples (rental yield, property)
+
+        property_type_counts = {}  # Count of each property type
+
+        # Loop over each property and collect data
+        for prop in properties:
+            # Price
+            price = prop.get("price")
+            if price is not None:
+                prices.append(price)
+
+            # Price per square foot (only if livingArea is nonzero)
+            living_area = prop.get("livingArea", 0)
+            if living_area and price is not None:
+                price_per_sqft.append(price / living_area)
+            
+            # Bedrooms and bathrooms
+            bd = prop.get("bedrooms")
+            if bd is not None:
+                bedrooms.append(bd)
+            ba = prop.get("bathrooms")
+            if ba is not None:
+                bathrooms.append(ba)
+            
+            # For largest property (by livingArea)
+            if living_area:
+                living_areas.append(living_area)
+            
+            # Lot sizes (if available)
+            lot_size = prop.get("lotAreaValue")
+            if lot_size is not None:
+                lot_sizes.append(lot_size)
+            
+            # Tax-assessed value and price-to-assessed value ratio
+            tax_val = prop.get("taxAssessedValue")
+            if tax_val is not None:
+                tax_assessed_values.append(tax_val)
+                if price and tax_val != 0:
+                    price_to_assessed_ratios.append(price / tax_val)
+            
+            # Zestimate (if available)
+            if "zestimate" in prop and prop.get("zestimate") is not None:
+                zestimates.append(prop.get("zestimate"))
+            
+            # Price reductions: use the 'priceChange' field if negative
+            price_change = prop.get("priceChange")
+            if price_change is not None and isinstance(price_change, (int, float)) and price_change < 0:
+                price_reductions.append(abs(price_change))
+            
+            # Rental info (rentZestimate)
+            rent_z = prop.get("rentZestimate")
+            if rent_z is not None:
+                rent_zestimates.append(rent_z)
+                if price and price > 0:
+                    # Compute annual rental yield (as a ratio)
+                    rental_yield = (rent_z * 12) / price
+                    rental_yields.append((rental_yield, prop))
+            
+            # Time on Zillow for market activity
+            time_on = prop.get("timeOnZillow")
+            if time_on is not None:
+                time_on_zillow_list.append(time_on)
+            
+            # Latitude and longitude for location specifics
+            lat = prop.get("latitude")
+            if lat is not None:
+                latitudes.append(lat)
+            lon = prop.get("longitude")
+            if lon is not None:
+                longitudes.append(lon)
+            
+            # Count property types
+            home_type = prop.get("homeType")
+            if home_type is not None:
+                property_type_counts[home_type] = property_type_counts.get(home_type, 0) + 1
+
+        # -------------------------------
+        # Compute Metrics
+
+        # Price Metrics
+        lowest_price = min(prices) if prices else None
+        highest_price = max(prices) if prices else None
+        median_price = statistics.median(prices) if prices else None
+        min_price_per_sqft = min(price_per_sqft) if price_per_sqft else None
+        max_price_per_sqft = max(price_per_sqft) if price_per_sqft else None
+
+        # Size and Specifications
+        avg_bedrooms = statistics.mean(bedrooms) if bedrooms else None
+        avg_bathrooms = statistics.mean(bathrooms) if bathrooms else None
+        largest_property_area = max(living_areas) if living_areas else None
+        avg_lot_size = statistics.mean(lot_sizes) if lot_sizes else None
+
+        # Average condo size: compute average livingArea for properties where homeType == "CONDO"
+        condo_areas = [prop.get("livingArea") for prop in properties 
+                    if prop.get("homeType") == "CONDO" and prop.get("livingArea", 0) > 0]
+        avg_condo_size = statistics.mean(condo_areas) if condo_areas else None
+
+        # Price Reductions
+        num_price_reductions = len(price_reductions)
+        largest_price_reduction = max(price_reductions) if price_reductions else None
+        avg_price_reduction = statistics.mean(price_reductions) if price_reductions else None
+
+        # Property Valuation
+        avg_tax_assessed_value = statistics.mean(tax_assessed_values) if tax_assessed_values else None
+        avg_zestimate = statistics.mean(zestimates) if zestimates else None
+        avg_price_to_assessed_ratio = statistics.mean(price_to_assessed_ratios) if price_to_assessed_ratios else None
+
+        # Rental Potential
+        avg_rent_zestimate = statistics.mean(rent_zestimates) if rent_zestimates else None
+        # Determine best rental yield opportunity (highest yield)
+        best_rental = max(rental_yields, key=lambda x: x[0]) if rental_yields else (None, None)
+
+        # Market Activity
+        most_recent_listing = min(time_on_zillow_list) if time_on_zillow_list else None
+        longest_listing = max(time_on_zillow_list) if time_on_zillow_list else None
+
+        # Location Specifics
+        lat_range = (min(latitudes), max(latitudes)) if latitudes else (None, None)
+        lon_range = (min(longitudes), max(longitudes)) if longitudes else (None, None)
+        num_concentrated = len(latitudes) if latitudes else None
+
+        # -------------------------------
+        # Create a results dictionary to return all metrics
+        results = {
+            "price_metrics": {
+                "lowest_price": lowest_price,
+                "highest_price": highest_price,
+                "median_price": median_price,
+                "price_per_sqft_range": {
+                    "min": min_price_per_sqft,
+                    "max": max_price_per_sqft
+                }
+            },
+            "property_type_distribution": property_type_counts,
+            "size_and_specifications": {
+                "avg_bedrooms": avg_bedrooms,
+                "min_bedrooms": min(bedrooms) if bedrooms else None,
+                "max_bedrooms": max(bedrooms) if bedrooms else None,
+                "avg_bathrooms": avg_bathrooms,
+                "min_bathrooms": min(bathrooms) if bathrooms else None,
+                "max_bathrooms": max(bathrooms) if bathrooms else None,
+                "largest_property_area": largest_property_area,
+                "avg_lot_size": avg_lot_size,
+                "avg_condo_size": avg_condo_size
+            },
+            "price_reductions": {
+                "num_price_reductions": num_price_reductions,
+                "largest_price_reduction": largest_price_reduction,
+                "avg_price_reduction": avg_price_reduction
+            },
+            "property_valuation": {
+                "avg_tax_assessed_value": avg_tax_assessed_value,
+                "avg_zestimate": avg_zestimate,
+                "avg_price_to_assessed_ratio": avg_price_to_assessed_ratio
+            },
+            "rental_potential": {
+                "avg_rent_zestimate": avg_rent_zestimate,
+                "best_rental": {
+                    "streetAddress": best_rental[1].get("streetAddress", "N/A") if best_rental[1] else None,
+                    "price": best_rental[1].get("price") if best_rental[1] else None,
+                    "rentZestimate": best_rental[1].get("rentZestimate") if best_rental[1] else None,
+                }
+            },
+            "market_activity": {
+                "most_recent_listing": most_recent_listing,
+                "longest_listing": longest_listing
+            },
+            "location_specifics": {
+                "latitude_range": lat_range,
+                "longitude_range": lon_range,
+                "num_properties_concentrated": num_concentrated
             }
-        elif "cambridge" in location.lower():
-            return {
-                "median_price": 812000,
-                "price_change_percent": 2.8,
-                "days_on_market": 18,
-                "inventory_count": 87,
-                "inventory_change_percent": -8.5,
-                "price_per_sqft": 780,
-                "trend": "Strong seller's market"
-            }
-        else:
-            return {
-                "median_price": 650000,
-                "price_change_percent": 1.5,
-                "days_on_market": 30,
-                "inventory_count": 215,
-                "inventory_change_percent": 2.1,
-                "price_per_sqft": 550,
-                "trend": "Balanced market"
-            }
+        }
+
+        return results
+
 
 # Example usage
 if __name__ == "__main__":
