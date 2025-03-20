@@ -533,49 +533,55 @@ import json
 
 
 # Option 1: Use a free external translation API (more reliable for deployment)
-def translate_with_external_api(text, source_lang, target_lang):
+def translate_with_external_api(text, source_lang, target_lang="en"):
     """Use an external translation API (LibreTranslate) for more reliable service"""
     try:
         logger.info(f"Using external API to translate from {source_lang} to {target_lang}, text length: {len(text)}")
-        
+
+        DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] # key go here
         # Use LibreTranslate or similar service
         # Note: For production use, consider setting up your own LibreTranslate instance
         # or using a paid service with an API key
-        api_url = "https://libretranslate.de/translate"
+        api_url = "https://api-free.deepl.com/v2/translate"
         
-        # Convert language codes if needed (e.g., 'zh' to 'zh-CN')
-        lang_map = {
-            'zh': 'zh-CN',
-            'hi': 'hi', # Add if LibreTranslate uses a different code
-            'es': 'es',
-            'fr': 'fr',
-            'de': 'de',
-            'en': 'en'
-        }
+        # # Convert language codes if needed (e.g., 'zh' to 'zh-CN')
+        # lang_map = {
+        #     'zh': 'zh-CN',
+        #     'hi': 'hi', # Add if LibreTranslate uses a different code
+        #     'es': 'es',
+        #     'fr': 'fr',
+        #     'de': 'de',
+        #     'en': 'en'
+        # }
         
-        source = lang_map.get(source_lang, source_lang)
-        target = lang_map.get(target_lang, target_lang)
-        
-        payload = {
-            "q": text,
-            "source": source,
-            "target": target,
-            "format": "text",
-            "api_key": ""  # Add API key if you have one
+        # source = lang_map.get(source_lang, source_lang)
+        # target = lang_map.get(target_lang, target_lang)
+        #
+        # payload = {
+        #     "q": text,
+        #     "source": source,
+        #     "target": target,
+        #     "format": "text",
+        #     "api_key": ""  # Add API key if you have one
+        # }
+        params = {
+            "auth_key": DEEPL_API_KEY,
+            "text": text,
+            "target_lang": target_lang
         }
         
         headers = {
             "Content-Type": "application/json"
         }
-        
-        response = requests.post(api_url, headers=headers, data=json.dumps(payload), timeout=30)
-        
+
+        response = requests.post(api_url, headers=headers, data=params, timeout=30)
+        # TODO : replace sync with async for multi user requests
         if response.status_code != 200:
             logger.error(f"External translation API error: {response.status_code}, {response.text}")
             return None
             
         result = response.json()
-        translated_text = result.get("translatedText")
+        translated_text = result["translations"][0]["text"]
         
         if translated_text:
             logger.info(f"Translation successful: {len(text)} chars → {len(translated_text)} chars")
@@ -586,7 +592,7 @@ def translate_with_external_api(text, source_lang, target_lang):
             
     except Exception as e:
         logger.error(f"External translation API error: {str(e)}")
-        return None
+        return
 
 # Option 2: Simple mock translation for testing - use this if the API is not working
 def mock_translate(text, source_lang, target_lang):
