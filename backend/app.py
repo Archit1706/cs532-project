@@ -759,6 +759,102 @@ def translate_api():
             "sourceLanguage": data.get('sourceLanguage', 'unknown') if 'data' in locals() else "unknown",
             "targetLanguage": data.get('targetLanguage', 'unknown') if 'data' in locals() else "unknown"
         }), 500
+    
+##########################################################################################################################################
+
+# FEATURE EXTRACTION
+########################################################################################
+
+# Add this function to backend/app.py to classify queries with more detailed features
+def extract_query_features(query):
+    try:
+        # Prepare the feature extraction prompt
+        extraction_prompt = f"""
+        You are a real estate assistant specialized in understanding user queries. Extract structured data from this query.
+        
+        For the following user query:
+        "{query}"
+        
+        Extract and return ONLY a JSON object with these fields:
+        
+        {{
+          "queryType": str,  // One of: "general", "property_search", "property_detail", "market_info", "legal", "preferences"
+          "zipCode": str or null,  // Any US zip code mentioned
+          "propertyFeatures": {{  // All property features mentioned
+            "bedrooms": int or [min, max] or null,
+            "bathrooms": int or [min, max] or null,
+            "squareFeet": int or [min, max] or null,
+            "propertyType": str or null,  // e.g., "house", "condo", "apartment"
+            "yearBuilt": int or [min, max] or null
+          }},
+          "locationFeatures": {{  // All location details mentioned
+            "neighborhood": str or null,
+            "city": str or null,
+            "proximity": {{
+              "to": str or null,  // What to be close to e.g., "downtown", "schools"
+              "distance": number or null,  // Numeric value
+              "unit": str or null  // "miles", "minutes", etc.
+            }}
+          }},
+          "actionRequested": str or null,  // e.g., "show_listings", "show_details", "analyze_market"
+          "filters": {{  // Any filtering criteria
+            "priceRange": [min, max] or null,
+            "amenities": [str] or null  // Array of requested amenities
+          }},
+          "sortBy": str or null  // e.g., "price_asc", "price_desc", "newest"
+        }}
+        
+        Always return valid JSON without explanation or other text. Use null for missing fields.
+        """
+        
+        messages = [{"role": "user", "content": extraction_prompt}]
+        
+        # Get response from LLM
+        response = LLM.invoke(messages)
+        
+        # Extract JSON from response
+        content = response.content.strip()
+        
+        # Log raw response for debugging
+        logger.info(f"Raw feature extraction: {content}")
+        
+        # Try to find JSON in the response
+        import re
+        import json
+        
+        json_match = re.search(r'\{[\s\S]*\}', content)
+        if json_match:
+            json_str = json_match.group(0)
+            features = json.loads(json_str)
+            
+            # Log extracted features
+            logger.info(f"Extracted features: {features}")
+            
+            return features
+        else:
+            logger.warning("No JSON found in LLM response")
+            return {
+                "queryType": "general",
+                "zipCode": None,
+                "propertyFeatures": {},
+                "locationFeatures": {},
+                "actionRequested": None,
+                "filters": {},
+                "sortBy": None
+            }
+            
+    except Exception as e:
+        logger.error(f"Feature extraction error: {str(e)}")
+        # Fallback to basic classification
+        return {
+            "queryType": classify_query(query),
+            "zipCode": None,
+            "propertyFeatures": {},
+            "locationFeatures": {},
+            "actionRequested": None,
+            "filters": {},
+            "sortBy": None
+        }
 
 ##########################################################################################################################################
 
@@ -890,8 +986,33 @@ def classify_query(query):
     except Exception as e:
         logger.error(f"Classification error: {str(e)}")
         return "general"
+    
+# Add to backend/app.py
+@app.route('/api/extract_features', methods=['POST'])
+def extract_features():
+    try:
+        data = request.json
+        logger.info(f"Feature extraction request: {data}")
+        
+        query = data.get('message', '')
+        
+        # Extract features from the query
+        features = extract_query_features(query)
+        
+        return jsonify({
+            "features": features,
+            "success": True
+        })
+    except Exception as e:
+        logger.error(f"Feature extraction error: {str(e)}")
+        return jsonify({
+            "features": None,
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
+# Modify in backend/app.py
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
@@ -900,13 +1021,9 @@ def chat():
         
         message = data.get('message', '')
         session_id = data.get('session_id')
-        location_context = data.get('location_context', '')  # Get location context if provided
-        query_type = data.get('query_type', 'general')  # Get query classification using text classification
-        logger.info(f"Query classified as: {query_type} via text classification")
-        
-        query_type = classify_query(message) # Update query_type with LLM classification
-        
-        logger.info(f"Query classified as: {query_type} via LLM")
+        location_context = data.get('location_context', '')
+        feature_context = data.get('feature_context', '')
+        is_system_query = data.get('is_system_query', False)
         
         # Create a new session if none exists
         if not session_id or session_id not in chat_histories:
@@ -914,92 +1031,92 @@ def chat():
             chat_histories[session_id] = []
             logger.info(f"Created new session: {session_id}")
         
-        # Log location context if provided
-        if location_context:
-            logger.info(f"Location context provided: {location_context}")
-        
-        # Check for location-related queries
-        if any(keyword in message.lower() for keyword in ['near', 'nearby', 'close to', 'around']):
-            logger.info("Processing location-related query")
-            # Extract address or use a default
-            address_parts = message.split('near')
-            if len(address_parts) > 1:
-                address = address_parts[1].strip()
-                query_type = "Properties" if "properties" in message.lower() else "Restaurants"
-                location_results = search_nearby_places(address, query_type)
-                
-                if "error" in location_results:
-                    response = location_results["error"]
-                    logger.warning(f"Location search error: {response}")
-                else:
-                    # Format the response with the top 3 results
-                    results = location_results["results"][:3]
-                    result_text = ""
-                    for i, place in enumerate(results, 1):
-                        name = place.get('title', 'Unknown')
-                        address = place.get('address', 'No address')
-                        distance = place.get('distance', 'Unknown')
-                        result_text += f"{i}. {name} - {address} - {distance} miles away\n"
-                    
-                    response = f"Here are some {query_type.lower()} near {address}:\n{result_text}"
-                    logger.info(f"Returning {len(results)} location results")
-            else:
-                response = "I need a specific address to find nearby places. Could you please provide one?"
-                logger.info("No address provided for location search")
-        
-        # Check for property search queries
-        elif any(term in message.lower() for term in ['find homes', 'search properties', 'looking for house', 'properties for sale']):
-            logger.info("Processing property search query")
-            # Simple property response using mock data
-            response = "Here are some properties that might interest you:\n\n"
-            for i, prop in enumerate(property_examples, 1):
-                response += f"{i}. {prop['address']} - {prop['price']} - {prop['beds']} bed, {prop['baths']} bath, {prop['sqft']} sqft\n"
-            logger.info("Returning mock property data")
-        
-        else:
-            logger.info("Processing general query with LLM")
-            # Use the LLM for general real estate queries
-            chat_history = chat_histories[session_id]
+        # For system queries, process differently
+        if is_system_query:
+            logger.info("Processing system query")
             
-            if not LLM:
-                response = "I'm sorry, but I'm currently unable to connect to the AI service. Please check back later."
-                logger.error("LLM not initialized, returning error message")
-            else:
-                try:
-                    # Direct call to LLM for general questions
-                    # When creating the system message, include the query type
-                    messages = [
-                        {"role": "system", "content": f"You are an expert real estate assistant named REbot. You are handling a {query_type} question. You help users find properties, answer real estate questions, and provide market insights. Be helpful, conversational, and informative."},
-                    ]
-                    
-                    # Add location context if provided
-                    if location_context:
-                        messages[0]["content"] += f"\n\nAdditional context: {location_context}"
-                    
-                    # Add chat history
-                    for user_msg, bot_msg in chat_history:
-                        messages.append({"role": "user", "content": user_msg})
-                        messages.append({"role": "assistant", "content": bot_msg})
-                    
-                    # Add current message
-                    messages.append({"role": "user", "content": message})
-                    
-                    logger.info(f"Sending {len(messages)} messages to LLM")
-                    
-                    # Get response from LLM
-                    response_obj = LLM.invoke(messages)
-                    response = response_obj.content
-                    logger.info("Received response from LLM")
-                except Exception as e:
-                    response = f"I'm sorry, I encountered an error while processing your request: {str(e)}"
-                    logger.error(f"Error calling LLM: {str(e)}")
+            # Direct call to LLM for system queries
+            try:
+                messages = [
+                    {"role": "system", "content": "You are a system processing component for real estate queries."},
+                    {"role": "user", "content": message}
+                ]
+                
+                logger.info(f"Sending system query to LLM")
+                response_obj = LLM.invoke(messages)
+                response = response_obj.content
+                logger.info("Received system response from LLM")
+                
+                # Do not update chat history for system queries
+                return jsonify({
+                    "session_id": session_id,
+                    "response": response
+                })
+            except Exception as e:
+                logger.error(f"Error in system query: {str(e)}")
+                return jsonify({
+                    "error": str(e),
+                    "session_id": session_id,
+                    "response": f"Error: {str(e)}"
+                }), 500
+        
+        # Extract features (even for normal queries)
+        try:
+            extracted_features = extract_query_features(message)
+            logger.info(f"Extracted features: {extracted_features}")
+            query_type = extracted_features.get('queryType', 'general')
+        except Exception as e:
+            logger.error(f"Feature extraction failed: {str(e)}")
+            extracted_features = {}
+            query_type = data.get('query_type', 'general')
+        
+        # Process normal user query
+        if LLM:
+            try:
+                # Enhanced system message with context
+                system_content = f"You are an expert real estate assistant named REbot. You are handling a {query_type} question."
+                
+                # Add feature context if available
+                if feature_context:
+                    system_content += f"\n\nExtracted features: {feature_context}"
+                
+                # Add location context if available
+                if location_context:
+                    system_content += f"\n\nLocation context: {location_context}"
+                
+                messages = [
+                    {"role": "system", "content": system_content},
+                ]
+                
+                # Add chat history
+                chat_history = chat_histories[session_id]
+                for user_msg, bot_msg in chat_history:
+                    messages.append({"role": "user", "content": user_msg})
+                    messages.append({"role": "assistant", "content": bot_msg})
+                
+                # Add current message
+                messages.append({"role": "user", "content": message})
+                
+                logger.info(f"Sending {len(messages)} messages to LLM")
+                
+                # Get response from LLM
+                response_obj = LLM.invoke(messages)
+                response = response_obj.content
+                logger.info("Received response from LLM")
+            except Exception as e:
+                response = f"I'm sorry, I encountered an error while processing your request: {str(e)}"
+                logger.error(f"Error calling LLM: {str(e)}")
+        else:
+            response = "I'm sorry, but I'm currently unable to connect to the AI service. Please try again later."
+            logger.error("LLM not initialized, returning error message")
         
         # Update chat history
         chat_histories[session_id].append((message, response))
         
         result = {
             "session_id": session_id,
-            "response": response
+            "response": response,
+            "extracted_features": extracted_features
         }
         logger.info(f"Returning response for session {session_id}")
         return jsonify(result)
@@ -1012,6 +1129,7 @@ def chat():
             "session_id": session_id if 'session_id' in locals() else None,
             "response": "I'm sorry, something went wrong. Please try again later."
         }), 500
+    
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

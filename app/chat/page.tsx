@@ -12,6 +12,249 @@ interface Message {
   content: string;
 }
 
+// Add this interface near the top of app/chat/page.tsx with other interfaces
+// Feature extraction interface
+interface FeatureExtraction {
+  queryType: 'general' | 'property_search' | 'property_detail' | 'market_info' | 'legal' | 'preferences';
+  propertyFeatures: {
+    bedrooms?: number | [number, number]; // Exact or range
+    bathrooms?: number | [number, number];
+    squareFeet?: number | [number, number];
+    propertyType?: string; // house, condo, apartment, etc.
+    yearBuilt?: number | [number, number];
+    amenities?: string[];
+    parking?: boolean | string;
+    newConstruction?: boolean;
+  };
+  locationFeatures: {
+    city?: string;
+    neighborhood?: string;
+    zipCode?: string;
+    proximity?: Array<{
+      to?: string; // schools, transit, downtown, etc.
+      distance?: number;
+      unit?: 'miles' | 'minutes' | string;
+    }>;
+  };
+  extractedZipCode?: string;
+  actionRequested?: 'show_listings' | 'show_details' | 'show_restaurants' | 'show_transit' | 'analyze_market' | null;
+  filters: {
+    priceRange?: [number, number];
+    maxPrice?: number;
+    minPrice?: number;
+    maxTaxes?: number;
+    mustHave?: string[];
+    mustNotHave?: string[];
+    schoolRating?: number;
+    walkScore?: number;
+    crimeRate?: string; // low, medium, high
+  };
+  sortBy?: 'price_asc' | 'price_desc' | 'newest' | 'oldest' | string;
+  timeFrame?: 'immediately' | 'within_month' | 'within_year' | string;
+}
+
+// The feature extractor function
+function extractRealEstateFeatures(query: string): FeatureExtraction {
+  console.log("Extracting features from query:", query);
+  
+  // Initialize extraction object
+  const extraction: FeatureExtraction = {
+    queryType: 'general',
+    propertyFeatures: {},
+    locationFeatures: {},
+    filters: {}
+  };
+  
+  // Normalize query for easier parsing
+  const normalizedQuery = query.toLowerCase();
+  
+  // Determine query type
+  if (/(show|find|list|search|looking for|properties|homes|houses|apartments)/i.test(query)) {
+    extraction.queryType = 'property_search';
+  } else if (/(market|trends|prices|appreciation|value)/i.test(query)) {
+    extraction.queryType = 'market_info';
+  } else if (/(legal|laws|regulations|taxes|tax|zoning)/i.test(query)) {
+    extraction.queryType = 'legal';
+  } else if (/(details|more about|tell me about|information on|specific)/i.test(query)) {
+    extraction.queryType = 'property_detail';
+  } else if (/(prefer|would like|want|looking for|my preferences)/i.test(query)) {
+    extraction.queryType = 'preferences';
+  }
+  
+  // Extract bedrooms
+  const bedroomMatches = normalizedQuery.match(/(\d+)[\s-]*bed/i) || 
+                         normalizedQuery.match(/(\d+)[\s-]*br/i) ||
+                         normalizedQuery.match(/(\d+)[\s-]*bedroom/i);
+  if (bedroomMatches) {
+    extraction.propertyFeatures.bedrooms = parseInt(bedroomMatches[1]);
+  }
+  
+  // Extract bedrooms range
+  const bedroomRangeMatches = normalizedQuery.match(/(\d+)[ -]*to[ -]*(\d+)[ -]*bed/i);
+  if (bedroomRangeMatches) {
+    extraction.propertyFeatures.bedrooms = [
+      parseInt(bedroomRangeMatches[1]), 
+      parseInt(bedroomRangeMatches[2])
+    ];
+  }
+  
+  // Extract bathrooms
+  const bathroomMatches = normalizedQuery.match(/(\d+)[\s-]*bath/i) || 
+                         normalizedQuery.match(/(\d+)[\s-]*ba/i);
+  if (bathroomMatches) {
+    extraction.propertyFeatures.bathrooms = parseInt(bathroomMatches[1]);
+  }
+  
+  // Extract square footage
+  const sqftMatches = normalizedQuery.match(/(\d+)[\s-]*sq(uare)?[\s-]*(ft|feet)/i) ||
+                     normalizedQuery.match(/(\d+)[\s-]*sf/i);
+  if (sqftMatches) {
+    extraction.propertyFeatures.squareFeet = parseInt(sqftMatches[1]);
+  }
+  
+  // Extract square footage range
+  const sqftRangeMatches = normalizedQuery.match(/(\d+)[ -]*to[ -]*(\d+)[ -]*sq/i);
+  if (sqftRangeMatches) {
+    extraction.propertyFeatures.squareFeet = [
+      parseInt(sqftRangeMatches[1]), 
+      parseInt(sqftRangeMatches[2])
+    ];
+  }
+  
+  // Extract property type
+  const propertyTypes = ['house', 'condo', 'apartment', 'townhouse', 'duplex', 'loft', 'studio'];
+  for (const type of propertyTypes) {
+    if (normalizedQuery.includes(type)) {
+      extraction.propertyFeatures.propertyType = type;
+      break;
+    }
+  }
+  
+  // Extract amenities
+  const amenities = [
+    'garage', 'pool', 'balcony', 'patio', 'yard', 'garden', 'fireplace', 
+    'hardwood', 'granite', 'stainless', 'furnished', 'parking', 'dishwasher',
+    'laundry', 'washer', 'dryer', 'gym', 'elevator', 'doorman', 'security'
+  ];
+  
+  const foundAmenities = [];
+  for (const amenity of amenities) {
+    if (normalizedQuery.includes(amenity)) {
+      foundAmenities.push(amenity);
+    }
+  }
+  
+  if (foundAmenities.length > 0) {
+    extraction.propertyFeatures.amenities = foundAmenities;
+  }
+  
+  // Extract location info - zip code
+  const zipCodeMatch = query.match(/\b(\d{5})\b/);
+  if (zipCodeMatch) {
+    extraction.locationFeatures.zipCode = zipCodeMatch[1];
+  }
+  
+  // Extract city
+  const cityMatch = query.match(/\bin\s+([A-Za-z\s]+?)(?:\s+\d{5}|\s*$|\s+and|\s+near)/i);
+  if (cityMatch) {
+    extraction.locationFeatures.city = cityMatch[1].trim();
+  }
+  
+  // Extract neighborhoods
+  const neighborhoods = normalizedQuery.match(/(?:in|near)\s+((?:downtown|uptown|midtown|north|south|east|west|old town|[a-z]+\s+heights|[a-z]+\s+village|[a-z]+\s+district))/i);
+  if (neighborhoods) {
+    extraction.locationFeatures.neighborhood = neighborhoods[1];
+  }
+  
+  // Extract proximity preferences
+  const proximityPoints = [
+    'school', 'schools', 'university', 'college',
+    'transit', 'bus', 'subway', 'train', 'metro', 
+    'park', 'restaurant', 'shopping', 'grocery', 'hospital',
+    'downtown', 'center', 'beach', 'lake', 'river'
+  ];
+  
+  const proximityMatches = [];
+  for (const point of proximityPoints) {
+    if (normalizedQuery.includes(`near ${point}`) || 
+        normalizedQuery.includes(`close to ${point}`) || 
+        normalizedQuery.includes(`walking distance to ${point}`)) {
+      proximityMatches.push({
+        to: point,
+        distance: normalizedQuery.includes('walking distance') ? 0.5 : 2,
+        unit: 'miles'
+      });
+    }
+  }
+  
+  if (proximityMatches.length > 0) {
+    extraction.locationFeatures.proximity = proximityMatches;
+  }
+  
+  // Extract price range
+  const priceRangeMatch = normalizedQuery.match(/\$?(\d+)[\s-]*k?\s*-\s*\$?(\d+)[\s-]*k?/i);
+  if (priceRangeMatch) {
+    let min = parseInt(priceRangeMatch[1]);
+    let max = parseInt(priceRangeMatch[2]);
+    
+    // Handle k notation (thousands)
+    if (priceRangeMatch[1].includes('k')) min *= 1000;
+    if (priceRangeMatch[2].includes('k')) max *= 1000;
+    
+    extraction.filters.priceRange = [min, max];
+  }
+  
+  // Extract max price
+  const maxPriceMatch = normalizedQuery.match(/(?:under|below|less than|maximum|max|up to)\s*\$?(\d+)[\s-]*k?/i);
+  if (maxPriceMatch) {
+    let maxPrice = parseInt(maxPriceMatch[1]);
+    if (maxPriceMatch[0].includes('k')) maxPrice *= 1000;
+    extraction.filters.maxPrice = maxPrice;
+  }
+  
+  // Extract min price
+  const minPriceMatch = normalizedQuery.match(/(?:over|above|more than|minimum|min|at least)\s*\$?(\d+)[\s-]*k?/i);
+  if (minPriceMatch) {
+    let minPrice = parseInt(minPriceMatch[1]);
+    if (minPriceMatch[0].includes('k')) minPrice *= 1000;
+    extraction.filters.minPrice = minPrice;
+  }
+  
+  // Extract tax preferences
+  if (/(low|moderate|affordable|cheap)\s+tax/i.test(normalizedQuery)) {
+    extraction.filters.maxTaxes = 5000; // Example value, would be configurable
+  }
+  
+  // Extract sort preference
+  if (/cheapest|lowest price|most affordable|cost effective/i.test(normalizedQuery)) {
+    extraction.sortBy = 'price_asc';
+  } else if (/expensive|luxury|high end|premium/i.test(normalizedQuery)) {
+    extraction.sortBy = 'price_desc';
+  } else if (/newest|recent|just listed|new listings/i.test(normalizedQuery)) {
+    extraction.sortBy = 'newest';
+  }
+  
+  // Extract must-have features
+  const mustHaveMatch = normalizedQuery.match(/must have(.*?)(?:\.|\,|and)/i);
+  if (mustHaveMatch) {
+    const mustHaveText = mustHaveMatch[1];
+    const mustHaveItems = [];
+    
+    for (const amenity of amenities) {
+      if (mustHaveText.includes(amenity)) {
+        mustHaveItems.push(amenity);
+      }
+    }
+    
+    if (mustHaveItems.length > 0) {
+      extraction.filters.mustHave = mustHaveItems;
+    }
+  }
+  
+  console.log("Extracted features:", JSON.stringify(extraction, null, 2));
+  return extraction;
+}
+
 // Add error property to LocationResult interface
 interface LocationResult {
   title: string;
@@ -126,6 +369,266 @@ const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
   setSelectedLanguage(e.target.value);
 };
 
+
+// Tool calling agent function that uses LLM for feature extraction with fallback
+const analyzeQueryForTools = async (query: string) => {
+  // Try LLM-based analysis first
+  try {
+    const llmAnalysis = await analyzeQueryForTools_by_LLM(query);
+    console.log('LLM extracted features:', llmAnalysis);
+    return llmAnalysis;
+  } catch (error) {
+    console.warn('Error using LLM for feature extraction, falling back to pattern matching:', error);
+    return analyzeQueryForTools_by_PatternMatching(query);
+  }
+};
+
+// LLM-based feature extraction
+const analyzeQueryForTools_by_LLM = async (query: string) => {
+  const prompt = `
+  Analyze this real estate related query and extract mentioned features. 
+  For each feature, extract specific criteria if present.
+  Return ONLY a JSON object with the following structure, with null for any features not mentioned:
+  
+  {
+    "homeValuation": null or {criteria},
+    "propertySearch": null or {criteria like bedrooms, bathrooms, price, etc},
+    "localAmenities": null or {types of amenities mentioned},
+    "marketTrends": null or {trend types mentioned},
+    "commute": null or {destinations, transport modes},
+    "taxation": null or {tax types mentioned},
+    "insurance": null or {insurance types},
+    "mortgageCalculation": null or {mortgage details},
+    "neighborhoodSafety": null or {safety concerns},
+    "schoolQuality": null or {school types, levels}
+  }
+  
+  Only include features explicitly or implicitly mentioned in the query. Do not add features that aren't relevant to the query.
+  
+  User query: "${query}"
+  
+  JSON output:
+  `;
+
+  try {
+    // Call to your LLM endpoint - using fetch as an example
+    const response = await fetch('/api/analyze-query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+
+    if (!response.ok) {
+      throw new Error(`LLM analysis failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const extractedFeatures = JSON.parse(data.result);
+    
+    // Transform into expected format
+    const detectedFeatures: Partial<Record<keyof typeof apiMapping, string[]>> = {};
+    const extractedCriteria: { [key: string]: any } = {};
+    
+    // Map of feature names to potential APIs
+    const apiMapping = {
+      homeValuation: ["Zillow API", "Redfin API", "County Tax Records API"],
+      propertySearch: ["MLS API", "Zillow API", "Realtor.com API"],
+      localAmenities: ["Google Places API", "Yelp API", "Foursquare API"],
+      marketTrends: ["Case-Shiller Index API", "Federal Housing Finance Agency API"],
+      commute: ["Google Maps API", "Transit API", "Waze API"],
+      taxation: ["County Tax Assessor API", "Property Tax Calculator API"],
+      insurance: ["Insurance Quote API", "FEMA Flood Maps API"],
+      mortgageCalculation: ["Mortgage Calculator API", "Bank Rate API"],
+      neighborhoodSafety: ["Crime Data API", "Neighborhood Scout API"],
+      schoolQuality: ["GreatSchools API", "School District API"]
+    };
+    
+    // Build the features and criteria objects
+    Object.entries(extractedFeatures).forEach(([feature, criteria]) => {
+      if (criteria !== null) {
+        detectedFeatures[feature as keyof typeof apiMapping] = apiMapping[feature as keyof typeof apiMapping] || ["Generic API"];
+        
+        // Merge any extracted criteria
+        if (typeof criteria === 'object') {
+          Object.entries(criteria).forEach(([key, value]) => {
+            extractedCriteria[key] = value;
+          });
+        }
+      }
+    });
+    
+    return {
+      detectedFeatures,
+      extractedCriteria,
+      potentialApis: Object.values(detectedFeatures).flat()
+    };
+  } catch (error) {
+    console.error('Error in LLM feature extraction:', error);
+    throw error; // Rethrow to trigger fallback
+  }
+};
+
+
+// Tool calling agent function to analyze user queries and identify potential API calls
+const analyzeQueryForTools_by_PatternMatching = (query: string) => {
+  // Features to detect
+  const features = {
+    homeValuation: {
+      patterns: [
+        /worth/i, /value/i, /price of/i, /estimate/i, /appraisal/i, 
+        /how much (is|would|could)/i, /market value/i
+      ],
+      apiOptions: ["Zillow API", "Redfin API", "County Tax Records API"]
+    },
+    propertySearch: {
+      patterns: [
+        /find/i, /search/i, /looking for/i, /homes with/i, /properties with/i,
+        /bedrooms/i, /bathrooms/i, /square feet/i, /sqft/i, /sq ft/i,
+        /garage/i, /pool/i, /yard/i, /lot size/i, /price range/i,
+        /under \$([\d,]+)/i, /above \$([\d,]+)/i, /between \$([\d,]+) and \$([\d,]+)/i
+      ],
+      apiOptions: ["MLS API", "Zillow API", "Realtor.com API"]
+    },
+    localAmenities: {
+      patterns: [
+        /school/i, /restaurant/i, /park/i, /shopping/i, /grocery/i,
+        /nearby/i, /close to/i, /walking distance/i, /entertainment/i,
+        /theater/i, /hospital/i, /medical/i, /daycare/i, /childcare/i
+      ],
+      apiOptions: ["Google Places API", "Yelp API", "Foursquare API", "GreatSchools API"]
+    },
+    marketTrends: {
+      patterns: [
+        /trend/i, /appreciation/i, /depreciation/i, /investment/i,
+        /growth/i, /future value/i, /market forecast/i, /price history/i,
+        /increasing/i, /decreasing/i, /development/i, /gentrification/i
+      ],
+      apiOptions: ["Case-Shiller Index API", "Federal Housing Finance Agency API", "Local MLS Market Reports"]
+    },
+    commute: {
+      patterns: [
+        /commute/i, /travel time/i, /drive/i, /traffic/i, /distance/i,
+        /public transportation/i, /subway/i, /bus/i, /train/i,
+        /how long to/i, /how far from/i, /work/i, /office/i, /school commute/i
+      ],
+      apiOptions: ["Google Maps API", "Transit API", "Waze API"]
+    },
+    taxation: {
+      patterns: [
+        /property tax/i, /tax rate/i, /assessment/i, /millage/i,
+        /tax bill/i, /exemption/i, /tax break/i
+      ],
+      apiOptions: ["County Tax Assessor API", "Property Tax Calculator API"]
+    },
+    insurance: {
+      patterns: [
+        /insurance/i, /homeowner('s)? insurance/i, /coverage/i, /premium/i,
+        /flood insurance/i, /hazard insurance/i
+      ],
+      apiOptions: ["Insurance Quote API", "FEMA Flood Maps API"]
+    },
+    mortgageCalculation: {
+      patterns: [
+        /mortgage/i, /loan/i, /interest rate/i, /down payment/i,
+        /monthly payment/i, /amortization/i, /term/i, /closing cost/i,
+        /pre(-)approval/i, /qualification/i, /affordability/i
+      ],
+      apiOptions: ["Mortgage Calculator API", "Bank Rate API", "Loan Comparison API"]
+    },
+    neighborhoodSafety: {
+      patterns: [
+        /safe/i, /safety/i, /crime/i, /security/i, /police/i,
+        /neighborhood safety/i, /crime rate/i
+      ],
+      apiOptions: ["Crime Data API", "Neighborhood Scout API", "Local Police Department Data"]
+    },
+    schoolQuality: {
+      patterns: [
+        /school(s)?/i, /education/i, /district/i, /rating/i,
+        /elementary/i, /middle/i, /high school/i, /public school/i, /private school/i
+      ],
+      apiOptions: ["GreatSchools API", "School District API", "Department of Education Data"]
+    }
+  };
+
+  // Detect features in query
+  const detectedFeatures = {};
+  let extractedCriteria = {};
+/*
+  // Check for each feature
+  Object.entries(features).forEach(([feature, { patterns, apiOptions }]) => {
+    if (patterns.some(pattern => pattern.test(query))) {
+      //detectedFeatures[feature] = apiOptions;
+      
+      // Extract specific criteria based on feature
+      switch (feature) {
+        case 'propertySearch':
+          // Extract price ranges
+          const priceRangeMatch = query.match(/between \$([\d,]+) and \$([\d,]+)/i);
+          if (priceRangeMatch) {
+            extractedCriteria.minPrice = priceRangeMatch[1].replace(/,/g, '');
+            extractedCriteria.maxPrice = priceRangeMatch[2].replace(/,/g, '');
+          } else {
+            const maxPriceMatch = query.match(/under \$([\d,]+)/i);
+            if (maxPriceMatch) {
+              extractedCriteria.maxPrice = maxPriceMatch[1].replace(/,/g, '');
+            }
+            
+            const minPriceMatch = query.match(/above \$([\d,]+)/i);
+            if (minPriceMatch) {
+              extractedCriteria.minPrice = minPriceMatch[1].replace(/,/g, '');
+            }
+          }
+          
+          // Extract bedrooms
+          const bedroomMatch = query.match(/(\d+)\s*bed/i);
+          if (bedroomMatch) {
+            extractedCriteria.bedrooms = bedroomMatch[1];
+          }
+          
+          // Extract bathrooms
+          const bathroomMatch = query.match(/(\d+)\s*bath/i);
+          if (bathroomMatch) {
+            extractedCriteria.bathrooms = bathroomMatch[1];
+          }
+          
+          // Extract square footage
+          const sqftMatch = query.match(/(\d+)\s*(sq\s*ft|square\s*feet|sqft)/i);
+          if (sqftMatch) {
+            extractedCriteria.minSqft = sqftMatch[1];
+          }
+          break;
+          
+        case 'commute':
+          // Extract destination
+          const destinationMatch = query.match(/to\s+([^?.,]+)/i);
+          if (destinationMatch) {
+            extractedCriteria.destination = destinationMatch[1].trim();
+          }
+          break;
+          
+        // Add more extraction logic for other features as needed
+      
+    }
+  });
+
+  // Look for specific addresses that might need geocoding
+  const addressMatch = query.match(/(\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Way|Place|Pl|Terrace|Ter))/i);
+  if (addressMatch) {
+    extractedCriteria.address = addressMatch[1];
+    detectedFeatures['geocoding'] = ["Google Geocoding API", "MapBox API"];
+  }
+}*/
+  console.log('Detected features:', detectedFeatures);
+  console.log('Extracted criteria:', extractedCriteria);
+
+  return {
+    detectedFeatures,
+    extractedCriteria,
+    potentialApis: Object.values(detectedFeatures).flat()
+  };
+};
+
 // Language selector with translation indicator
 const LanguageSelectorWithIndicator = () => {
   return (
@@ -220,78 +723,315 @@ const translateText = async (text: string, sourceLanguage: string, targetLanguag
 };
 
 
-  // Add this function to classify queries and extract zip codes
-const analyzeUserQuery = (query: string) => {
-  // Extract zip code if present (5-digit number)
-  const zipCodeMatch = query.match(/\b(\d{5})\b/);
-  const extractedZipCode = zipCodeMatch ? zipCodeMatch[1] : null;
+// Replace the current analyzeUserQuery function in app/chat/page.tsx
+// In app/chat/page.tsx - replace the current analyzeUserQuery function
+
+// Feature extractor for real estate queries
+function extractRealEstateFeatures(query: string): FeatureExtraction {
+  console.log("Extracting features from query:", query);
   
-  // Auto-fill zip code field if found
-  if (extractedZipCode) {
-    setZipCode(extractedZipCode);
-    fetchLocationData(extractedZipCode);
-  }
-  
-  // Classify query type
-  let queryType = 'general';
-  
-  // FAQ patterns
-  const faqPatterns = [
-    /how (do|can|to|does)/i,
-    /what (is|are|should)/i,
-    /when (should|to|is)/i,
-    /where (can|to|should)/i,
-    /steps (to|for)/i,
-    /process/i,
-    /explain/i
-  ];
-  
-  // Regional info patterns
-  const regionalPatterns = [
-    /in (the )?([a-z\s]+)/i,
-    /near (the )?([a-z\s]+)/i,
-    /around (the )?([a-z\s]+)/i,
-    /neighborhood/i,
-    /area/i,
-    /community/i,
-    /market in/i,
-    /zip code/i,
-    /location/i,
-    /city/i
-  ];
-  
-  // Legal query patterns
-  const legalPatterns = [
-    /legal/i,
-    /law/i,
-    /regulation/i,
-    /tax(es)?/i,
-    /disclosure/i,
-    /contract/i,
-    /zoning/i,
-    /permit/i,
-    /inspection/i,
-    /liability/i,
-    /rights/i,
-    /required by law/i
-  ];
-  
-  // Check patterns
-  if (faqPatterns.some(pattern => pattern.test(query))) {
-    queryType = 'faq';
-  } else if (regionalPatterns.some(pattern => pattern.test(query))) {
-    queryType = 'regional';
-  } else if (legalPatterns.some(pattern => pattern.test(query))) {
-    queryType = 'legal';
-  }
-  
-  console.log(`Query classified as: ${queryType}, extracted zip code: ${extractedZipCode || 'none'}`);
-  
-  return {
-    queryType,
-    extractedZipCode
+  // Initialize extraction object
+  const extraction: FeatureExtraction = {
+    queryType: 'general',
+    extractedZipCode: undefined,
+    propertyFeatures: {},
+    locationFeatures: {},
+    actionRequested: null,
+    filters: {},
+    sortBy: undefined
   };
-};
+  
+  // Extract zip code
+  const zipCodeMatch = query.match(/\b(\d{5})\b/);
+  if (zipCodeMatch) {
+    extraction.extractedZipCode = zipCodeMatch[1];
+  }
+  
+  // Determine query type
+  if (/(find|search|looking for|properties|homes|houses|apartments)/i.test(query)) {
+    extraction.queryType = 'property_search';
+  } else if (/(market|trends|prices|appreciation|value)/i.test(query)) {
+    extraction.queryType = 'market_info';
+  } else if (/(legal|laws|regulations|taxes|tax|zoning)/i.test(query)) {
+    extraction.queryType = 'legal';
+  } else if (/(details|more about|tell me about)/i.test(query)) {
+    extraction.queryType = 'property_detail';
+  }
+  
+  // Extract property features
+  // Bedrooms
+  const bedroomMatch = query.match(/(\d+)\s*(?:bed|bedroom|br)/i);
+  if (bedroomMatch) {
+    extraction.propertyFeatures.bedrooms = parseInt(bedroomMatch[1]);
+  }
+  
+  // Bathrooms
+  const bathroomMatch = query.match(/(\d+)\s*(?:bath|bathroom|ba)/i);
+  if (bathroomMatch) {
+    extraction.propertyFeatures.bathrooms = parseInt(bathroomMatch[1]);
+  }
+  
+  // Property type
+  ['house', 'apartment', 'condo', 'townhouse'].forEach(type => {
+    if (query.toLowerCase().includes(type)) {
+      extraction.propertyFeatures.propertyType = type;
+    }
+  });
+  
+  // Square footage
+  const sqftMatch = query.match(/(\d+)\s*(?:sq\s*ft|square\s*feet|sqft)/i);
+  if (sqftMatch) {
+    extraction.propertyFeatures.squareFeet = parseInt(sqftMatch[1]);
+  }
+  
+  // Location features
+  // City detection
+  const cityMatch = query.match(/\b(?:in|near)\s+([A-Za-z\s.]+?)(?:\s+\d{5}|\s*$|\s+and|\s+near)/i);
+  if (cityMatch) {
+    extraction.locationFeatures.city = cityMatch[1].trim();
+  }
+  
+  // Proximity requirements
+  const proximityTypes = ['school', 'transit', 'restaurant', 'downtown', 'park', 'grocery', 'hospital'];
+  for (const type of proximityTypes) {
+    if (query.toLowerCase().includes(`near ${type}`) || query.toLowerCase().includes(`close to ${type}`)) {
+      extraction.locationFeatures.proximity = [{
+        to: type,
+        distance: 1, // Default distance
+        unit: 'miles'
+      }];
+      
+      // If it's transit, set action to show transit
+      if (type === 'transit') {
+        extraction.actionRequested = 'show_transit';
+      } else if (type === 'restaurant') {
+        extraction.actionRequested = 'show_restaurants';
+      }
+      break;
+    }
+  }
+  
+  // Action requested
+  if (/show\s+(?:me\s+)?(?:the\s+)?properties/i.test(query) || 
+      /find\s+(?:me\s+)?(?:a\s+)?home/i.test(query) ||
+      /looking\s+for\s+(?:a\s+)?(?:house|property|apartment|condo)/i.test(query)) {
+    extraction.actionRequested = 'show_listings';
+  } else if (/market|trends|price|appreciation/i.test(query)) {
+    extraction.actionRequested = 'analyze_market';
+  }
+  
+  // Price filters
+  const priceRangeMatch = query.match(/between\s+\$?(\d+[k|K]?)\s+and\s+\$?(\d+[k|K]?)/i);
+  if (priceRangeMatch) {
+    const min = priceRangeMatch[1].toLowerCase().endsWith('k') ? 
+      parseInt(priceRangeMatch[1].slice(0, -1)) * 1000 : 
+      parseInt(priceRangeMatch[1]);
+    
+    const max = priceRangeMatch[2].toLowerCase().endsWith('k') ? 
+      parseInt(priceRangeMatch[2].slice(0, -1)) * 1000 : 
+      parseInt(priceRangeMatch[2]);
+    
+    extraction.filters.priceRange = [min, max];
+  } else {
+    // Check for max price
+    const maxPriceMatch = query.match(/(?:under|below|less than)\s+\$?(\d+[k|K]?)/i);
+    if (maxPriceMatch) {
+      const maxPrice = maxPriceMatch[1].toLowerCase().endsWith('k') ? 
+        parseInt(maxPriceMatch[1].slice(0, -1)) * 1000 : 
+        parseInt(maxPriceMatch[1]);
+      
+      extraction.filters.priceRange = [0, maxPrice];
+    }
+  }
+  
+  // Sort preference
+  if (/cheapest|lowest price/i.test(query)) {
+    extraction.sortBy = 'price_asc';
+  } else if (/expensive|luxury|high end/i.test(query)) {
+    extraction.sortBy = 'price_desc';
+  } else if (/newest|recent|new listing/i.test(query)) {
+    extraction.sortBy = 'newest';
+  }
+  
+  console.log('Extracted features:', extraction);
+  return extraction;
+}
+
+
+// In app/chat/page.tsx - Add this function at the top
+
+// LLM-based feature extraction function with real API call
+async function extractFeaturesWithLLM(query: string): Promise<FeatureExtraction> {
+  console.log("Extracting features using LLM for query:", query);
+  
+  // Default extraction object
+  const defaultExtraction: FeatureExtraction = {
+    queryType: 'general',
+    extractedZipCode: undefined,
+    propertyFeatures: {},
+    locationFeatures: {},
+    actionRequested: null,
+    filters: {},
+    sortBy: undefined
+  };
+  
+  // Basic zip code extraction with regex (immediate result)
+  const zipCodeMatch = query.match(/\b(\d{5})\b/);
+  if (zipCodeMatch) {
+    defaultExtraction.extractedZipCode = zipCodeMatch[1];
+  }
+  
+  try {
+    // Create LLM feature extraction prompt
+    const extractionPrompt = `
+      You are a real estate query analyzer. Extract key features and intentions from this query:
+      
+      "${query}"
+      
+      Return a JSON object with these fields (use null for missing values):
+      {
+        "queryType": "property_search"|"property_detail"|"market_info"|"legal"|"preferences",
+        "propertyFeatures": {
+          "bedrooms": number or [min, max],
+          "bathrooms": number or [min, max],
+          "squareFeet": number or [min, max],
+          "propertyType": "house"|"condo"|"apartment"|"townhouse"|string
+        },
+        "locationFeatures": {
+          "city": string,
+          "neighborhood": string,
+          "proximity": {
+            "to": string (what the user wants to be near),
+            "distance": number,
+            "unit": "miles"|"minutes"
+          }
+        },
+        "actionRequested": "show_listings"|"show_details"|"analyze_market"|"show_restaurants"|"show_transit"|null,
+        "filters": {
+          "priceRange": [min, max],
+          "amenities": [string array]
+        },
+        "sortBy": "price_asc"|"price_desc"|"newest"|null
+      }
+      
+      ONLY return the JSON. No explanation.
+    `;
+    
+    // Real LLM API call
+    console.log("Sending extraction prompt to LLM");
+    
+    const llmResponse = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        message: extractionPrompt,
+        is_system_query: true  // Flag to backend that this is a system query
+      })
+    });
+    
+    if (!llmResponse.ok) {
+      throw new Error(`LLM API error: ${llmResponse.status}`);
+    }
+    
+    const data = await llmResponse.json();
+    console.log("Raw LLM response:", data.response);
+    
+    // Find and parse JSON in the response
+    try {
+      const jsonMatch = data.response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const extractedFeatures = JSON.parse(jsonMatch[0]);
+        console.log("Parsed LLM extraction:", extractedFeatures);
+        
+        // Merge with default extraction
+        const mergedExtraction: FeatureExtraction = {
+          ...defaultExtraction,
+          ...extractedFeatures,
+          extractedZipCode: extractedFeatures.zipCode || defaultExtraction.extractedZipCode
+        };
+        
+        console.log("Final extraction result:", mergedExtraction);
+        return mergedExtraction;
+      } else {
+        throw new Error("No JSON found in LLM response");
+      }
+    } catch (parseError) {
+      console.error("Failed to parse LLM response:", parseError);
+      throw parseError;
+    }
+  } catch (error) {
+    console.error("LLM feature extraction failed:", error);
+    
+    // Fall back to regex-based extraction
+    console.log("Falling back to regex extraction");
+    return extractRealEstateFeatures(query);
+  }
+}
+
+// Mock response generator (simulates LLM output)
+function generateMockLLMResponse(query: string): FeatureExtraction {
+  const lowerQuery = query.toLowerCase();
+  const extraction: FeatureExtraction = {
+    queryType: 'general',
+    extractedZipCode: undefined,
+    propertyFeatures: {},
+    locationFeatures: {},
+    actionRequested: null,
+    filters: {},
+    sortBy: undefined
+  };
+  
+  // Detect query type
+  if (lowerQuery.includes('properties') || lowerQuery.includes('home') || lowerQuery.includes('house')) {
+    extraction.queryType = 'property_search';
+  } else if (lowerQuery.includes('market') || lowerQuery.includes('trends')) {
+    extraction.queryType = 'market_info';
+  }
+  
+  // Detect bedrooms
+  if (lowerQuery.includes('3 bed') || lowerQuery.includes('three bed')) {
+    extraction.propertyFeatures.bedrooms = 3;
+  } else if (lowerQuery.includes('2 bed') || lowerQuery.includes('two bed')) {
+    extraction.propertyFeatures.bedrooms = 2;
+  }
+  
+  // Detect property type
+  if (lowerQuery.includes('apartment')) {
+    extraction.propertyFeatures.propertyType = 'apartment';
+  } else if (lowerQuery.includes('condo')) {
+    extraction.propertyFeatures.propertyType = 'condo';
+  } else if (lowerQuery.includes('house')) {
+    extraction.propertyFeatures.propertyType = 'house';
+  }
+  
+  // Detect location
+  if (lowerQuery.includes('chicago')) {
+    extraction.locationFeatures.city = 'Chicago';
+  }
+  
+  // Detect proximity
+  if (lowerQuery.includes('near school') || lowerQuery.includes('close to school')) {
+
+  } else if (lowerQuery.includes('near transit')) {
+    
+    extraction.actionRequested = 'show_transit';
+  }
+  
+  // Detect action
+  if (lowerQuery.includes('see properties') || lowerQuery.includes('show') || lowerQuery.includes('find')) {
+    extraction.actionRequested = 'show_listings';
+  } else if (lowerQuery.includes('market') || lowerQuery.includes('trends')) {
+    extraction.actionRequested = 'analyze_market';
+  }
+  
+  // Detect tax preferences
+  if (lowerQuery.includes('low tax') || lowerQuery.includes('moderate tax')) {
+    extraction.filters.maxTaxes = 5000;
+  }
+  
+  return extraction;
+}
+
 
   // Fetch location data based on zip code
   const fetchLocationData = async (zip: string) => {
@@ -459,164 +1199,492 @@ const analyzeUserQuery = (query: string) => {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMessage.trim()) return;
+// Add these functions to app/chat/page.tsx
+
+// In app/chat/page.tsx
+const executeAction = async (extraction: FeatureExtraction) => {
+  console.log(`Executing action: ${extraction.actionRequested}`);
   
-    // Analyze the query before sending
-    const analysis = analyzeUserQuery(inputMessage);
+  // Extract zip code (either from extraction or current state)
+  const targetZipCode = extraction.extractedZipCode || zipCode;
   
-    // Create user message with original input
-    const userMessage: Message = {
-      id: Date.now(),
-      type: 'user',
-      content: inputMessage
-    };
-  
-    // Update UI immediately with user's message
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
-  
-    try {
-      console.log(`🗣️ Processing message in ${selectedLanguage} mode`);
+  switch (extraction.actionRequested) {
+    case 'show_listings':
+      // Set active tab to properties
+      setActiveTab('properties');
       
-      // Step 1: Translate user message to English if needed for LLM processing
-      let translatedUserMessage = inputMessage;
-      let sourceLanguageDetected = selectedLanguage; // Assume input is in selected language
+      // If we have a zip code, fetch properties
+      if (targetZipCode) {
+        console.log(`Fetching property listings for ${targetZipCode}`);
+        await fetchPropertyListings(extraction);
+      } else {
+        console.log('No zip code available for property search');
+      }
+      break;
       
-      if (selectedLanguage !== 'en') {
-        setIsTranslating(true);
-        console.log(`🔄 Translating user input from ${selectedLanguage} to English for processing`);
+    case 'show_details':
+      // If we have properties and can identify one by features
+      const matchingProps = findMatchingProperties(extraction);
+      
+      if (matchingProps.length > 0) {
+        console.log(`Found ${matchingProps.length} matching properties, showing details for first one`);
+        setSelectedProperty(matchingProps[0]);
+      } else if (targetZipCode) {
+        // Fetch properties first, then show details
+        console.log('No matching properties found, fetching new ones');
+        await fetchPropertyListings(extraction);
         
-        try {
-          const translationResponse = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: inputMessage,
-              sourceLanguage: selectedLanguage,
-              targetLanguage: 'en'
-            }),
-          });
-          
-          const translationData = await translationResponse.json();
-          if (translationData.translatedText) {
-            translatedUserMessage = translationData.translatedText;
-            console.log(`✅ Input translated to English: "${translatedUserMessage.substring(0, 50)}..."`);
-          } else {
-            console.warn(`⚠️ Input translation failed, using original: "${inputMessage.substring(0, 50)}..."`);
+        // After fetching, try to find matching properties again
+        setTimeout(() => {
+          const newMatches = findMatchingProperties(extraction);
+          if (newMatches.length > 0) {
+            setSelectedProperty(newMatches[0]);
           }
-        } catch (translationError) {
-          console.error('❌ Input translation error:', translationError);
-          // Continue with original message if translation fails
-        } finally {
-          setIsTranslating(false);
-        }
+        }, 1000);
+      } else {
+        console.log('No zip code or matching properties available');
       }
-  
-      // Prepare location context
-      let locationContext = '';
-      if (locationData) {
-        locationContext = `User's location: Zip code ${locationData.zipCode}. `;
-        if (locationData.restaurants.length > 0) {
-          locationContext += `Nearby restaurants: ${locationData.restaurants.slice(0, 3).map(r => r.title).join(', ')}. `;
-        }
-        if (locationData.transit.length > 0) {
-          locationContext += `Nearby transit: ${locationData.transit.slice(0, 3).map(t => t.title).join(', ')}. `;
-        }
-      }
-  
-      // Step 2: Send translated message to LLM
-      console.log(`🤖 Sending to LLM: query_type=${analysis.queryType}`);
+      break;
       
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: translatedUserMessage, // Use the translated message
-          session_id: sessionId,
-          location_context: locationContext,
-          query_type: analysis.queryType
-        }),
-      });
-  
-      if (!response.ok) {
-        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
-      }
-  
-      const data = await response.json();
-      console.log('✅ Received LLM response');
-  
-      // Save session ID if needed
-      if (!sessionId && data.session_id) {
-        setSessionId(data.session_id);
-      }
-  
-      // Step 3: Translate LLM response to selected language
-      let translatedResponse = data.response;
+    case 'show_restaurants':
+      setActiveTab('restaurants');
+      break;
       
-      // Always translate to selected language, even if input was in English
-      if (selectedLanguage !== 'en') {
-        console.log(`🔄 Translating LLM response from English to ${selectedLanguage}`);
-        setIsTranslating(true);
-        
-        try {
-          const responseTranslation = await fetch('/api/translate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text: data.response,
-              sourceLanguage: 'en',
-              targetLanguage: selectedLanguage
-            }),
-          });
-          
-          const responseTranslationData = await responseTranslation.json();
-          if (responseTranslationData.translatedText) {
-            translatedResponse = responseTranslationData.translatedText;
-            console.log(`✅ Response translated to ${selectedLanguage}`);
-          } else {
-            console.warn('⚠️ Response translation failed, using original English response');
-          }
-        } catch (translationError) {
-          console.error('❌ Response translation error:', translationError);
-          // Continue with original response if translation fails
-        } finally {
-          setIsTranslating(false);
-        }
-      }
-  
-      // Step 4: Display the translated response
-      const botMessage: Message = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: translatedResponse
-      };
-  
-      setMessages(prev => {
-        const updatedMessages = [...prev, botMessage];
-        // Save chat history after updating messages
-        saveChatHistory(updatedMessages);
-        return updatedMessages;
-      });
-  
-    } catch (error) {
-      console.error('❌ Error in message flow:', error);
+    case 'show_transit':
+      setActiveTab('transit');
+      break;
       
-      // Show error message
-      const errorMessage: Message = {
-        id: Date.now() + 2,
-        type: 'bot',
-        content: `Error: I couldn't process your request. ${error instanceof Error ? error.message : 'Please try again later.'}`
-      };
+    case 'analyze_market':
+      setActiveTab('market');
+      break;
+      
+    default:
+      console.log('Unknown action requested:', extraction.actionRequested);
+  }
+};
+
+// Helper function to find matching properties based on extracted features
+const findMatchingProperties = (extraction: FeatureExtraction): Property[] => {
+  if (properties.length === 0) {
+    return [];
+  }
   
-      setMessages(prev => [...prev, errorMessage]);
-      setBackendStatus('error');
-    } finally {
-      setIsLoading(false);
+  console.log('Finding matching properties with features:', extraction.propertyFeatures);
+  
+  // Start with all properties
+  let matches = [...properties];
+  
+  // Filter by bedrooms if specified
+  if (extraction.propertyFeatures.bedrooms) {
+    matches = matches.filter(property => {
+      if (Array.isArray(extraction.propertyFeatures.bedrooms)) {
+        // Range of bedrooms
+        const [min, max] = extraction.propertyFeatures.bedrooms;
+        return property.beds >= min && property.beds <= max;
+      } else {
+        // Exact number of bedrooms
+        return property.beds === extraction.propertyFeatures.bedrooms;
+      }
+    });
+  }
+  
+  // Filter by bathrooms if specified
+  if (extraction.propertyFeatures.bathrooms) {
+    matches = matches.filter(property => {
+      if (Array.isArray(extraction.propertyFeatures.bathrooms)) {
+        // Range of bathrooms
+        const [min, max] = extraction.propertyFeatures.bathrooms;
+        return property.baths >= min && property.baths <= max;
+      } else {
+        // Exact number of bathrooms
+        return property.baths === extraction.propertyFeatures.bathrooms;
+      }
+    });
+  }
+  
+  // Filter by property type if specified
+  if (extraction.propertyFeatures.propertyType) {
+    // Case-insensitive partial match on property type
+    const typePattern = new RegExp(extraction.propertyFeatures.propertyType, 'i');
+    matches = matches.filter(property => typePattern.test(property.type));
+  }
+  
+  // Filter by price range if specified
+  if (extraction.filters.priceRange) {
+    matches = matches.filter(property => {
+      const priceRange = extraction.filters.priceRange;
+      if (priceRange) {
+        const [min, max] = priceRange;
+      
+      // Handle price as either number or string
+      let price: number;
+      if (typeof property.price === 'number') {
+        price = property.price;
+      } else {
+        // Extract numeric value from price string (remove $, commas, etc.)
+        price = parseFloat(property.price.replace(/[^0-9.]/g, ''));
+      }
+      
+      return price >= min && price <= max;
+    }});
+  }
+  console.log(`Found ${matches.length} matching properties`);
+  return matches;
+};
+
+// Modified property search that incorporates filters
+const fetchPropertyListings = async (extraction: FeatureExtraction) => {
+  console.log('Fetching properties with extraction:', extraction);
+  
+  // Start loading state
+  setIsLoadingProperties(true);
+  
+  try {
+    // Use either extracted zip code or current zip code
+    const targetZipCode = extraction.extractedZipCode || zipCode;
+    
+    if (!targetZipCode) {
+      console.error('No zip code available for property search');
+      return;
     }
+    
+    // Prepare query params based on extraction
+    const queryParams: any = {
+      zipCode: targetZipCode
+    };
+    
+    // Add property features as filters
+    if (extraction.propertyFeatures) {
+      // Add bedrooms if specified
+      if (extraction.propertyFeatures.bedrooms) {
+        if (Array.isArray(extraction.propertyFeatures.bedrooms)) {
+          queryParams.minBeds = extraction.propertyFeatures.bedrooms[0];
+          queryParams.maxBeds = extraction.propertyFeatures.bedrooms[1];
+        } else {
+          queryParams.minBeds = extraction.propertyFeatures.bedrooms;
+          queryParams.maxBeds = extraction.propertyFeatures.bedrooms;
+        }
+      }
+      
+      // Add bathrooms if specified
+      if (extraction.propertyFeatures.bathrooms) {
+        if (Array.isArray(extraction.propertyFeatures.bathrooms)) {
+          queryParams.minBaths = extraction.propertyFeatures.bathrooms[0];
+          queryParams.maxBaths = extraction.propertyFeatures.bathrooms[1];
+        } else {
+          queryParams.minBaths = extraction.propertyFeatures.bathrooms;
+          queryParams.maxBaths = extraction.propertyFeatures.bathrooms;
+        }
+      }
+      
+      // Add property type if specified
+      if (extraction.propertyFeatures.propertyType) {
+        queryParams.propertyType = extraction.propertyFeatures.propertyType;
+      }
+    }
+    
+    // Add price filters
+    if (extraction.filters.priceRange) {
+      queryParams.minPrice = extraction.filters.priceRange[0];
+      queryParams.maxPrice = extraction.filters.priceRange[1];
+    }
+    
+    // Add sort parameter
+    if (extraction.sortBy) {
+      queryParams.sort = extraction.sortBy;
+    }
+    
+    console.log('Property search query params:', queryParams);
+    
+    // Call the properties API
+    const propertiesResponse = await fetch('/api/properties', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(queryParams),
+    });
+
+    const propertiesData = await propertiesResponse.json();
+    console.log("Properties data returned:", propertiesData);
+
+    // Update the properties state
+    setProperties(propertiesData.results || []);
+    
+    // If properties were found, switch to properties tab
+    if (propertiesData.results && propertiesData.results.length > 0) {
+      setActiveTab('properties');
+    }
+    
+  } catch (error) {
+    console.error('Error fetching properties:', error);
+  } finally {
+    setIsLoadingProperties(false);
+  }
+};
+
+// Apply filters to current property listings
+const applyFilters = (filters: any) => {
+  console.log('Applying filters to current listings:', filters);
+  
+  // This would filter the current properties array
+  // For now, it's just a mock function
+  
+  // Example: if we had client-side filtering
+  if (properties.length > 0) {
+    let filteredProperties = [...properties];
+    
+    // Apply price filter
+    if (filters.priceRange) {
+      const [minPrice, maxPrice] = filters.priceRange;
+      filteredProperties = filteredProperties.filter(property => {
+        // Convert price string to number if needed
+        const price = typeof property.price === 'string' 
+          ? parseInt(property.price.replace(/\D/g, '')) 
+          : property.price;
+          
+        return price >= minPrice && price <= maxPrice;
+      });
+    }
+    
+    // Apply other filters as needed
+    
+    console.log(`Filtered from ${properties.length} to ${filteredProperties.length} properties`);
+    // setProperties(filteredProperties); // Uncomment for client-side filtering
+  }
+};
+
+// Update property search parameters based on extracted features
+const updatePropertySearch = (propertyFeatures: any) => {
+  console.log('Updating property search with features:', propertyFeatures);
+  
+  // This would update UI controls for property search
+  // For now, just a mock function
+  
+  // Example: if we had property search form controls
+  // setBedroomsFilter(propertyFeatures.bedrooms);
+  // setBathroomsFilter(propertyFeatures.bathrooms);
+  // etc.
+};
+
+
+// Modified handleSendMessage in app/chat/page.tsx
+// Modified handleSendMessage in app/chat/page.tsx
+const handleSendMessage = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!inputMessage.trim()) return;
+
+  // Create user message
+  const userMessage: Message = {
+    id: Date.now(),
+    type: 'user',
+    content: inputMessage
   };
+
+  // Update UI immediately
+  setMessages(prev => [...prev, userMessage]);
+  setInputMessage('');
+  setIsLoading(true);
+
+  try {
+    console.log('Processing user query:', inputMessage);
+
+    // Extract features using both methods
+    console.log("=== REGEX-BASED EXTRACTION ===");
+    const regexExtraction = extractRealEstateFeatures(inputMessage);
+    
+    console.log("=== LLM-BASED EXTRACTION ===");
+    const llmExtraction = await extractFeaturesWithLLM(inputMessage);
+    
+    // Use LLM extraction as primary, with regex extraction as fallback
+    const extraction = llmExtraction || regexExtraction;
+    console.log("=== FINAL EXTRACTION RESULT ===", extraction);
+
+    // Handle zip code if extracted
+    if (extraction.extractedZipCode && extraction.extractedZipCode !== zipCode) {
+      console.log(`Setting zip code to ${extraction.extractedZipCode}`);
+      setZipCode(extraction.extractedZipCode);
+      fetchLocationData(extraction.extractedZipCode);
+    }
+
+    // Execute requested action (for debugging, not actual API calls)
+    // Execute requested action (with actual API calls)
+    if (extraction.actionRequested) {
+      console.log(`ACTION REQUESTED: ${extraction.actionRequested}`);
+      
+      // Update UI tabs based on action
+      if (extraction.actionRequested === 'show_listings') {
+        setActiveTab('properties');
+        
+        // Actual API call for fetching properties
+        if (extraction.extractedZipCode) {
+          const zipCode = extraction.extractedZipCode;
+          console.log(`Fetching properties for zip code: ${zipCode}`);
+          
+          // Keep the API call, but comment out filtering logic
+          const propertiesResponse = await fetch('/api/properties', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zipCode })
+          });
+          
+          if (propertiesResponse.ok) {
+            const propertiesData = await propertiesResponse.json();
+            console.log(`Received ${propertiesData.results?.length || 0} properties`);
+            
+            setProperties(propertiesData.results || []);
+            
+            /* 
+            // Commented out filtering logic
+            if (extraction.propertyFeatures.bedrooms) {
+              // Apply bedroom filters
+            }
+            
+            if (extraction.propertyFeatures.propertyType) {
+              // Apply property type filters
+            }
+            
+            if (extraction.filters.priceRange) {
+              // Apply price range filters
+            }
+            */
+          }
+        }
+      } else if (extraction.actionRequested === 'analyze_market') {
+        setActiveTab('market');
+      } else if (extraction.actionRequested === 'show_restaurants') {
+        setActiveTab('restaurants');
+      } else if (extraction.actionRequested === 'show_transit') {
+        setActiveTab('transit');
+      }
+    }
+
+    // Step 1: Translate user message if needed
+    let translatedUserMessage = inputMessage;
+    if (selectedLanguage !== 'en') {
+      setIsTranslating(true);
+      try {
+        const translationResponse = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: inputMessage,
+            sourceLanguage: selectedLanguage,
+            targetLanguage: 'en'
+          }),
+        });
+        
+        const translationData = await translationResponse.json();
+        if (translationData.translatedText) {
+          translatedUserMessage = translationData.translatedText;
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+      } finally {
+        setIsTranslating(false);
+      }
+    }
+
+    // Prepare context
+    let locationContext = '';
+    if (locationData) {
+      locationContext = `User's location: Zip code ${locationData.zipCode}. `;
+      if (locationData.restaurants.length > 0) {
+        locationContext += `Nearby restaurants: ${locationData.restaurants.slice(0, 3).map(r => r.title).join(', ')}. `;
+      }
+      if (locationData.transit.length > 0) {
+        locationContext += `Nearby transit: ${locationData.transit.slice(0, 3).map(t => t.title).join(', ')}. `;
+      }
+    }
+
+    // Create feature context for LLM
+    const featureContext = JSON.stringify({
+      extractedFeatures: extraction,
+      currentZipCode: zipCode,
+      activeTab: activeTab,
+      selectedProperty: selectedProperty ? selectedProperty.address : null
+    });
+
+    console.log("Sending to chat API with enhanced context");
+    
+    // Step 2: Send to LLM
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: translatedUserMessage,
+        session_id: sessionId,
+        location_context: locationContext,
+        feature_context: featureContext,
+        query_type: extraction.queryType
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Network error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    // Save session ID if needed
+    if (!sessionId && data.session_id) {
+      setSessionId(data.session_id);
+    }
+
+    // Step 3: Translate LLM response if needed
+    let translatedResponse = data.response;
+    if (selectedLanguage !== 'en') {
+      setIsTranslating(true);
+      try {
+        const responseTranslation = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: data.response,
+            sourceLanguage: 'en',
+            targetLanguage: selectedLanguage
+          }),
+        });
+        
+        const responseTranslationData = await responseTranslation.json();
+        if (responseTranslationData.translatedText) {
+          translatedResponse = responseTranslationData.translatedText;
+        }
+      } catch (error) {
+        console.error('Translation error:', error);
+      } finally {
+        setIsTranslating(false);
+      }
+    }
+
+    // Step 4: Display response
+    const botMessage: Message = {
+      id: Date.now() + 1,
+      type: 'bot',
+      content: translatedResponse
+    };
+
+    setMessages(prev => {
+      const updatedMessages = [...prev, botMessage];
+      saveChatHistory(updatedMessages);
+      return updatedMessages;
+    });
+
+  } catch (error) {
+    console.error('Error in message flow:', error);
+    
+    const errorMessage: Message = {
+      id: Date.now() + 2,
+      type: 'bot',
+      content: `Error: I couldn't process your request. ${error instanceof Error ? error.message : 'Please try again later.'}`
+    };
+
+    setMessages(prev => [...prev, errorMessage]);
+    setBackendStatus('error');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // Format message content with line breaks
   // Replace the formatMessageContent function with this:
