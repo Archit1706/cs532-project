@@ -53,207 +53,6 @@ interface FeatureExtraction {
   timeFrame?: 'immediately' | 'within_month' | 'within_year' | string;
 }
 
-// The feature extractor function
-function extractRealEstateFeatures(query: string): FeatureExtraction {
-  console.log("Extracting features from query:", query);
-  
-  // Initialize extraction object
-  const extraction: FeatureExtraction = {
-    queryType: 'general',
-    propertyFeatures: {},
-    locationFeatures: {},
-    filters: {}
-  };
-  
-  // Normalize query for easier parsing
-  const normalizedQuery = query.toLowerCase();
-  
-  // Determine query type
-  if (/(show|find|list|search|looking for|properties|homes|houses|apartments)/i.test(query)) {
-    extraction.queryType = 'property_search';
-  } else if (/(market|trends|prices|appreciation|value)/i.test(query)) {
-    extraction.queryType = 'market_info';
-  } else if (/(legal|laws|regulations|taxes|tax|zoning)/i.test(query)) {
-    extraction.queryType = 'legal';
-  } else if (/(details|more about|tell me about|information on|specific)/i.test(query)) {
-    extraction.queryType = 'property_detail';
-  } else if (/(prefer|would like|want|looking for|my preferences)/i.test(query)) {
-    extraction.queryType = 'preferences';
-  }
-  
-  // Extract bedrooms
-  const bedroomMatches = normalizedQuery.match(/(\d+)[\s-]*bed/i) || 
-                         normalizedQuery.match(/(\d+)[\s-]*br/i) ||
-                         normalizedQuery.match(/(\d+)[\s-]*bedroom/i);
-  if (bedroomMatches) {
-    extraction.propertyFeatures.bedrooms = parseInt(bedroomMatches[1]);
-  }
-  
-  // Extract bedrooms range
-  const bedroomRangeMatches = normalizedQuery.match(/(\d+)[ -]*to[ -]*(\d+)[ -]*bed/i);
-  if (bedroomRangeMatches) {
-    extraction.propertyFeatures.bedrooms = [
-      parseInt(bedroomRangeMatches[1]), 
-      parseInt(bedroomRangeMatches[2])
-    ];
-  }
-  
-  // Extract bathrooms
-  const bathroomMatches = normalizedQuery.match(/(\d+)[\s-]*bath/i) || 
-                         normalizedQuery.match(/(\d+)[\s-]*ba/i);
-  if (bathroomMatches) {
-    extraction.propertyFeatures.bathrooms = parseInt(bathroomMatches[1]);
-  }
-  
-  // Extract square footage
-  const sqftMatches = normalizedQuery.match(/(\d+)[\s-]*sq(uare)?[\s-]*(ft|feet)/i) ||
-                     normalizedQuery.match(/(\d+)[\s-]*sf/i);
-  if (sqftMatches) {
-    extraction.propertyFeatures.squareFeet = parseInt(sqftMatches[1]);
-  }
-  
-  // Extract square footage range
-  const sqftRangeMatches = normalizedQuery.match(/(\d+)[ -]*to[ -]*(\d+)[ -]*sq/i);
-  if (sqftRangeMatches) {
-    extraction.propertyFeatures.squareFeet = [
-      parseInt(sqftRangeMatches[1]), 
-      parseInt(sqftRangeMatches[2])
-    ];
-  }
-  
-  // Extract property type
-  const propertyTypes = ['house', 'condo', 'apartment', 'townhouse', 'duplex', 'loft', 'studio'];
-  for (const type of propertyTypes) {
-    if (normalizedQuery.includes(type)) {
-      extraction.propertyFeatures.propertyType = type;
-      break;
-    }
-  }
-  
-  // Extract amenities
-  const amenities = [
-    'garage', 'pool', 'balcony', 'patio', 'yard', 'garden', 'fireplace', 
-    'hardwood', 'granite', 'stainless', 'furnished', 'parking', 'dishwasher',
-    'laundry', 'washer', 'dryer', 'gym', 'elevator', 'doorman', 'security'
-  ];
-  
-  const foundAmenities = [];
-  for (const amenity of amenities) {
-    if (normalizedQuery.includes(amenity)) {
-      foundAmenities.push(amenity);
-    }
-  }
-  
-  if (foundAmenities.length > 0) {
-    extraction.propertyFeatures.amenities = foundAmenities;
-  }
-  
-  // Extract location info - zip code
-  const zipCodeMatch = query.match(/\b(\d{5})\b/);
-  if (zipCodeMatch) {
-    extraction.locationFeatures.zipCode = zipCodeMatch[1];
-  }
-  
-  // Extract city
-  const cityMatch = query.match(/\bin\s+([A-Za-z\s]+?)(?:\s+\d{5}|\s*$|\s+and|\s+near)/i);
-  if (cityMatch) {
-    extraction.locationFeatures.city = cityMatch[1].trim();
-  }
-  
-  // Extract neighborhoods
-  const neighborhoods = normalizedQuery.match(/(?:in|near)\s+((?:downtown|uptown|midtown|north|south|east|west|old town|[a-z]+\s+heights|[a-z]+\s+village|[a-z]+\s+district))/i);
-  if (neighborhoods) {
-    extraction.locationFeatures.neighborhood = neighborhoods[1];
-  }
-  
-  // Extract proximity preferences
-  const proximityPoints = [
-    'school', 'schools', 'university', 'college',
-    'transit', 'bus', 'subway', 'train', 'metro', 
-    'park', 'restaurant', 'shopping', 'grocery', 'hospital',
-    'downtown', 'center', 'beach', 'lake', 'river'
-  ];
-  
-  const proximityMatches = [];
-  for (const point of proximityPoints) {
-    if (normalizedQuery.includes(`near ${point}`) || 
-        normalizedQuery.includes(`close to ${point}`) || 
-        normalizedQuery.includes(`walking distance to ${point}`)) {
-      proximityMatches.push({
-        to: point,
-        distance: normalizedQuery.includes('walking distance') ? 0.5 : 2,
-        unit: 'miles'
-      });
-    }
-  }
-  
-  if (proximityMatches.length > 0) {
-    extraction.locationFeatures.proximity = proximityMatches;
-  }
-  
-  // Extract price range
-  const priceRangeMatch = normalizedQuery.match(/\$?(\d+)[\s-]*k?\s*-\s*\$?(\d+)[\s-]*k?/i);
-  if (priceRangeMatch) {
-    let min = parseInt(priceRangeMatch[1]);
-    let max = parseInt(priceRangeMatch[2]);
-    
-    // Handle k notation (thousands)
-    if (priceRangeMatch[1].includes('k')) min *= 1000;
-    if (priceRangeMatch[2].includes('k')) max *= 1000;
-    
-    extraction.filters.priceRange = [min, max];
-  }
-  
-  // Extract max price
-  const maxPriceMatch = normalizedQuery.match(/(?:under|below|less than|maximum|max|up to)\s*\$?(\d+)[\s-]*k?/i);
-  if (maxPriceMatch) {
-    let maxPrice = parseInt(maxPriceMatch[1]);
-    if (maxPriceMatch[0].includes('k')) maxPrice *= 1000;
-    extraction.filters.maxPrice = maxPrice;
-  }
-  
-  // Extract min price
-  const minPriceMatch = normalizedQuery.match(/(?:over|above|more than|minimum|min|at least)\s*\$?(\d+)[\s-]*k?/i);
-  if (minPriceMatch) {
-    let minPrice = parseInt(minPriceMatch[1]);
-    if (minPriceMatch[0].includes('k')) minPrice *= 1000;
-    extraction.filters.minPrice = minPrice;
-  }
-  
-  // Extract tax preferences
-  if (/(low|moderate|affordable|cheap)\s+tax/i.test(normalizedQuery)) {
-    extraction.filters.maxTaxes = 5000; // Example value, would be configurable
-  }
-  
-  // Extract sort preference
-  if (/cheapest|lowest price|most affordable|cost effective/i.test(normalizedQuery)) {
-    extraction.sortBy = 'price_asc';
-  } else if (/expensive|luxury|high end|premium/i.test(normalizedQuery)) {
-    extraction.sortBy = 'price_desc';
-  } else if (/newest|recent|just listed|new listings/i.test(normalizedQuery)) {
-    extraction.sortBy = 'newest';
-  }
-  
-  // Extract must-have features
-  const mustHaveMatch = normalizedQuery.match(/must have(.*?)(?:\.|\,|and)/i);
-  if (mustHaveMatch) {
-    const mustHaveText = mustHaveMatch[1];
-    const mustHaveItems = [];
-    
-    for (const amenity of amenities) {
-      if (mustHaveText.includes(amenity)) {
-        mustHaveItems.push(amenity);
-      }
-    }
-    
-    if (mustHaveItems.length > 0) {
-      extraction.filters.mustHave = mustHaveItems;
-    }
-  }
-  
-  console.log("Extracted features:", JSON.stringify(extraction, null, 2));
-  return extraction;
-}
 
 // Add error property to LocationResult interface
 interface LocationResult {
@@ -273,6 +72,9 @@ interface LocationData {
   transit: LocationResult[];
   zipCode: string;
 }
+
+
+
 
 const Chat = () => {
   const [messages, setMessages] = useState<Message[]>([
@@ -306,6 +108,44 @@ const [isTranslating, setIsTranslating] = useState(false);
   const [activeTab, setActiveTab] = useState<'restaurants' | 'transit' | 'properties' | 'market' | null>('properties');
   const [properties, setProperties] = useState<any[]>([]);
   const [isLoadingProperties, setIsLoadingProperties] = useState<boolean>(false);
+
+    // Add to existing state variables in app/chat/page.tsx
+    const [marketTrends, setMarketTrends] = useState<any>(null);
+    const [isLoadingMarketTrends, setIsLoadingMarketTrends] = useState<boolean>(false);
+    
+    // Add fetch function for market trends
+    const fetchMarketTrends = async (location?: string, zipCode?: string) => {
+        console.log('Fetching market trends for:', location || zipCode);
+        
+        setIsLoadingMarketTrends(true);
+        
+        try {
+          const response = await fetch('/api/market_trends', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              location: location,
+              zipCode: zipCode
+            }),
+          });
+      
+          if (!response.ok) {
+            throw new Error(`Market trends API returned ${response.status}`);
+          }
+      
+          const data = await response.json();
+          console.log('Market trends data:', data);
+          
+          setMarketTrends(data.trends);
+        } catch (error) {
+          console.error('Error fetching market trends:', error);
+        } finally {
+          setIsLoadingMarketTrends(false);
+        }
+      };
+    
 
   interface Property {
     imgSrc?: string;
@@ -382,6 +222,7 @@ const analyzeQueryForTools = async (query: string) => {
     return analyzeQueryForTools_by_PatternMatching(query);
   }
 };
+
 
 // LLM-based feature extraction
 const analyzeQueryForTools_by_LLM = async (query: string) => {
@@ -1153,12 +994,21 @@ function generateMockLLMResponse(query: string): FeatureExtraction {
       console.log("Properties data:", propertiesData);
 
       setProperties(propertiesData.results || []);
+
+
+          // Fetch market trends
+    await fetchMarketTrends(zip);
+
     } catch (error) {
       console.error('Error fetching properties:', error);
     } finally {
       setIsLoadingProperties(false);
     }
   };
+
+
+
+  
 
   // Update handleZipCodeChange to track zip codes
   const handleZipCodeChange = async (e: React.FormEvent) => {
@@ -2071,39 +1921,161 @@ const handleSendMessage = async (e: React.FormEvent) => {
                       )
                     )}
 
-                    {/* Market Tab */}
-                    {activeTab === 'market' && (
-                      <div className="p-4 bg-white rounded-xl border border-slate-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="text-lg font-semibold text-slate-800">
-                            {locationData.zipCode} Area
-                          </h3>
-                          <span className="px-2 py-1 bg-slate-100 text-slate-600 rounded-full text-xs">
-                            Updated today
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-700">Median Home Price</span>
-                            <div>
-                              <span className="font-medium text-slate-800">$785,000</span>
-                              <span className="ml-2 text-emerald-600 text-sm">+3.2%</span>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-700">Days on Market</span>
-                            <div>
-                              <span className="font-medium text-slate-800">24 days</span>
-                              <span className="ml-2 text-rose-600 text-sm">-5%</span>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="text-slate-700">Buyer Demand</span>
-                            <span className="font-medium text-slate-800">High</span>
-                          </div>
-                        </div>
+{/* Market Tab */}
+{activeTab === 'market' && (
+  <div className="space-y-4">
+    {isLoadingMarketTrends ? (
+      <div className="flex justify-center p-4">
+        <div className="flex space-x-2">
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+          <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+        </div>
+      </div>
+    ) : marketTrends ? (
+      <div className="space-y-6">
+        {/* Price Overview */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">Price Overview</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Median Price</div>
+              <div className="text-xl font-bold text-slate-800">
+                ${marketTrends.price_metrics.median_price?.toLocaleString() || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Price Range</div>
+              <div className="text-sm font-medium text-slate-800">
+                ${marketTrends.price_metrics.lowest_price?.toLocaleString() || 'N/A'} - 
+                ${marketTrends.price_metrics.highest_price?.toLocaleString() || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Price/SqFt</div>
+              <div className="text-sm font-medium text-slate-800">
+                ${marketTrends.price_metrics.price_per_sqft_range?.min?.toFixed(0) || 'N/A'} - 
+                ${marketTrends.price_metrics.price_per_sqft_range?.max?.toFixed(0) || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Market Activity */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">Market Activity</h3>
+          <div className="flex items-center mb-3">
+            <div className="w-2/5 pr-4">
+              <div className="text-sm text-slate-500 mb-1">Annual Change</div>
+              <div className="flex items-center">
+                <span className={`text-lg font-semibold ${marketTrends.yearly_trends?.year_over_year_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  {marketTrends.yearly_trends?.year_over_year_change >= 0 ? '+' : ''}
+                  {marketTrends.yearly_trends?.year_over_year_change?.toFixed(1) || 0}%
+                </span>
+                <svg className={`w-4 h-4 ml-1 ${marketTrends.yearly_trends?.year_over_year_change >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={marketTrends.yearly_trends?.year_over_year_change >= 0 ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"} />
+                </svg>
+              </div>
+            </div>
+            <div className="w-3/5 bg-slate-100 h-10 rounded-lg relative overflow-hidden">
+              <div 
+                className={`absolute top-0 left-0 h-full ${marketTrends.yearly_trends?.year_over_year_change >= 0 ? 'bg-gradient-to-r from-blue-500 to-emerald-400' : 'bg-gradient-to-r from-rose-400 to-red-500'}`} 
+                style={{ width: `${Math.min(100, Math.abs((marketTrends.yearly_trends?.year_over_year_change || 0) * 10))}%` }}>
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-slate-700">
+                Year-over-Year Price Change
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4 mt-4">
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Days on Market</div>
+              <div className="text-xl font-bold text-slate-800">
+                {marketTrends.market_activity?.avg_days_on_market?.toFixed(0) || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Price Reductions</div>
+              <div className="text-xl font-bold text-slate-800">
+                {marketTrends.price_reductions?.num_price_reductions || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Avg Reduction</div>
+              <div className="text-xl font-bold text-slate-800">
+                ${marketTrends.price_reductions?.avg_price_reduction?.toLocaleString() || 'N/A'}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Property Types */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">Property Types</h3>
+          <div className="space-y-2">
+            {Object.entries(marketTrends.property_type_distribution || {}).map(([type, count]) => {
+              count = count as number;
+              const total: number = Object.values(marketTrends.property_type_distribution || {}).reduce((sum: number, val) => sum + Number(val), 0);
+              const percentage = (count as number / total) * 100;
+              return (
+                <div key={type} className="flex items-center">
+                  <div className="w-1/3 text-sm text-slate-700">
+                    {type.replace(/_/g, ' ')}
+                  </div>
+                  <div className="w-2/3">
+                    <div className="flex items-center">
+                      <div className="w-full h-6 bg-slate-100 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full" 
+                          style={{ width: `${percentage}%` }}
+                        ></div>
                       </div>
-                    )}
+                      <span className="ml-2 text-xs font-medium text-slate-600 min-w-[40px]">
+                        {percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        {/* Property Specifications */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3">Property Specifications</h3>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Avg Bedrooms</div>
+              <div className="text-xl font-bold text-slate-800">
+                {marketTrends.size_and_specifications?.avg_bedrooms?.toFixed(1) || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Avg Bathrooms</div>
+              <div className="text-xl font-bold text-slate-800">
+                {marketTrends.size_and_specifications?.avg_bathrooms?.toFixed(1) || 'N/A'}
+              </div>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-lg">
+              <div className="text-sm text-slate-500">Avg Condo Size</div>
+              <div className="text-xl font-bold text-slate-800">
+                {marketTrends.size_and_specifications?.avg_condo_size?.toLocaleString() || 'N/A'} sqft
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ) : (
+      <div className="flex flex-col items-center justify-center p-8 text-center">
+        <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+        <p className="mt-2 text-slate-600">No market data available. Enter a zip code to see market trends.</p>
+      </div>
+    )}
+  </div>
+)}
                   </div>
                 )}
               </div>

@@ -954,6 +954,247 @@ def save_chat():
 
 ##########################################################################################################################################
 
+## MARKET TRENDS 
+
+#######################################################################################################################################
+
+# Add to backend/app.py
+import statistics
+import requests
+
+@app.route('/api/market_trends', methods=['POST'])
+def market_trends():
+    try:
+        data = request.json
+        logger.info(f"Received market trends request: {data}")
+        
+        location = data.get('location')
+        zip_code = data.get('zipCode')
+        
+        if not location and not zip_code:
+            return jsonify({"error": "Missing location or zip code"}), 400
+            
+        # If only zip code is provided, convert to location string
+        if zip_code and not location:
+            location = f"{zip_code}, USA"
+        
+        # Call real Zillow API
+        url = "https://zillow56.p.rapidapi.com/market_data"
+        querystring = {"location": location}
+        headers = {
+            "x-rapidapi-key": os.environ.get('ZILLOW_KEY'),
+            "x-rapidapi-host": "zillow56.p.rapidapi.com"
+        }
+        
+        logger.info(f"Calling Zillow market data API for {location}")
+        response = requests.get(url, headers=headers, params=querystring)
+        
+        if not response.ok:
+            logger.error(f"Zillow API error: {response.status_code} - {response.text}")
+            return jsonify({"error": f"Zillow API error: {response.status_code}"}), 500
+            
+        json_data = response.json()
+        properties = json_data.get("results", [])
+        logger.info(f"Received {len(properties)} properties for market analysis")
+        
+        # Initialize arrays for metrics
+        prices = []
+        price_per_sqft = []
+        bedrooms = []
+        bathrooms = []
+        living_areas = []
+        lot_sizes = []
+        tax_assessed_values = []
+        zestimates = []
+        price_to_assessed_ratios = []
+        price_reductions = []
+        rent_zestimates = []
+        time_on_zillow_list = []
+        latitudes = []
+        longitudes = []
+        rental_yields = []
+        
+        property_type_counts = {}
+        
+        # Extract data from properties
+        for prop in properties:
+            # Price
+            price = prop.get("price")
+            if price is not None:
+                prices.append(price)
+
+            # Price per square foot
+            living_area = prop.get("livingArea", 0)
+            if living_area and price is not None and living_area > 0:
+                price_per_sqft.append(price / living_area)
+            
+            # Bedrooms and bathrooms
+            bd = prop.get("bedrooms")
+            if bd is not None:
+                bedrooms.append(bd)
+            ba = prop.get("bathrooms")
+            if ba is not None:
+                bathrooms.append(ba)
+            
+            # Living area
+            if living_area:
+                living_areas.append(living_area)
+            
+            # Lot sizes
+            lot_size = prop.get("lotAreaValue")
+            if lot_size is not None:
+                lot_sizes.append(lot_size)
+            
+            # Tax-assessed value
+            tax_val = prop.get("taxAssessedValue")
+            if tax_val is not None:
+                tax_assessed_values.append(tax_val)
+                if price and tax_val != 0:
+                    price_to_assessed_ratios.append(price / tax_val)
+            
+            # Zestimate
+            if "zestimate" in prop and prop.get("zestimate") is not None:
+                zestimates.append(prop.get("zestimate"))
+            
+            # Price reductions
+            price_change = prop.get("priceChange")
+            if price_change is not None and isinstance(price_change, (int, float)) and price_change < 0:
+                price_reductions.append(abs(price_change))
+            
+            # Rental info
+            rent_z = prop.get("rentZestimate")
+            if rent_z is not None:
+                rent_zestimates.append(rent_z)
+                if price and price > 0:
+                    rental_yield = (rent_z * 12) / price
+                    rental_yields.append((rental_yield, prop))
+            
+            # Time on Zillow
+            time_on = prop.get("timeOnZillow")
+            if time_on is not None:
+                time_on_zillow_list.append(time_on)
+            
+            # Location
+            lat = prop.get("latitude")
+            if lat is not None:
+                latitudes.append(lat)
+            lon = prop.get("longitude")
+            if lon is not None:
+                longitudes.append(lon)
+            
+            # Property types
+            home_type = prop.get("homeType")
+            if home_type is not None:
+                property_type_counts[home_type] = property_type_counts.get(home_type, 0) + 1
+
+        # Calculate metrics
+        try:
+            lowest_price = min(prices) if prices else None
+            highest_price = max(prices) if prices else None
+            median_price = statistics.median(prices) if prices else None
+            min_price_per_sqft = min(price_per_sqft) if price_per_sqft else None
+            max_price_per_sqft = max(price_per_sqft) if price_per_sqft else None
+
+            avg_bedrooms = statistics.mean(bedrooms) if bedrooms else None
+            avg_bathrooms = statistics.mean(bathrooms) if bathrooms else None
+            largest_property_area = max(living_areas) if living_areas else None
+            avg_lot_size = statistics.mean(lot_sizes) if lot_sizes else None
+
+            condo_areas = [prop.get("livingArea") for prop in properties 
+                        if prop.get("homeType") == "CONDO" and prop.get("livingArea", 0) > 0]
+            avg_condo_size = statistics.mean(condo_areas) if condo_areas else None
+
+            num_price_reductions = len(price_reductions)
+            largest_price_reduction = max(price_reductions) if price_reductions else None
+            avg_price_reduction = statistics.mean(price_reductions) if price_reductions else None
+
+            avg_tax_assessed_value = statistics.mean(tax_assessed_values) if tax_assessed_values else None
+            avg_zestimate = statistics.mean(zestimates) if zestimates else None
+            avg_price_to_assessed_ratio = statistics.mean(price_to_assessed_ratios) if price_to_assessed_ratios else None
+
+            avg_rent_zestimate = statistics.mean(rent_zestimates) if rent_zestimates else None
+            best_rental = max(rental_yields, key=lambda x: x[0]) if rental_yields else (None, None)
+
+            most_recent_listing = min(time_on_zillow_list) if time_on_zillow_list else None
+            longest_listing = max(time_on_zillow_list) if time_on_zillow_list else None
+            avg_days_on_market = statistics.mean(time_on_zillow_list) if time_on_zillow_list else None
+            
+            # Market movement metrics (simulated - ideally this would come from historical data)
+            yearly_trend = 3.2  # Simulated year-over-year change
+            quarterly_trend = 0.8  # Simulated quarter-over-quarter change
+            monthly_trend = 0.3  # Simulated month-over-month change
+        except Exception as calc_error:
+            logger.error(f"Error calculating metrics: {str(calc_error)}")
+        
+        # Assemble results
+        trends_data = {
+            "price_metrics": {
+                "lowest_price": lowest_price,
+                "highest_price": highest_price,
+                "median_price": median_price,
+                "price_per_sqft_range": {
+                    "min": min_price_per_sqft,
+                    "max": max_price_per_sqft
+                }
+            },
+            "property_type_distribution": property_type_counts,
+            "size_and_specifications": {
+                "avg_bedrooms": avg_bedrooms,
+                "min_bedrooms": min(bedrooms) if bedrooms else None,
+                "max_bedrooms": max(bedrooms) if bedrooms else None,
+                "avg_bathrooms": avg_bathrooms,
+                "min_bathrooms": min(bathrooms) if bathrooms else None,
+                "max_bathrooms": max(bathrooms) if bathrooms else None,
+                "largest_property_area": largest_property_area,
+                "avg_lot_size": avg_lot_size,
+                "avg_condo_size": avg_condo_size
+            },
+            "price_reductions": {
+                "num_price_reductions": num_price_reductions,
+                "largest_price_reduction": largest_price_reduction,
+                "avg_price_reduction": avg_price_reduction
+            },
+            "property_valuation": {
+                "avg_tax_assessed_value": avg_tax_assessed_value,
+                "avg_zestimate": avg_zestimate,
+                "avg_price_to_assessed_ratio": avg_price_to_assessed_ratio
+            },
+            "rental_potential": {
+                "avg_rent_zestimate": avg_rent_zestimate,
+                "best_rental": {
+                    "streetAddress": best_rental[1].get("streetAddress", "N/A") if best_rental[1] else None,
+                    "price": best_rental[1].get("price") if best_rental[1] else None,
+                    "rentZestimate": best_rental[1].get("rentZestimate") if best_rental[1] else None,
+                }
+            },
+            "market_activity": {
+                "most_recent_listing": most_recent_listing,
+                "longest_listing": longest_listing,
+                "avg_days_on_market": avg_days_on_market
+            },
+            "yearly_trends": {
+                "year_over_year_change": yearly_trend,
+                "quarter_over_quarter_change": quarterly_trend,
+                "month_over_month_change": monthly_trend
+            }
+        }
+        
+        logger.info(f"Successfully calculated market trends for {location}")
+        return jsonify({
+            "location": location,
+            "trends": trends_data
+        })
+        
+    except Exception as e:
+        error_message = f"Unexpected error in market trends endpoint: {str(e)}"
+        logger.error(error_message)
+        return jsonify({
+            "error": error_message
+        }), 500
+
+
+#######################################################################################################################################
+
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):
     try:
