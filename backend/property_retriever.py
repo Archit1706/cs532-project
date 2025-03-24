@@ -4,6 +4,10 @@ import os
 from typing import Dict, List, Any, Optional
 import requests
 import statistics
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class PropertyRetriever:
     """
@@ -148,8 +152,14 @@ class PropertyRetriever:
         """
         url = "https://zillow56.p.rapidapi.com/market_data"
         querystring = {"location": location}
+        
+        # Get API key from environment variable
+        api_key = os.environ.get("ZILLOW_RAPIDAPI_KEY")
+        if not api_key:
+            return {"error": "API key not found. Please set ZILLOW_RAPIDAPI_KEY in your .env file."}
+        
         headers = {
-            "x-rapidapi-key": "396f65a665mshd8bf677aefcaaccp1dcaf9jsn18f14009b5a6",
+            "x-rapidapi-key": api_key,
             "x-rapidapi-host": "zillow56.p.rapidapi.com"
         }
 
