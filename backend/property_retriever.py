@@ -141,211 +141,221 @@ class PropertyRetriever:
         Get market trends for a specific location.
         
         Args:
-            location: City or neighborhood
+            location: City, zip code, or neighborhood
             
         Returns:
-            A dictionary containing all computed market trend data.
+            A dictionary containing comprehensive market trend data suitable for frontend display.
         """
         url = "https://zillow56.p.rapidapi.com/market_data"
         querystring = {"location": location}
         headers = {
-            "x-rapidapi-key": "36c8c52dc3mshbb39ff413419e97p100586jsn4a24c1387fbd",
+            "x-rapidapi-key": "396f65a665mshd8bf677aefcaaccp1dcaf9jsn18f14009b5a6",
             "x-rapidapi-host": "zillow56.p.rapidapi.com"
         }
 
         response = requests.get(url, headers=headers, params=querystring)
         json_data = response.json()  # Parse JSON response
-        properties = json_data.get("results", [])
-
-        # Initialize lists for our metrics
-        prices = []
-        price_per_sqft = []
-        bedrooms = []
-        bathrooms = []
-        living_areas = []
-        lot_sizes = []
-        tax_assessed_values = []
-        zestimates = []
-        price_to_assessed_ratios = []
-        price_reductions = []
-        rent_zestimates = []
-        time_on_zillow_list = []
-        latitudes = []
-        longitudes = []
-        rental_yields = []  # list of tuples (rental yield, property)
-
-        property_type_counts = {}  # Count of each property type
-
-        # Loop over each property and collect data
-        for prop in properties:
-            # Price
-            price = prop.get("price")
-            if price is not None:
-                prices.append(price)
-
-            # Price per square foot (only if livingArea is nonzero)
-            living_area = prop.get("livingArea", 0)
-            if living_area and price is not None:
-                price_per_sqft.append(price / living_area)
-            
-            # Bedrooms and bathrooms
-            bd = prop.get("bedrooms")
-            if bd is not None:
-                bedrooms.append(bd)
-            ba = prop.get("bathrooms")
-            if ba is not None:
-                bathrooms.append(ba)
-            
-            # For largest property (by livingArea)
-            if living_area:
-                living_areas.append(living_area)
-            
-            # Lot sizes (if available)
-            lot_size = prop.get("lotAreaValue")
-            if lot_size is not None:
-                lot_sizes.append(lot_size)
-            
-            # Tax-assessed value and price-to-assessed value ratio
-            tax_val = prop.get("taxAssessedValue")
-            if tax_val is not None:
-                tax_assessed_values.append(tax_val)
-                if price and tax_val != 0:
-                    price_to_assessed_ratios.append(price / tax_val)
-            
-            # Zestimate (if available)
-            if "zestimate" in prop and prop.get("zestimate") is not None:
-                zestimates.append(prop.get("zestimate"))
-            
-            # Price reductions: use the 'priceChange' field if negative
-            price_change = prop.get("priceChange")
-            if price_change is not None and isinstance(price_change, (int, float)) and price_change < 0:
-                price_reductions.append(abs(price_change))
-            
-            # Rental info (rentZestimate)
-            rent_z = prop.get("rentZestimate")
-            if rent_z is not None:
-                rent_zestimates.append(rent_z)
-                if price and price > 0:
-                    # Compute annual rental yield (as a ratio)
-                    rental_yield = (rent_z * 12) / price
-                    rental_yields.append((rental_yield, prop))
-            
-            # Time on Zillow for market activity
-            time_on = prop.get("timeOnZillow")
-            if time_on is not None:
-                time_on_zillow_list.append(time_on)
-            
-            # Latitude and longitude for location specifics
-            lat = prop.get("latitude")
-            if lat is not None:
-                latitudes.append(lat)
-            lon = prop.get("longitude")
-            if lon is not None:
-                longitudes.append(lon)
-            
-            # Count property types
-            home_type = prop.get("homeType")
-            if home_type is not None:
-                property_type_counts[home_type] = property_type_counts.get(home_type, 0) + 1
-
-        # -------------------------------
-        # Compute Metrics
-
-        # Price Metrics
-        lowest_price = min(prices) if prices else None
-        highest_price = max(prices) if prices else None
-        median_price = statistics.median(prices) if prices else None
-        min_price_per_sqft = min(price_per_sqft) if price_per_sqft else None
-        max_price_per_sqft = max(price_per_sqft) if price_per_sqft else None
-
-        # Size and Specifications
-        avg_bedrooms = statistics.mean(bedrooms) if bedrooms else None
-        avg_bathrooms = statistics.mean(bathrooms) if bathrooms else None
-        largest_property_area = max(living_areas) if living_areas else None
-        avg_lot_size = statistics.mean(lot_sizes) if lot_sizes else None
-
-        # Average condo size: compute average livingArea for properties where homeType == "CONDO"
-        condo_areas = [prop.get("livingArea") for prop in properties 
-                    if prop.get("homeType") == "CONDO" and prop.get("livingArea", 0) > 0]
-        avg_condo_size = statistics.mean(condo_areas) if condo_areas else None
-
-        # Price Reductions
-        num_price_reductions = len(price_reductions)
-        largest_price_reduction = max(price_reductions) if price_reductions else None
-        avg_price_reduction = statistics.mean(price_reductions) if price_reductions else None
-
-        # Property Valuation
-        avg_tax_assessed_value = statistics.mean(tax_assessed_values) if tax_assessed_values else None
-        avg_zestimate = statistics.mean(zestimates) if zestimates else None
-        avg_price_to_assessed_ratio = statistics.mean(price_to_assessed_ratios) if price_to_assessed_ratios else None
-
-        # Rental Potential
-        avg_rent_zestimate = statistics.mean(rent_zestimates) if rent_zestimates else None
-        # Determine best rental yield opportunity (highest yield)
-        best_rental = max(rental_yields, key=lambda x: x[0]) if rental_yields else (None, None)
-
-        # Market Activity
-        most_recent_listing = min(time_on_zillow_list) if time_on_zillow_list else None
-        longest_listing = max(time_on_zillow_list) if time_on_zillow_list else None
-
-        # Location Specifics
-        lat_range = (min(latitudes), max(latitudes)) if latitudes else (None, None)
-        lon_range = (min(longitudes), max(longitudes)) if longitudes else (None, None)
-        num_concentrated = len(latitudes) if latitudes else None
-
-        # -------------------------------
-        # Create a results dictionary to return all metrics
+        
+        print(json_data)
+        # Initialize result structure with all fields the frontend might need
         results = {
-            "price_metrics": {
-                "lowest_price": lowest_price,
-                "highest_price": highest_price,
-                "median_price": median_price,
-                "price_per_sqft_range": {
-                    "min": min_price_per_sqft,
-                    "max": max_price_per_sqft
-                }
+            "location_info": {
+                "name": None,
+                "type": None,
+                "date": None,
             },
-            "property_type_distribution": property_type_counts,
-            "size_and_specifications": {
-                "avg_bedrooms": avg_bedrooms,
-                "min_bedrooms": min(bedrooms) if bedrooms else None,
-                "max_bedrooms": max(bedrooms) if bedrooms else None,
-                "avg_bathrooms": avg_bathrooms,
-                "min_bathrooms": min(bathrooms) if bathrooms else None,
-                "max_bathrooms": max(bathrooms) if bathrooms else None,
-                "largest_property_area": largest_property_area,
-                "avg_lot_size": avg_lot_size,
-                "avg_condo_size": avg_condo_size
+            "market_status": {
+                "temperature": None,
+                "interpretation": None,
             },
-            "price_reductions": {
-                "num_price_reductions": num_price_reductions,
-                "largest_price_reduction": largest_price_reduction,
-                "avg_price_reduction": avg_price_reduction
+            "summary_metrics": {
+                "median_rent": None,
+                "monthly_change": None,
+                "monthly_change_percent": None,
+                "yearly_change": None,
+                "yearly_change_percent": None,
+                "available_rentals": None,
             },
-            "property_valuation": {
-                "avg_tax_assessed_value": avg_tax_assessed_value,
-                "avg_zestimate": avg_zestimate,
-                "avg_price_to_assessed_ratio": avg_price_to_assessed_ratio
+            "price_distribution": {
+                "min_price": None,
+                "max_price": None,
+                "median_price": None,
+                "most_common_price": None,
+                "most_common_price_range": None,
+                "histogram": [],
             },
-            "rental_potential": {
-                "avg_rent_zestimate": avg_rent_zestimate,
-                "best_rental": {
-                    "streetAddress": best_rental[1].get("streetAddress", "N/A") if best_rental[1] else None,
-                    "price": best_rental[1].get("price") if best_rental[1] else None,
-                    "rentZestimate": best_rental[1].get("rentZestimate") if best_rental[1] else None,
-                }
+            "national_comparison": {
+                "national_median": None,
+                "difference": None,
+                "difference_percent": None,
+                "is_above_national": None,
             },
-            "market_activity": {
-                "most_recent_listing": most_recent_listing,
-                "longest_listing": longest_listing
+            "nearby_areas": [],
+            "historical_trends": {
+                "current_year": [],
+                "previous_year": [],
+                "quarterly_averages": [],
+                "ytd_change": None,
+                "ytd_change_percent": None,
             },
-            "location_specifics": {
-                "latitude_range": lat_range,
-                "longitude_range": lon_range,
-                "num_properties_concentrated": num_concentrated
-            }
+            "error": None
         }
-
+        
+        # Check for errors in the API response
+        if "errors" in json_data and json_data["errors"] and len(json_data["errors"]) > 0:
+            results["error"] = json_data["errors"]
+            return results
+        
+        if "data" in json_data and "marketPage" in json_data["data"]:
+            market_data = json_data["data"]["marketPage"]
+            
+            # Location information
+            results["location_info"]["name"] = market_data.get("areaName")
+            results["location_info"]["type"] = market_data.get("areaType")
+            results["location_info"]["date"] = market_data.get("date")
+            
+            # Market temperature and interpretation
+            if "marketTemperature" in market_data:
+                temp = market_data["marketTemperature"].get("temperature")
+                results["market_status"]["temperature"] = temp
+                
+                # Add interpretation based on temperature
+                if temp == "HOT":
+                    interpretation = "This is a seller's market with high demand and typically rising prices."
+                elif temp == "WARM":
+                    interpretation = "This market has solid demand with stable to increasing prices."
+                elif temp == "COOL":
+                    interpretation = "This is a buyer's market with lower competition and potentially negotiable prices."
+                elif temp == "COLD":
+                    interpretation = "This market has low demand, favoring buyers with potentially declining prices."
+                else:
+                    interpretation = "Market conditions are unclear."
+                    
+                results["market_status"]["interpretation"] = interpretation
+            
+            # Summary metrics
+            if "summary" in market_data:
+                summary = market_data["summary"]
+                median_rent = summary.get("medianRent")
+                monthly_change = summary.get("monthlyChange")
+                yearly_change = summary.get("yearlyChange")
+                
+                results["summary_metrics"]["median_rent"] = median_rent
+                results["summary_metrics"]["monthly_change"] = monthly_change
+                results["summary_metrics"]["yearly_change"] = yearly_change
+                results["summary_metrics"]["available_rentals"] = summary.get("availableRentals")
+                
+                # Calculate percentages for changes
+                if median_rent and monthly_change:
+                    results["summary_metrics"]["monthly_change_percent"] = (monthly_change / (median_rent - monthly_change)) * 100 if median_rent != monthly_change else 0
+                    
+                if median_rent and yearly_change:
+                    results["summary_metrics"]["yearly_change_percent"] = (yearly_change / (median_rent - yearly_change)) * 100 if median_rent != yearly_change else 0
+            
+            # Rent histogram data
+            if "rentHistogram" in market_data:
+                histogram = market_data["rentHistogram"]
+                price_distribution = histogram.get("priceAndCount", [])
+                
+                # Extract all prices, accounting for their frequency
+                prices = [entry["price"] for entry in price_distribution for _ in range(entry["count"])]
+                
+                results["price_distribution"]["min_price"] = histogram.get("minPrice")
+                results["price_distribution"]["max_price"] = histogram.get("maxPrice")
+                results["price_distribution"]["histogram"] = price_distribution
+                
+                # Calculate statistics if we have prices
+                if prices:
+                    results["price_distribution"]["median_price"] = statistics.median(prices)
+                    
+                    # Find most common price (mode)
+                    most_common_price_entry = max(price_distribution, key=lambda x: x.get("count", 0)) if price_distribution else {}
+                    most_common_price = most_common_price_entry.get("price")
+                    results["price_distribution"]["most_common_price"] = most_common_price
+                    
+                    # Create a price range around the most common price
+                    if most_common_price:
+                        results["price_distribution"]["most_common_price_range"] = {
+                            "min": max(0, most_common_price - 100),
+                            "max": most_common_price + 100
+                        }
+            
+            # National comparison
+            if "rentCompare" in market_data and "summary" in market_data:
+                national_median = market_data["rentCompare"].get("medianRent")
+                local_median = market_data["summary"].get("medianRent")
+                
+                if national_median and local_median:
+                    difference = local_median - national_median
+                    
+                    results["national_comparison"]["national_median"] = national_median
+                    results["national_comparison"]["difference"] = difference
+                    results["national_comparison"]["difference_percent"] = (difference / national_median) * 100
+                    results["national_comparison"]["is_above_national"] = difference > 0
+            
+            # Nearby areas
+            if "nearbyAreaTrends" in market_data:
+                local_median = market_data.get("summary", {}).get("medianRent")
+                
+                for area in market_data["nearbyAreaTrends"]:
+                    area_rent = area.get("medianRent")
+                    area_info = {
+                        "name": area.get("areaName"),
+                        "median_rent": area_rent,
+                        "date": area.get("date")
+                    }
+                    
+                    # Add comparison data if we have both local and area median rents
+                    if local_median and area_rent:
+                        difference = area_rent - local_median
+                        area_info["difference"] = difference
+                        area_info["difference_percent"] = (difference / local_median) * 100 if local_median else 0
+                        area_info["is_premium"] = difference > 0
+                    
+                    results["nearby_areas"].append(area_info)
+                
+                # Sort nearby areas by rent (highest to lowest)
+                results["nearby_areas"] = sorted(results["nearby_areas"], 
+                                                key=lambda x: x.get("median_rent", 0), 
+                                                reverse=True)
+            
+            # Historical trends
+            if "medianRentPriceOverTime" in market_data:
+                current_year = market_data["medianRentPriceOverTime"].get("currentYear", [])
+                previous_year = market_data["medianRentPriceOverTime"].get("prevYear", [])
+                
+                results["historical_trends"]["current_year"] = current_year
+                results["historical_trends"]["previous_year"] = previous_year
+                
+                # Calculate year-to-date change
+                if current_year and len(current_year) >= 2:
+                    first_month = current_year[0].get("price")
+                    latest_month = current_year[-1].get("price")
+                    
+                    if first_month and latest_month:
+                        ytd_change = latest_month - first_month
+                        results["historical_trends"]["ytd_change"] = ytd_change
+                        results["historical_trends"]["ytd_change_percent"] = (ytd_change / first_month) * 100 if first_month else 0
+                
+                # Calculate quarterly averages for previous year
+                if previous_year and len(previous_year) >= 12:
+                    quarters = [
+                        previous_year[0:3],  # Q1
+                        previous_year[3:6],  # Q2
+                        previous_year[6:9],  # Q3
+                        previous_year[9:12]  # Q4
+                    ]
+                    
+                    quarterly_averages = []
+                    for i, quarter in enumerate(quarters):
+                        avg_price = sum(item.get("price", 0) for item in quarter) / len(quarter) if quarter else 0
+                        quarterly_averages.append({
+                            "quarter": i + 1,
+                            "average_price": avg_price
+                        })
+                    
+                    results["historical_trends"]["quarterly_averages"] = quarterly_averages
+    
         return results
 
 
@@ -357,6 +367,7 @@ if __name__ == "__main__":
     boston_properties = retriever.search_properties(location="Boston")
     print(f"Found {len(boston_properties)} properties in Boston")
     
-    # Get market trends for Cambridge
-    cambridge_trends = retriever.get_market_trends("Cambridge")
-    print(f"Cambridge median price: ${cambridge_trends['median_price']}")
+    # Get market trends for zip code 60608
+    trends = retriever.get_market_trends("ChicaGO, IL")
+    
+    print(json.dumps(trends, indent=2))
