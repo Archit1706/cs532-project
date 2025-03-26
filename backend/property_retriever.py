@@ -154,7 +154,7 @@ class PropertyRetriever:
         querystring = {"location": location}
         
         # Get API key from environment variable
-        api_key = os.environ.get("ZILLOW_RAPIDAPI_KEY")
+        api_key = os.environ.get("ZILLOW_KEY")
         if not api_key:
             return {"error": "API key not found. Please set ZILLOW_RAPIDAPI_KEY in your .env file."}
         
