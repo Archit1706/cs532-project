@@ -22,7 +22,7 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
 
     return (
         <div className="p-4 border-t border-slate-200">
-            <div className="flex gap-2 mb-2">
+            <div className="flex gap-2 mb-2 justify-center items-center">
                 <div className="relative flex-1">
                     <input
                         type="text"
@@ -46,20 +46,21 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
                     </button>
                 </div>
 
-                <div className="w-32">
-                    <div className="bg-teal-500 text-white rounded-xl overflow-hidden">
+                <div className="w-36">
+                    <div className="bg-teal-500 text-black rounded-xl overflow-hidden focus-within:bg-teal-400">
                         <input
                             id="zipCode"
                             type="text"
                             value={zipCode}
                             onChange={handleZipCodeInput}
-                            placeholder="Zip code..."
-                            className="w-full p-3 bg-transparent placeholder-white/80 text-white border-none focus:ring-0 outline-none text-center"
+                            placeholder="Enter Zip Code"
+                            className="w-full p-3 bg-transparent placeholder-white/80 text-white border-transparent border-3 rounded-xl focus:border-teal-700 text-center outline-none"
                             maxLength={5}
                             inputMode="numeric"
                         />
                     </div>
                 </div>
+
             </div>
         </div>
     );

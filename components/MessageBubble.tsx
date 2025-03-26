@@ -33,8 +33,8 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
         <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
                 className={`max-w-[80%] p-4 rounded-2xl ${message.type === 'user'
-                    ? 'bg-slate-900 text-white rounded-tr-none'
-                    : 'bg-white/95 text-slate-800 border border-slate-200 rounded-tl-none'
+                    ? 'bg-teal-700 text-white rounded-tr-none'
+                    : 'bg-gray-50 text-slate-800 border border-slate-200 rounded-tl-none'
                     }`}
             >
                 {formatMessageContent(message.content)}

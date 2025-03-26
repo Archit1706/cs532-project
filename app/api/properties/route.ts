@@ -23,6 +23,8 @@ export async function POST(request: Request) {
     }
 
     const data = await flaskResponse.json();
+    // print the data to the console
+    console.log(data);
     console.log(`Received ${data.results?.length || 0} properties for zip code ${body.zipCode}`);
 
     return NextResponse.json(data);

@@ -21,9 +21,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [locationData, setLocationData] = useState<LocationData | null>(null);
     const [marketTrends, setMarketTrends] = useState<any>(null);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-    const [activeTab, setActiveTab] = useState<'restaurants' | 'transit' | 'properties' | 'market' | null>('properties');
+    const [activeTab, setActiveTab] = useState<'explore' | 'saved' | 'updates'>('explore');
     const [selectedLanguage, setSelectedLanguage] = useState('en');
     const [isTranslating, setIsTranslating] = useState(false);
+    const [isLoadingProperties, setIsLoadingProperties] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
@@ -79,6 +80,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         try {
             const locationResult = await fetchLocationDetails(zip);
             setLocationData(locationResult);
+            setIsLoadingProperties(true);
 
             const propertiesResponse = await fetch('/api/properties', {
                 method: 'POST',
@@ -88,6 +90,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
             const propertiesData = await propertiesResponse.json();
             setProperties(propertiesData.results || []);
+            setIsLoadingProperties(false);
         } catch (error) {
             console.error('Failed to fetch location or property data:', error);
         }
@@ -115,6 +118,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 activeTab, setActiveTab,
                 selectedLanguage, setSelectedLanguage,
                 isTranslating, setIsTranslating,
+                isLoadingProperties, setIsLoadingProperties,
                 messagesEndRef,
                 handleSendMessage
             }}

@@ -24,7 +24,7 @@ const PropertyTab = () => {
     }
 
     return (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 bg-teal-50 shadow-md shadow-teal-200 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 scroll-auto">
             {properties.slice(0, 6).map((property: any, index: any) => (
                 <div
                     key={index}

@@ -12,7 +12,7 @@ const TransitTab = () => {
     }
 
     return (
-        <div className="space-y-2 pr-2 animate-fadeIn">
+        <div className="space-y-2 pr-2 bg-teal-50 shadow-md shadow-teal-200 animate-fadeIn scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 scroll-auto">
             {locationData.transit.slice(0, 5).map((station: any, index: any) => (
                 <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
                     <div className="font-medium text-slate-800">{station.title}</div>
