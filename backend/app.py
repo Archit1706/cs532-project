@@ -376,10 +376,13 @@ def get_property_details(zpid):
         logger.error(f"Error getting property details: {str(e)}")
         return {"error": str(e), "results": None}
 
-@app.route('/api/property/<zpid>', methods=['GET'])
-def property_details(zpid):
-    """API endpoint to get detailed information about a specific property using RESTful URL pattern"""
+@app.route('/api/property', methods=['POST'])
+def property_details():
+    """API endpoint to get detailed information about a specific property using POST request"""
     try:
+        data = request.json
+        zpid = data.get('zpid')
+        
         logger.info(f"Received property details request for zpid: {zpid}")
         
         if not zpid:
