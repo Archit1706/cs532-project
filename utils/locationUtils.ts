@@ -11,8 +11,9 @@ export async function fetchLocationData(zip: string): Promise<LocationData> {
         fetch('/api/location', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ zipCode: zip, type: 'Transit station' })
+            body: JSON.stringify({ zipCode: zip, type: 'Bus Stop' })
         })
+
     ]);
 
     let restaurantsData: LocationResponse = { results: [] };

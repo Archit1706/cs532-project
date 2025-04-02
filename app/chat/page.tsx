@@ -7,6 +7,7 @@ import ChatPanel from 'components/layout/ChatPanel';
 import InfoPanel from 'components/layout/InfoPanel';
 import Sidebar from 'components/layout/Sidebar';
 import TopHeader from 'components/layout/TopHeader';
+import { Property } from '@/types/chat';
 
 const ChatPageContent = () => {
     const { properties, setSelectedProperty } = useChatContext();
@@ -15,7 +16,7 @@ const ChatPageContent = () => {
 
     useEffect(() => {
         if (propertyId && properties.length > 0) {
-            const selected = properties.find((p) => p.id === propertyId);
+            const selected = properties.find((p: Property) => p.id === propertyId);
             if (selected) setSelectedProperty(selected);
         }
     }, [propertyId, properties, setSelectedProperty]);

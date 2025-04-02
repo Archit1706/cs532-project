@@ -25,7 +25,42 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [selectedLanguage, setSelectedLanguage] = useState('en');
     const [isTranslating, setIsTranslating] = useState(false);
     const [isLoadingProperties, setIsLoadingProperties] = useState(false);
+    const [isLoadingMarketTrends, setIsLoadingMarketTrends] = useState<boolean>(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Add fetch function for market trends
+    const fetchMarketTrends = async (location?: string, zipCode?: string) => {
+        console.log('Fetching market trends for:', location || zipCode);
+
+        setIsLoadingMarketTrends(true);
+
+        try {
+            const response = await fetch('/api/market_trends', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    location: location,
+                    zipCode: zipCode
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Market trends API returned ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Market trends data:', data);
+
+            setMarketTrends(data.trends);
+        } catch (error) {
+            console.error('Error fetching market trends:', error);
+        } finally {
+            setIsLoadingMarketTrends(false);
+        }
+    };
+
 
     const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
         if (!message.trim()) return;
@@ -101,6 +136,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     useEffect(() => {
         if (zipCode.length === 5) {
             fetchLocationData(zipCode);
+            fetchMarketTrends(zipCode, zipCode);
         }
     }, [zipCode]);
 
@@ -121,6 +157,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 selectedLanguage, setSelectedLanguage,
                 isTranslating, setIsTranslating,
                 isLoadingProperties, setIsLoadingProperties,
+                isLoadingMarketTrends, setIsLoadingMarketTrends,
+                fetchMarketTrends,
+                fetchLocationData,
                 messagesEndRef,
                 handleSendMessage
             }}

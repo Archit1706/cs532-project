@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useChatContext } from 'context/ChatContext';
+import { MdDirections } from 'react-icons/md';
 
 const TransitTab = () => {
     const { locationData } = useChatContext();
@@ -19,11 +20,24 @@ const TransitTab = () => {
                         key={index}
                         className="w-64 p-3 bg-white rounded-lg border border-slate-200 flex-shrink-0"
                     >
-                        <div className="font-medium text-slate-800">{station.title}</div>
+                        <div className="flex items-center justify-between">
+                            <div className="font-medium text-slate-800">{station.title}</div>
+                            {station.directions && (
+                                <a
+                                    href={station.directions}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-teal-600 hover:text-teal-800"
+                                    title="Open directions in Google Maps"
+                                >
+                                    <MdDirections className="inline-block h-8 w-8 font-bold" />
+                                </a>
+                            )}
+                        </div>
                         <div className="text-sm text-slate-700">{station.address}</div>
                         {station.distance && (
                             <div className="text-sm text-slate-700 mt-1">
-                                {station.distance.toFixed(1)} miles away
+                                {station.distance.toFixed(2)} miles away
                             </div>
                         )}
                     </div>

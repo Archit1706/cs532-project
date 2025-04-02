@@ -1,11 +1,17 @@
-// components/tabs/MarketTab.tsx
+// components/Tabs/MarketTab.tsx
 "use client";
 
 import React from 'react';
-import { useChatContext } from '../../context/ChatContext';
+import { useChatContext } from 'context/ChatContext';
 
 const MarketTab = () => {
     const { isLoadingMarketTrends, marketTrends } = useChatContext();
+
+    const priceMetrics = marketTrends?.trends?.price_distribution;
+    const summary = marketTrends?.trends?.summary_metrics;
+    const national = marketTrends?.trends?.national_comparison;
+    const marketStatus = marketTrends?.trends?.market_status;
+    const nearbyAreas = marketTrends?.trends?.nearby_areas || [];
 
     if (isLoadingMarketTrends) {
         return (
@@ -19,7 +25,7 @@ const MarketTab = () => {
         );
     }
 
-    if (!marketTrends) {
+    if (!marketTrends || !marketTrends.trends) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center">
                 <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -31,32 +37,107 @@ const MarketTab = () => {
     }
 
     return (
-        <div className="space-y-4 animate-fadeIn">
-            {/* Add Market Trend Panels Here */}
+        <div className="space-y-6 overflow-y-auto max-h-[85vh] p-4 animate-fadeIn bg-teal-50">
+            {/* Price Overview */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">Price Overview</h3>
                 <div className="grid grid-cols-3 gap-4">
                     <div className="bg-slate-50 p-3 rounded-lg">
                         <div className="text-sm text-slate-500">Median Price</div>
                         <div className="text-xl font-bold text-slate-800">
-                            ${marketTrends.price_metrics.median_price?.toLocaleString() || 'N/A'}
+                            ${priceMetrics?.median_price?.toLocaleString() || 'N/A'}
                         </div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg">
-                        <div className="text-sm text-slate-500">Price Range</div>
+                        <div className="text-sm text-slate-500">Most Common Price</div>
                         <div className="text-sm font-medium text-slate-800">
-                            ${marketTrends.price_metrics.lowest_price?.toLocaleString() || 'N/A'} - ${marketTrends.price_metrics.highest_price?.toLocaleString() || 'N/A'}
+                            ${priceMetrics?.most_common_price?.toLocaleString() || 'N/A'}
                         </div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-lg">
-                        <div className="text-sm text-slate-500">Price/SqFt</div>
+                        <div className="text-sm text-slate-500">Common Price Range</div>
                         <div className="text-sm font-medium text-slate-800">
-                            ${marketTrends.price_metrics.price_per_sqft_range?.min?.toFixed(0) || 'N/A'} - ${marketTrends.price_metrics.price_per_sqft_range?.max?.toFixed(0) || 'N/A'}
+                            ${priceMetrics?.most_common_price_range?.min || 'N/A'} - ${priceMetrics?.most_common_price_range?.max || 'N/A'}
                         </div>
                     </div>
                 </div>
             </div>
-            {/* You can continue adding the rest of the Market Trends UI like Activity, Type Distribution, etc. */}
+
+            {/* Summary Metrics */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">Summary</h3>
+                <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-slate-50 p-3 rounded-lg">
+                        <div className="text-sm text-slate-500">Available Rentals</div>
+                        <div className="text-xl font-bold text-slate-800">{summary?.available_rentals || 'N/A'}</div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg">
+                        <div className="text-sm text-slate-500">Monthly Change</div>
+                        <div className="text-sm font-medium text-slate-800">
+                            ${summary?.monthly_change?.toFixed(0) || 'N/A'} ({summary?.monthly_change_percent?.toFixed(2) || 'N/A'}%)
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 p-3 rounded-lg">
+                        <div className="text-sm text-slate-500">Yearly Change</div>
+                        <div className="text-sm font-medium text-slate-800">
+                            ${summary?.yearly_change?.toFixed(0) || 'N/A'} ({summary?.yearly_change_percent?.toFixed(2) || 'N/A'}%)
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Market Status */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Market Status</h3>
+                <div className="text-sm text-slate-700">
+                    <strong>Status:</strong> {marketStatus?.temperature || 'N/A'}
+                </div>
+                <div className="text-sm text-slate-700 mt-1">
+                    {marketStatus?.interpretation || 'N/A'}
+                </div>
+            </div>
+
+            {/* National Comparison */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">National Comparison</h3>
+                <div className="text-sm text-slate-700">
+                    Median Rent Nationally: <strong>${national?.national_median?.toFixed(0) || 'N/A'}</strong>
+                </div>
+                <div className="text-sm text-slate-700 mt-1">
+                    Local Difference: <strong>${national?.difference?.toFixed(0) || 'N/A'}</strong> (
+                    {national?.difference_percent?.toFixed(2) || 'N/A'}%)
+                </div>
+                <div className="text-sm mt-1 text-slate-700">
+                    Local rent is <strong>{national?.is_above_national ? 'above' : 'below'}</strong> national average.
+                </div>
+            </div>
+
+            {/* Nearby Areas */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">Nearby Areas</h3>
+                <div className="grid grid-cols-2 gap-3">
+                    {nearbyAreas.map((area: any, i: number) => (
+                        <div key={i} className="bg-slate-50 p-3 rounded-lg">
+                            <div className="text-sm font-semibold text-slate-800">{area.name}</div>
+                            <div className="text-sm text-slate-700">Median Rent: ${area.median_rent}</div>
+                            <div className="text-sm text-slate-700">
+                                Difference: ${area.difference.toFixed(0)} ({area.difference_percent.toFixed(2)}%)
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Historical Trends Placeholder */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4">
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Historical Rental Trends</h3>
+                <div className="text-sm text-slate-700 mb-2">
+                    Below is a visual comparison of rental prices for 2024 and 2025.
+                </div>
+                <div className="w-full h-64 bg-slate-100 flex items-center justify-center rounded-lg text-slate-400">
+                    Chart rendered via Python (see above)
+                </div>
+            </div>
         </div>
     );
 };

@@ -44,6 +44,18 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
                         maxLength={5}
                         inputMode="numeric"
                     />
+                    {/* language change button the click should open up a dialog box to choose the usere prefered language */}
+                    {/* <button
+                        type="button"
+                        className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                    </button> */}
+
+
+
                     <button
                         type="submit"
                         onClick={(e) => {

@@ -10,6 +10,7 @@ import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
 import TransitTab from '../Tabs/TransitTab';
+import MarketTab from '../Tabs/MarketTab';
 
 const InfoPanel = () => {
     const { selectedProperty, setSelectedProperty, locationData, activeTab, setActiveTab } = useChatContext();
@@ -30,6 +31,8 @@ const InfoPanel = () => {
                     <div className="space-y-6 m-6">
                         <h2 className="text-lg font-semibold text-slate-700">Properties in Your Area</h2>
                         <PropertyTab />
+                        <h2 className="text-lg font-semibold text-slate-700 mt-4">Market Details</h2>
+                        <MarketTab />
                         <h2 className="text-lg font-semibold text-slate-700 mt-4">Local Amenities</h2>
                         <RestaurantTab />
                         <h2 className="text-lg font-semibold text-slate-700 mt-4">Transit</h2>

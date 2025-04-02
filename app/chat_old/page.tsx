@@ -902,7 +902,7 @@ const Chat = () => {
         },
         body: JSON.stringify({
           zipCode: zip,
-          type: 'Transit station'
+          type: 'Bus Stop'
         }),
       });
 

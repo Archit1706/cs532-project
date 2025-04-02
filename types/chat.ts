@@ -74,6 +74,7 @@ interface Property {
     sqft: number | string;
     type: string;
     zpid: string;
+    id?: string;
 }
 
 
