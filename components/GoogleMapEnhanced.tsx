@@ -37,7 +37,6 @@
 
         // Add API loader component
         const apiLoader = document.createElement('gmpx-api-loader');
-        //apiLoader.setAttribute('key', 'AIzaSyB9wk1_bl66O-FEA9Fd9v2jmvtxGnqmm8A'); // Replace with your APIII key
         apiLoader.setAttribute('key', process.env.REACT_APP_GOOGLE_MAPS_API_KEY || '');
         apiLoader.setAttribute('solution-channel', 'GMP_GE_mapsandplacesautocomplete_v2');
         mapContainerRef.current?.appendChild(apiLoader);
