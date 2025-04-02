@@ -154,17 +154,33 @@ def search_nearby_places(location, query_type="Restaurants"):
         
         # Sort by distance
         sorted_results = sorted(local_results, key=lambda x: x.get("distance", float('inf')))
+        # print(sorted_results)
         
         # Format results
         formatted_results = []
-        for place in sorted_results:
-            formatted_results.append({
-                "title": place.get("title", "Unknown"),
-                "address": place.get("address", "No address"),
-                "category": place.get("type", ""),
-                "distance": place.get("distance", None)
-            })
+        if query_type == "Restaurants":
+            for place in sorted_results:
+                formatted_results.append({
+                    "image": place.get("thumbnail", ""),
+                    "price": place.get("price", ""),
+                    "rating": place.get("rating", ""),
+                    "reviews_original": place.get("reviews_original", ""),
+                    "title": place.get("title", "Unknown"),
+                    "address": place.get("address", "No address"),
+                    "category": place.get("type", ""),
+                    "distance": place.get("distance", None),
+                    "type": place.get("type", "")
+                })
         
+        elif query_type == "Bus Stop" or query_type == "bus stop":
+            for place in sorted_results:
+                formatted_results.append({
+                    "title": place.get("title", "Unknown"),
+                    "address": place.get("address", "No address"),
+                    "distance": place.get("distance", None),
+                    "type": place.get("type", ""),
+                    "directions": place.get("links").get("directions", "No directions"),
+                })
         return {
             "coordinates": {"latitude": latitude, "longitude": longitude},
             "results": formatted_results
@@ -287,6 +303,106 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize LLM: {str(e)}")
     LLM = None
+
+
+def get_property_details(zpid):
+    """Get detailed information about a specific property by its Zillow ID"""
+    logger.info(f"Getting property details for zpid: {zpid}")
+    
+    zillowapi_key = os.environ.get('ZILLOW_KEY')
+    if not zillowapi_key:
+        return {"error": "Missing Zillow API key", "results": None}
+        
+    url = "https://zillow56.p.rapidapi.com/propertyV2"
+    querystring = {"zpid": zpid}
+    
+    headers = {
+        'x-rapidapi-key': zillowapi_key,
+        'x-rapidapi-host': "zillow56.p.rapidapi.com"
+    }
+    
+    try:
+        logger.info(f"Calling Zillow API for property details with zpid: {zpid}")
+        conn = http.client.HTTPSConnection("zillow56.p.rapidapi.com")
+        conn.request("GET", f"/propertyV2?zpid={zpid}", headers=headers)
+        response = conn.getresponse()
+        
+        logger.info(f"Zillow property details API response status: {response.status}")
+        
+        data = response.read().decode('utf-8')
+        property_data = json.loads(data)
+        
+        if not property_data or "error" in property_data:
+            logger.error(f"Error in Zillow property details API: {property_data.get('error', 'Unknown error')}")
+            return {"error": "Failed to retrieve property details", "results": None}
+            
+        # Format the property details into a more usable structure
+        property_details = {
+            "basic_info": {
+                "zpid": property_data.get("zpid"),
+                "address": {
+                    "streetAddress": property_data.get("address", {}).get("streetAddress"),
+                    "city": property_data.get("address", {}).get("city"),
+                    "state": property_data.get("address", {}).get("state"),
+                    "zipcode": property_data.get("address", {}).get("zipcode"),
+                    "full": property_data.get("address", {}).get("streetAddress") + ", " + 
+                            property_data.get("address", {}).get("city") + ", " + 
+                            property_data.get("address", {}).get("state") + " " + 
+                            property_data.get("address", {}).get("zipcode")
+                },
+                "price": property_data.get("price"),
+                "homeStatus": property_data.get("homeStatus"),
+                "homeType": property_data.get("homeType"),
+                "description": property_data.get("description"),
+                "bedrooms": property_data.get("bedrooms"),
+                "bathrooms": property_data.get("bathrooms"),
+                "livingArea": property_data.get("livingArea"),
+                "lotSize": property_data.get("lotSize"),
+                "yearBuilt": property_data.get("yearBuilt"),
+                "daysOnZillow": property_data.get("daysOnZillow")
+            },
+            "images": property_data.get("images", []),
+            "features": property_data.get("resoFacts", {}),
+            "taxes": property_data.get("taxHistory", []),
+            "schools": property_data.get("schools", []),
+            "nearbyHomes": property_data.get("nearbyHomes", []),
+            "priceHistory": property_data.get("priceHistory", [])
+        }
+        
+        logger.info(f"Successfully retrieved property details for zpid: {zpid}")
+        return {"results": property_details}
+        
+    except Exception as e:
+        logger.error(f"Error getting property details: {str(e)}")
+        return {"error": str(e), "results": None}
+
+@app.route('/api/property/<zpid>', methods=['GET'])
+def property_details(zpid):
+    """API endpoint to get detailed information about a specific property using RESTful URL pattern"""
+    try:
+        logger.info(f"Received property details request for zpid: {zpid}")
+        
+        if not zpid:
+            return jsonify({"error": "Missing zpid parameter", "results": None}), 400
+            
+        # Get property details
+        results = get_property_details(zpid)
+        
+        if "error" in results and results["error"] and not results["results"]:
+            logger.error(f"Error retrieving property details: {results['error']}")
+            return jsonify(results), 500
+            
+        logger.info(f"Returning property details for zpid: {zpid}")
+        return jsonify(results)
+        
+    except Exception as e:
+        error_message = f"Unexpected error in property details endpoint: {str(e)}"
+        logger.error(error_message)
+        return jsonify({
+            "error": error_message,
+            "results": None
+        }), 500
+
 
 @app.route('/api/location', methods=['POST'])
 def location():
