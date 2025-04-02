@@ -1,7 +1,6 @@
-// app/chat/page.tsx
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ChatProvider, useChatContext } from 'context/ChatContext';
 import ChatPanel from 'components/layout/ChatPanel';
@@ -39,7 +38,9 @@ const ChatPageContent = () => {
 
 const ChatPage = () => (
     <ChatProvider>
-        <ChatPageContent />
+        <Suspense fallback={<div>Loading...</div>}>
+            <ChatPageContent />
+        </Suspense>
     </ChatProvider>
 );
 
