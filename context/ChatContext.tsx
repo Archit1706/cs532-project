@@ -53,7 +53,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             const data = await response.json();
             console.log('Market trends data:', data);
 
-            setMarketTrends(data.trends);
+            setMarketTrends(data);
         } catch (error) {
             console.error('Error fetching market trends:', error);
         } finally {
@@ -137,6 +137,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         if (zipCode.length === 5) {
             fetchLocationData(zipCode);
             fetchMarketTrends(zipCode, zipCode);
+            console.log('market trends', marketTrends);
         }
     }, [zipCode]);
 
