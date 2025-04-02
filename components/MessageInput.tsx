@@ -1,22 +1,41 @@
-// components/MessageInput.tsx
 "use client";
 
 import React, { useState } from 'react';
 import { useChatContext } from '../context/ChatContext';
+import { MdLanguage } from 'react-icons/md';
+import { toast } from 'react-toastify';
+
+const languageOptions = [
+    { code: 'en', name: 'English' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'fr', name: 'French' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'de', name: 'German' }
+];
 
 interface Props {
     messagesEndRef: React.RefObject<HTMLDivElement>;
 }
 
 const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
-    const { inputMessage, setInputMessage, isLoading, zipCode, setZipCode, handleSendMessage } = useChatContext();
+    const {
+        inputMessage,
+        setInputMessage,
+        isLoading,
+        zipCode,
+        setZipCode,
+        handleSendMessage,
+        selectedLanguage,
+        setSelectedLanguage
+    } = useChatContext();
+
+    const [showLanguageMenu, setShowLanguageMenu] = useState(false);
+
     const handleZipCodeInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value.replace(/\D/g, '');
         if (value.length <= 5) {
             setZipCode(value);
-            if (value.length === 5) {
-                // Optional zip fetch logic
-            }
         }
     };
 
@@ -24,7 +43,7 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
 
     return (
         <div className="p-4 border-t border-slate-200">
-            <div className="flex gap-2 justify-center items-center">
+            <div className="flex gap-2 justify-center items-center relative">
                 <div className="relative flex-1 flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2">
                     <input
                         type="text"
@@ -44,17 +63,14 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
                         maxLength={5}
                         inputMode="numeric"
                     />
-                    {/* language change button the click should open up a dialog box to choose the usere prefered language */}
-                    {/* <button
+
+                    <button
+                        onClick={() => setShowLanguageMenu(!showLanguageMenu)}
+                        className="text-slate-800 hover:text-slate-900 p-2 rounded-lg bg-emerald-100 hover:bg-emerald-200"
                         type="button"
-                        className="p-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800"
                     >
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                    </button> */}
-
-
+                        <MdLanguage className="w-6 h-6" />
+                    </button>
 
                     <button
                         type="submit"
@@ -70,6 +86,25 @@ const MessageInput: React.FC<Props> = ({ messagesEndRef }) => {
                         </svg>
                     </button>
                 </div>
+
+                {showLanguageMenu && (
+                    <div className="absolute bottom-16 right-10 z-50 bg-white border border-slate-200 rounded-md shadow-lg w-48 p-2">
+                        {languageOptions.map((lang) => (
+                            <div
+                                key={lang.code}
+                                onClick={() => {
+                                    setSelectedLanguage(lang.code);
+                                    setShowLanguageMenu(false);
+                                    toast.success(`Language set to ${lang.name}`);
+                                }}
+                                className={`px-3 py-2 cursor-pointer rounded-md text-gray-700 hover:bg-teal-100 text-sm ${selectedLanguage === lang.code ? 'bg-teal-200 font-medium' : ''
+                                    }`}
+                            >
+                                {lang.name}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

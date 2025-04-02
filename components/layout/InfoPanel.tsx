@@ -26,7 +26,7 @@ const InfoPanel = () => {
         }
 
         switch (activeTab) {
-            case 'properties':
+            case 'explore':
                 return (
                     <div className="space-y-6 m-6">
                         <h2 className="text-lg font-semibold text-slate-700">Properties in Your Area</h2>
