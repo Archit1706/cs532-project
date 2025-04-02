@@ -24,12 +24,12 @@ const PropertyTab = () => {
     }
 
     return (
-        <div className="grid grid-cols-2 gap-4 bg-teal-50 shadow-md shadow-teal-200 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100 scroll-auto">
-            {properties.slice(0, 6).map((property: any, index: any) => (
+        <div className="flex overflow-x-auto gap-4 p-2 bg-teal-50 shadow-md shadow-teal-200 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+            {properties.slice(0, 6).map((property: any, index: number) => (
                 <div
                     key={index}
                     onClick={() => setSelectedProperty(property)}
-                    className="bg-white rounded-lg border border-slate-200 overflow-hidden h-64 flex flex-col transition-all duration-200 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
+                    className="min-w-[250px] max-w-xs bg-white rounded-lg border border-slate-200 overflow-hidden h-64 flex-shrink-0 flex flex-col transition-all duration-200 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
                 >
                     {property.imgSrc ? (
                         <div className="h-32 overflow-hidden">

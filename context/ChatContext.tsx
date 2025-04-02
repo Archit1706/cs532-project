@@ -88,6 +88,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 body: JSON.stringify({ zipCode: zip })
             });
 
+            console.log('Properties response:', propertiesResponse);
+
             const propertiesData = await propertiesResponse.json();
             setProperties(propertiesData.results || []);
             setIsLoadingProperties(false);

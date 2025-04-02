@@ -1,4 +1,25 @@
 @import "tailwindcss";
+/* @import "tailwindcss/preflight"; */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e0 #edf2f7; /* Thumb and track colors */
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #edf2f7; /* Track color */
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #cbd5e0; /* Thumb color */
+  border-radius: 14px;
+  border: 2px solid #edf2f7; /* Optional: adds padding around thumb */
+}
 
 :root {
   --background: #ffffff;

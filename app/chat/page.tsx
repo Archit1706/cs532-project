@@ -8,47 +8,47 @@ import InfoPanel from 'components/layout/InfoPanel';
 import Sidebar from 'components/layout/Sidebar';
 import TopHeader from 'components/layout/TopHeader';
 
-const ChatContent = () => {
-    const { messages, messagesEndRef, setBackendStatus } = useChatContext();
+// const ChatContent = () => {
+//     const { messages, messagesEndRef, setBackendStatus } = useChatContext();
 
-    useEffect(() => {
-        const checkBackendStatus = async () => {
-            try {
-                const response = await fetch('/api/health');
-                const data = await response.json();
+//     useEffect(() => {
+//         const checkBackendStatus = async () => {
+//             try {
+//                 const response = await fetch('/api/health');
+//                 const data = await response.json();
 
-                if (data.backend === 'connected') {
-                    console.log('Backend connected:', data);
-                    setBackendStatus('connected');
-                } else {
-                    console.error('Backend connection issue:', data);
-                    setBackendStatus('error');
-                }
-            } catch (error) {
-                console.error('Health check error:', error);
-                setBackendStatus('error');
-            }
-        };
+//                 if (data.backend === 'connected') {
+//                     console.log('Backend connected:', data);
+//                     setBackendStatus('connected');
+//                 } else {
+//                     console.error('Backend connection issue:', data);
+//                     setBackendStatus('error');
+//                 }
+//             } catch (error) {
+//                 console.error('Health check error:', error);
+//                 setBackendStatus('error');
+//             }
+//         };
 
-        checkBackendStatus();
-    }, [setBackendStatus]);
+//         checkBackendStatus();
+//     }, [setBackendStatus]);
 
-    useEffect(() => {
-        if (messagesEndRef.current) {
-            const chatContainer = document.getElementById('chat-container');
-            if (chatContainer) {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
-            }
-        }
-    }, [messages, messagesEndRef]);
+//     useEffect(() => {
+//         if (messagesEndRef.current) {
+//             const chatContainer = document.getElementById('chat-container');
+//             if (chatContainer) {
+//                 chatContainer.scrollTop = chatContainer.scrollHeight;
+//             }
+//         }
+//     }, [messages, messagesEndRef]);
 
-    return (
-        <div className="container mx-auto p-6 flex gap-6">
-            <ChatPanel />
-            <InfoPanel />
-        </div>
-    );
-};
+//     return (
+//         <div className="container mx-auto p-6 flex gap-6">
+//             <ChatPanel />
+//             <InfoPanel />
+//         </div>
+//     );
+// };
 
 // const ChatPage = () => {
 //     return (
