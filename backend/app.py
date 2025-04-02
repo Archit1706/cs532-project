@@ -154,17 +154,33 @@ def search_nearby_places(location, query_type="Restaurants"):
         
         # Sort by distance
         sorted_results = sorted(local_results, key=lambda x: x.get("distance", float('inf')))
+        # print(sorted_results)
         
         # Format results
         formatted_results = []
-        for place in sorted_results:
-            formatted_results.append({
-                "title": place.get("title", "Unknown"),
-                "address": place.get("address", "No address"),
-                "category": place.get("type", ""),
-                "distance": place.get("distance", None)
-            })
+        if query_type == "Restaurants":
+            for place in sorted_results:
+                formatted_results.append({
+                    "image": place.get("thumbnail", ""),
+                    "price": place.get("price", ""),
+                    "rating": place.get("rating", ""),
+                    "reviews_original": place.get("reviews_original", ""),
+                    "title": place.get("title", "Unknown"),
+                    "address": place.get("address", "No address"),
+                    "category": place.get("type", ""),
+                    "distance": place.get("distance", None),
+                    "type": place.get("type", "")
+                })
         
+        elif query_type == "Bus Stop" or query_type == "bus stop":
+            for place in sorted_results:
+                formatted_results.append({
+                    "title": place.get("title", "Unknown"),
+                    "address": place.get("address", "No address"),
+                    "distance": place.get("distance", None),
+                    "type": place.get("type", ""),
+                    "directions": place.get("links").get("directions", "No directions"),
+                })
         return {
             "coordinates": {"latitude": latitude, "longitude": longitude},
             "results": formatted_results
