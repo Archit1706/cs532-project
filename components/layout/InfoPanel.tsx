@@ -47,7 +47,7 @@ const InfoPanel = () => {
 
     return (
         <div className="w-1/2 h-full flex flex-col rounded-2xl shadow-gray-500 shadow-lg bg-radial-[at_50%_65%] from-teal-400 via-teal-500 to-teal-700 to-90%">
-            <div className="flex flex-col flex-1">
+            <div className="flex flex-col flex-1 overflow-hidden">
                 {/* 3 tab layout */}
                 <div className='flex flex-row justify-around items-center bg-emerald-700/35 border-b border-slate-200 mb-2 rounded-t-2xl'>
                     <div

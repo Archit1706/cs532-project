@@ -73,6 +73,7 @@ interface Property {
     baths: number;
     sqft: number | string;
     type: string;
+    zpid: string;
 }
 
 
