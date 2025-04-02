@@ -3,6 +3,10 @@
 
 import React from 'react';
 import { useChatContext } from 'context/ChatContext';
+import {
+    LineChart, Line, XAxis, YAxis, Tooltip, Legend, CartesianGrid, ResponsiveContainer
+} from 'recharts';
+
 
 const MarketTab = () => {
     const { isLoadingMarketTrends, marketTrends } = useChatContext();
@@ -12,6 +16,30 @@ const MarketTab = () => {
     const national = marketTrends?.trends?.national_comparison;
     const marketStatus = marketTrends?.trends?.market_status;
     const nearbyAreas = marketTrends?.trends?.nearby_areas || [];
+    const historical = marketTrends?.trends?.historical_trends;
+
+    const combinedHistoricalData = (() => {
+        if (!historical?.previous_year && !historical?.current_year) return [];
+
+        const months = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        ];
+
+        const previous = (historical.previous_year || []).reduce((acc: any, item: any) => {
+            acc[item.month] = { month: item.month, "2024": item.price };
+            return acc;
+        }, {});
+
+        const current = (historical.current_year || []).reduce((acc: any, item: any) => {
+            if (!acc[item.month]) acc[item.month] = { month: item.month };
+            acc[item.month]["2025"] = item.price;
+            return acc;
+        }, previous);
+
+        return months.map(month => current[month] || { month });
+    })();
+
 
     if (isLoadingMarketTrends) {
         return (
@@ -25,7 +53,7 @@ const MarketTab = () => {
         );
     }
 
-    if (!marketTrends || !marketTrends.trends) {
+    if (!marketTrends || !marketTrends) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center">
                 <svg className="w-12 h-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -129,15 +157,27 @@ const MarketTab = () => {
             </div>
 
             {/* Historical Trends Placeholder */}
+            {/* Historical Trends Chart */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="text-lg font-semibold text-slate-800 mb-2">Historical Rental Trends</h3>
-                <div className="text-sm text-slate-700 mb-2">
-                    Below is a visual comparison of rental prices for 2024 and 2025.
+                <div className="text-sm text-slate-700 mb-3">
+                    A comparison of monthly rental prices between 2024 and 2025.
                 </div>
-                <div className="w-full h-64 bg-slate-100 flex items-center justify-center rounded-lg text-slate-400">
-                    Chart rendered via Python (see above)
+                <div className="w-full h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={combinedHistoricalData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" />
+                            <YAxis domain={['auto', 'auto']} />
+                            <Tooltip />
+                            <Legend />
+                            <Line type="monotone" dataKey="2024" stroke="#60A5FA" strokeWidth={2} name="2024" />
+                            <Line type="monotone" dataKey="2025" stroke="#34D399" strokeWidth={2} name="2025" />
+                        </LineChart>
+                    </ResponsiveContainer>
                 </div>
             </div>
+
         </div>
     );
 };
