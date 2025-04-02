@@ -5,6 +5,7 @@ import React from 'react';
 import { Property } from 'types/chat';
 import Link from 'next/link';
 import { MdChat } from 'react-icons/md';
+import GoogleMapEnhanced from './GoogleMapEnhanced';
 
 interface Props {
     property: Property;
@@ -59,9 +60,12 @@ const PropertyDetailCard: React.FC<Props> = ({ property, onClose }) => {
                         <div className="text-slate-600">{property.type}</div>
                     </div>
 
+                    {/* Google Map Component */}
+                    <GoogleMapEnhanced property={property} />
+
                     {/* Chat button */}
                     <Link href={`/chat?propertyId=${property.zpid}`}>
-                        <button className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md w-full justify-center mt-2">
+                        <button className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md w-full justify-center mt-4">
                             <MdChat className="h-5 w-5" />
                             Chat with this property
                         </button>
