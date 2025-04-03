@@ -21,8 +21,8 @@ const InfoPanel = () => {
         }
 
         if (!locationData) {
-            return <></>;
-            // return <WelcomeCard />;
+            //return <></>;
+            return <WelcomeCard />;
         }
 
         switch (activeTab) {
