@@ -884,9 +884,10 @@ def translate_api():
 # FEATURE EXTRACTION
 ########################################################################################
 
-# Add this function to backend/app.py to classify queries with more detailed features
 def extract_query_features(query):
     try:
+        logger.info(f"🔍 Feature extraction request for: '{query}'")
+        
         # Prepare the feature extraction prompt
         extraction_prompt = f"""
         You are a real estate assistant specialized in understanding user queries. Extract structured data from this query.
@@ -929,13 +930,14 @@ def extract_query_features(query):
         messages = [{"role": "user", "content": extraction_prompt}]
         
         # Get response from LLM
+        logger.info("🤖 Sending feature extraction request to LLM")
         response = LLM.invoke(messages)
         
         # Extract JSON from response
         content = response.content.strip()
         
         # Log raw response for debugging
-        logger.info(f"Raw feature extraction: {content}")
+        logger.info(f"📝 Raw LLM response: {content[:200]}...")
         
         # Try to find JSON in the response
         import re
@@ -946,13 +948,14 @@ def extract_query_features(query):
             json_str = json_match.group(0)
             features = json.loads(json_str)
             
-            # Log extracted features
-            logger.info(f"Extracted features: {features}")
+            # Format features for easier reading in logs
+            formatted_features = json.dumps(features, indent=2)
+            logger.info(f"📊 Extracted features:\n{formatted_features}")
             
             return features
         else:
-            logger.warning("No JSON found in LLM response")
-            return {
+            logger.warning("⚠️ No JSON found in LLM response")
+            default_features = {
                 "queryType": "general",
                 "zipCode": None,
                 "propertyFeatures": {},
@@ -961,11 +964,13 @@ def extract_query_features(query):
                 "filters": {},
                 "sortBy": None
             }
+            logger.info(f"📊 Using default features:\n{json.dumps(default_features, indent=2)}")
+            return default_features
             
     except Exception as e:
-        logger.error(f"Feature extraction error: {str(e)}")
+        logger.error(f"❌ Feature extraction error: {str(e)}")
         # Fallback to basic classification
-        return {
+        fallback = {
             "queryType": classify_query(query),
             "zipCode": None,
             "propertyFeatures": {},
@@ -974,6 +979,38 @@ def extract_query_features(query):
             "filters": {},
             "sortBy": None
         }
+        logger.info(f"📊 Using fallback features:\n{json.dumps(fallback, indent=2)}")
+        return fallback
+    
+
+@app.route('/api/extract_features', methods=['POST'])
+def extract_features():
+    try:
+        data = request.json
+        query = data.get('message', '')
+        
+        logger.info(f"🔎 Feature extraction API request: '{query}'")
+        
+        # Extract features from the query
+        features = extract_query_features(query)
+        
+        # Log response before sending
+        import json
+        logger.info(f"✅ Feature extraction complete. Returning: {json.dumps(features, indent=2)}")
+        
+        return jsonify({
+            "features": features,
+            "success": True
+        })
+    except Exception as e:
+        error_msg = f"Feature extraction error: {str(e)}"
+        logger.error(f"❌ {error_msg}")
+        return jsonify({
+            "features": None,
+            "success": False,
+            "error": error_msg
+        }), 500
+
 
 ##########################################################################################################################################
 
@@ -1371,29 +1408,6 @@ def classify_query(query):
         logger.error(f"Classification error: {str(e)}")
         return "general"
     
-# Add to backend/app.py
-@app.route('/api/extract_features', methods=['POST'])
-def extract_features():
-    try:
-        data = request.json
-        logger.info(f"Feature extraction request: {data}")
-        
-        query = data.get('message', '')
-        
-        # Extract features from the query
-        features = extract_query_features(query)
-        
-        return jsonify({
-            "features": features,
-            "success": True
-        })
-    except Exception as e:
-        logger.error(f"Feature extraction error: {str(e)}")
-        return jsonify({
-            "features": None,
-            "success": False,
-            "error": str(e)
-        }), 500
 
 
 # Modify in backend/app.py

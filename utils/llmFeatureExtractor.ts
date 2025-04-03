@@ -2,7 +2,14 @@
 import { FeatureExtraction } from 'types/chat';
 import { extractRealEstateFeatures } from './extractRealEstateFeatures';
 
+// Helper for pretty formatting extracted features
+function formatFeatures(features: FeatureExtraction): string {
+  return JSON.stringify(features, null, 2);
+}
+
 export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtraction> {
+    console.log(`🔍 Extracting features for query: "${query}"`);
+    
     const defaultExtraction: FeatureExtraction = {
         queryType: 'general',
         extractedZipCode: undefined,
@@ -14,7 +21,10 @@ export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtr
     };
 
     const zipCodeMatch = query.match(/\b(\d{5})\b/);
-    if (zipCodeMatch) defaultExtraction.extractedZipCode = zipCodeMatch[1];
+    if (zipCodeMatch) {
+        defaultExtraction.extractedZipCode = zipCodeMatch[1];
+        console.log(`📍 Detected ZIP code: ${defaultExtraction.extractedZipCode}`);
+    }
 
     const prompt = `
     You are a real estate query analyzer. Extract key features and intentions from this query:
@@ -51,6 +61,8 @@ export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtr
   `;
 
     try {
+        console.log('🤖 Sending feature extraction request to LLM API...');
+        
         const llmResponse = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -60,22 +72,51 @@ export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtr
             })
         });
 
-        if (!llmResponse.ok) throw new Error(`LLM API error: ${llmResponse.status}`);
+        if (!llmResponse.ok) {
+            const errorMsg = `LLM API error: ${llmResponse.status}`;
+            console.error(`❌ ${errorMsg}`);
+            throw new Error(errorMsg);
+        }
 
         const data = await llmResponse.json();
+        console.log('✅ Received LLM response');
+        
         const jsonMatch = data.response.match(/\{[\s\S]*\}/);
 
-        if (!jsonMatch) throw new Error("No JSON found in LLM response");
+        if (!jsonMatch) {
+            console.error('❌ No JSON found in LLM response');
+            console.log('Raw LLM response:', data.response);
+            throw new Error("No JSON found in LLM response");
+        }
 
-        const extractedFeatures = JSON.parse(jsonMatch[0]);
-
-        return {
-            ...defaultExtraction,
-            ...extractedFeatures,
-            extractedZipCode: extractedFeatures.zipCode || defaultExtraction.extractedZipCode
-        };
+        try {
+            const extractedFeatures = JSON.parse(jsonMatch[0]);
+            
+            const result = {
+                ...defaultExtraction,
+                ...extractedFeatures,
+                extractedZipCode: extractedFeatures.zipCode || defaultExtraction.extractedZipCode
+            };
+            
+            console.log('📊 Extracted features:');
+            console.log(formatFeatures(result));
+            
+            return result;
+        } catch (parseError) {
+            console.error('❌ JSON parse error:', parseError);
+            console.log('Raw JSON string:', jsonMatch[0]);
+            throw parseError;
+        }
     } catch (error) {
-        console.error("LLM feature extraction failed:", error);
-        return extractRealEstateFeatures(query);
+        console.error("❌ LLM feature extraction failed:", error);
+        
+        // Fallback to regex-based extraction
+        console.log('⚠️ Falling back to regex-based feature extraction');
+        const fallbackFeatures = extractRealEstateFeatures(query);
+        
+        console.log('📊 Fallback features:');
+        console.log(formatFeatures(fallbackFeatures));
+        
+        return fallbackFeatures;
     }
 }

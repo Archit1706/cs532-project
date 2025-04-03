@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useRef, useState, useEffect } from 'react';
 import { Message, Property, LocationData, FeatureExtraction } from '../types/chat';
 import { fetchLocationData as fetchLocationDetails } from '../utils/locationUtils';
+import { extractFeaturesWithLLM } from '../utils/llmFeatureExtractor'; // Import for debug only
 
 export const ChatContext = createContext<any>(null);
 export const useChatContext = () => useContext(ChatContext);
@@ -61,9 +62,26 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    // Debug feature extraction - doesn't change original functionality
+    const debugFeatureExtraction = async (message: string) => {
+        try {
+            console.log('🔍 DEBUG: Feature extraction for:', message);
+            const features = await extractFeaturesWithLLM(message);
+            console.group('📊 FEATURE EXTRACTION DEBUG');
+            console.log(JSON.stringify(features, null, 2));
+            console.groupEnd();
+            return features;
+        } catch (error) {
+            console.error('Feature extraction debug error:', error);
+            return null;
+        }
+    };
 
     const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
         if (!message.trim()) return;
+
+        // Debug only - extract features without changing functionality
+        debugFeatureExtraction(message);
 
         const userMessage: Message = {
             id: Date.now(),
@@ -162,7 +180,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 fetchMarketTrends,
                 fetchLocationData,
                 messagesEndRef,
-                handleSendMessage
+                handleSendMessage,
+                debugFeatureExtraction // Expose for debugging
             }}
         >
             {children}

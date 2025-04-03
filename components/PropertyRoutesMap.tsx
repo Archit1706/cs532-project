@@ -6,13 +6,6 @@ import { Property } from 'types/chat';
 import { FaCar, FaWalking, FaBus, FaBicycle, FaSearch, FaPlus, FaTimes, FaChevronLeft, FaChevronRight, FaDirections } from 'react-icons/fa';
 import { MdEdit } from 'react-icons/md';
 
-// Declare global initMap function
-declare global {
-  interface Window {
-    initMap?: () => void;
-  }
-}
-
 // Travel mode types
 enum TravelMode {
   DRIVING = "DRIVING",
@@ -56,69 +49,125 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
   const destinationContainerRef = useRef<HTMLDivElement>(null);
 
   const originAddress = property.address;
-  //const apiKey = "";
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  
   const markerLabels = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
   useEffect(() => {
-    // Initialize Google Maps when component mounts
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initMap`;
-    console.log(`Google Maps API Key: ${apiKey}`);
-    script.async = true;
-    script.defer = true;
+    // Check if Google Maps API is already loaded
+    const initializeMap = () => {
+      if (mapRef.current && window.google) {
+        // Get geocoded location from address if lat/lng not available
+        const geocodeAndInitMap = () => {
+          const geocoder = new google.maps.Geocoder();
+          const mapElement = mapRef.current;
+          if (!mapElement) return;
     
-    window.initMap = () => {
-      if (mapRef.current) {
-        // Initialize map
-        mapInstance.current = new google.maps.Map(mapRef.current, {
-          center: { lat: property.latitude || 41.8781, lng: property.longitude || -87.6298 },
-          zoom: 14,
-          mapTypeControl: false
-        });
+          geocoder.geocode({ address: property.address }, (results, status) => {
+            if (status === 'OK' && results && results[0]) {
+              const location = results[0].geometry.location;
+              
+              // Initialize map
+              mapInstance.current = new google.maps.Map(mapElement, {
+                center: location,
+                zoom: 14,
+                mapTypeControl: false
+              });
+              
+              // Initialize directions service
+              directionsService.current = new google.maps.DirectionsService();
+              directionsRenderer.current = new google.maps.DirectionsRenderer({
+                map: mapInstance.current,
+                suppressMarkers: true
+              });
+              
+              // Add marker for property location
+              new google.maps.Marker({
+                position: location,
+                map: mapInstance.current,
+                icon: {
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 10,
+                  fillColor: "#4285F4",
+                  fillOpacity: 1,
+                  strokeColor: "#FFFFFF",
+                  strokeWeight: 2
+                },
+                zIndex: 1
+              });
+            }
+          });
+        };
         
-        // Initialize directions service
-        directionsService.current = new google.maps.DirectionsService();
-        directionsRenderer.current = new google.maps.DirectionsRenderer({
-          map: mapInstance.current,
-          suppressMarkers: true
-        });
-        
-        // Add marker for property location
-        new google.maps.Marker({
-          position: { lat: property.latitude || 41.8781, lng: property.longitude || -87.6298 },
-          map: mapInstance.current,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 10,
-            fillColor: "#4285F4",
-            fillOpacity: 1,
-            strokeColor: "#FFFFFF",
-            strokeWeight: 2
-          },
-          zIndex: 1
-        });
+        if (property.latitude && property.longitude) {
+          const location = { lat: property.latitude, lng: property.longitude };
+          
+          // Initialize map
+          mapInstance.current = new google.maps.Map(mapRef.current, {
+            center: location,
+            zoom: 14,
+            mapTypeControl: false
+          });
+          
+          // Initialize directions service
+          directionsService.current = new google.maps.DirectionsService();
+          directionsRenderer.current = new google.maps.DirectionsRenderer({
+            map: mapInstance.current,
+            suppressMarkers: true
+          });
+          
+          // Add marker for property location
+          new google.maps.Marker({
+            position: location,
+            map: mapInstance.current,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: "#4285F4",
+              fillOpacity: 1,
+              strokeColor: "#FFFFFF",
+              strokeWeight: 2
+            },
+            zIndex: 1
+          });
+        } else {
+          geocodeAndInitMap();
+        }
       }
     };
     
-    document.head.appendChild(script);
+    // Check if Google Maps API is already loaded
+    if (window.google && window.google.maps) {
+      initializeMap();
+    } else {
+      // Load Google Maps API if not loaded yet
+      if (!document.getElementById('google-maps-script')) {
+        const script = document.createElement('script');
+
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
+        console.log('api key', process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY);
+        script.id = 'google-maps-script';
+        script.async = true;
+        script.defer = true;
+        script.onload = initializeMap;
+        document.head.appendChild(script);
+      }
+    }
     
     return () => {
-      // Clean up script and global callback
-      document.head.removeChild(script);
-      delete window.initMap;
-      
       // Clear markers
       if (markersRef.current) {
         markersRef.current.forEach(marker => marker.setMap(null));
       }
+      
+      // Clear route
+      if (directionsRenderer.current) {
+        directionsRenderer.current.setMap(null);
+      }
     };
-  }, [property]);
+  }, [property.address, property.latitude, property.longitude]);
 
   useEffect(() => {
     // Initialize autocomplete when modal is shown
-    if (showModal && window.google && window.google.maps) {
+    if (showModal && window.google && window.google.maps && window.google.maps.places) {
       if (destinationInputRef.current) {
         autocompleteRef.current = new google.maps.places.Autocomplete(destinationInputRef.current, {
           types: ['establishment', 'geocode'],
