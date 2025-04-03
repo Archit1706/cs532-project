@@ -64,7 +64,7 @@ const PropertyDetailCard: React.FC<Props> = ({ property, onClose }) => {
                     <PropertyRoutesMap property={property} />
 
                     {/* Chat button */}
-                    <Link href={`/chat?propertyId=${property.zpid}`}>
+                    <Link target='_blank' href={`/chat?propertyId=${property.zpid}`}>
                         <button className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md w-full justify-center mt-4">
                             <MdChat className="h-5 w-5" />
                             Chat with this property

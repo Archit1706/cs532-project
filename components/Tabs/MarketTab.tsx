@@ -22,16 +22,16 @@ const MarketTab = () => {
     // Helper function for temperature color gradient 
     const getTemperatureColor = (temperature: string) => {
         if (!temperature) return "#6B7280"; // Default gray
-        
+
         if (temperature.toLowerCase().includes('hot')) return "#EF4444"; // Red
         if (temperature.toLowerCase().includes('warm')) return "#F97316"; // Orange
         if (temperature.toLowerCase().includes('neutral')) return "#A855F7"; // Purple
         if (temperature.toLowerCase().includes('cool')) return "#3B82F6"; // Blue
         if (temperature.toLowerCase().includes('cold')) return "#06B6D4"; // Cyan
-        
+
         return "#6B7280"; // Default gray
     };
-    
+
     // Helper function for value change color
     const getChangeColor = (changeValue: string) => {
         if (!changeValue) return "#6B7280"; // Default gray
@@ -41,7 +41,7 @@ const MarketTab = () => {
     // Helper function for temperature icon
     const getTemperatureIcon = (temperature: string) => {
         if (!temperature) return <FaThermometerHalf className="text-slate-400" />;
-        
+
         if (temperature.toLowerCase().includes('hot')) {
             return <FaThermometerFull className="text-red-500" size={24} />;
         }
@@ -51,10 +51,10 @@ const MarketTab = () => {
         if (temperature.toLowerCase().includes('cold') || temperature.toLowerCase().includes('cool')) {
             return <FaThermometerEmpty className="text-blue-500" size={24} />;
         }
-        
+
         return <FaThermometerHalf className="text-purple-500" size={24} />;
     };
-    
+
     // Format dollar amounts
     const formatDollar = (amount: number) => {
         if (!amount && amount !== 0) return 'N/A';
@@ -135,12 +135,12 @@ const MarketTab = () => {
             <div className="bg-teal-700 text-white p-4 rounded-xl shadow-md">
                 <h2 className="text-xl font-bold mb-1">Market Details</h2>
                 <p className="text-teal-100 text-sm">
-                    Analysis for {marketTrends?.location?.city || 'this area'}, 
+                    Analysis for {marketTrends?.location?.city || 'this area' || marketTrends?.location}
                     {marketTrends?.location?.state && ` ${marketTrends.location.state}`}
                     {marketTrends?.location?.zip && ` ${marketTrends.location.zip}`}
                 </p>
             </div>
-            
+
             {/* Price Overview */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Price Overview</h3>
@@ -174,7 +174,7 @@ const MarketTab = () => {
                         <div className="text-sm text-slate-500 mb-1">Available Rentals</div>
                         <div className="text-2xl font-bold text-slate-800">{summary?.available_rentals || 'N/A'}</div>
                     </div>
-                    <div 
+                    <div
                         className="p-4 rounded-lg shadow-sm relative overflow-hidden"
                         style={{
                             background: `linear-gradient(to bottom right, ${getChangeColor(summary?.monthly_change_percent)}15, ${getChangeColor(summary?.monthly_change_percent)}05)`
@@ -186,8 +186,8 @@ const MarketTab = () => {
                                 {formatDollar(summary?.monthly_change)}
                             </div>
                             <div className="ml-2 flex items-center" style={{ color: getChangeColor(summary?.monthly_change_percent) }}>
-                                {summary?.monthly_change_percent >= 0 ? 
-                                    <BiTrendingUp size={18} /> : 
+                                {summary?.monthly_change_percent >= 0 ?
+                                    <BiTrendingUp size={18} /> :
                                     <BiTrendingDown size={18} />
                                 }
                                 <span className="text-sm font-medium ml-1">
@@ -196,7 +196,7 @@ const MarketTab = () => {
                             </div>
                         </div>
                     </div>
-                    <div 
+                    <div
                         className="p-4 rounded-lg shadow-sm relative overflow-hidden"
                         style={{
                             background: `linear-gradient(to bottom right, ${getChangeColor(summary?.yearly_change_percent)}15, ${getChangeColor(summary?.yearly_change_percent)}05)`
@@ -208,8 +208,8 @@ const MarketTab = () => {
                                 {formatDollar(summary?.yearly_change)}
                             </div>
                             <div className="ml-2 flex items-center" style={{ color: getChangeColor(summary?.yearly_change_percent) }}>
-                                {summary?.yearly_change_percent >= 0 ? 
-                                    <BiTrendingUp size={18} /> : 
+                                {summary?.yearly_change_percent >= 0 ?
+                                    <BiTrendingUp size={18} /> :
                                     <BiTrendingDown size={18} />
                                 }
                                 <span className="text-sm font-medium ml-1">
@@ -222,7 +222,7 @@ const MarketTab = () => {
             </div>
 
             {/* Market Status */}
-            <div 
+            <div
                 className="rounded-xl border p-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
                 style={{
                     borderColor: getTemperatureColor(marketStatus?.temperature),
@@ -261,9 +261,9 @@ const MarketTab = () => {
                     </div>
                     <div className="mt-2 py-2 px-3 bg-slate-50 rounded-lg flex items-center">
                         <div className="h-3 flex-1 bg-slate-200 rounded-full overflow-hidden">
-                            <div 
+                            <div
                                 className="h-full rounded-full"
-                                style={{ 
+                                style={{
                                     width: `${Math.min(Math.max((national?.difference_percent || 0) + 50, 0), 100)}%`,
                                     backgroundColor: getChangeColor(national?.difference),
                                 }}
@@ -287,31 +287,31 @@ const MarketTab = () => {
                         <LineChart data={combinedHistoricalData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
                             <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                            <YAxis 
-                                domain={['auto', 'auto']} 
+                            <YAxis
+                                domain={['auto', 'auto']}
                                 tick={{ fontSize: 12 }}
                                 tickFormatter={(value) => `$${value}`}
                             />
                             <Tooltip content={<CustomTooltip />} />
                             <Legend wrapperStyle={{ paddingTop: 10 }} />
                             <ReferenceLine y={medianPrice} stroke="#6B7280" strokeDasharray="3 3" label={{ value: 'Median', position: 'insideBottomRight', fill: '#6B7280', fontSize: 11 }} />
-                            <Line 
-                                type="monotone" 
-                                dataKey="2024" 
-                                stroke="#3B82F6" 
-                                strokeWidth={2} 
+                            <Line
+                                type="monotone"
+                                dataKey="2024"
+                                stroke="#3B82F6"
+                                strokeWidth={2}
                                 dot={{ stroke: '#3B82F6', strokeWidth: 2, r: 4, fill: 'white' }}
                                 activeDot={{ stroke: '#3B82F6', strokeWidth: 2, r: 6, fill: '#3B82F6' }}
-                                name="2024" 
+                                name="2024"
                             />
-                            <Line 
-                                type="monotone" 
-                                dataKey="2025" 
-                                stroke="#10B981" 
-                                strokeWidth={2} 
+                            <Line
+                                type="monotone"
+                                dataKey="2025"
+                                stroke="#10B981"
+                                strokeWidth={2}
                                 dot={{ stroke: '#10B981', strokeWidth: 2, r: 4, fill: 'white' }}
                                 activeDot={{ stroke: '#10B981', strokeWidth: 2, r: 6, fill: '#10B981' }}
-                                name="2025" 
+                                name="2025"
                             />
                         </LineChart>
                     </ResponsiveContainer>
@@ -323,8 +323,8 @@ const MarketTab = () => {
                 <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Nearby Areas</h3>
                 <div className="grid grid-cols-2 gap-3">
                     {nearbyAreas.map((area: any, i: number) => (
-                        <div 
-                            key={i} 
+                        <div
+                            key={i}
                             className="p-3 rounded-lg relative overflow-hidden"
                             style={{
                                 background: `linear-gradient(to bottom right, ${getChangeColor(area.difference_percent)}08, white)`,

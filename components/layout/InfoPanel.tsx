@@ -55,9 +55,9 @@ const InfoPanel = () => {
                 <div className='flex flex-row justify-around items-center bg-emerald-700/35 border-b border-slate-200 mb-2 rounded-t-2xl'>
                     <div
                         className='flex flex-col justify-center items-center cursor-pointer rounded-xl m-2 p-2'
-                        onClick={() => setActiveTab('properties')}
+                        onClick={() => setActiveTab('explore')}
                     >
-                        <div className={`rounded-full ${activeTab === 'properties' ? 'bg-purple-200 text-gray-700' : 'bg-transparent'}`}>
+                        <div className={`rounded-full ${activeTab === 'explore' ? 'bg-purple-200 text-gray-700' : 'bg-transparent'}`}>
                             <MdExplore className='h-6 w-6 mx-4 my-1' />
                         </div>
                         <h1 className='text-purple-100 font-semibold'>Explore</h1>
