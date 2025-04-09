@@ -10,7 +10,7 @@ import TopHeader from 'components/layout/TopHeader';
 import { Property } from '@/types/chat';
 
 const ChatPageContent = () => {
-    const { properties, setSelectedProperty } = useChatContext();
+    const { properties, setSelectedProperty, setIsPropertyChat, setPropertyDetails, loadPropertyChat, locationData } = useChatContext();
     const searchParams = useSearchParams();
     const propertyId = searchParams.get("propertyId");
 
@@ -21,6 +21,17 @@ const ChatPageContent = () => {
         }
     }, [propertyId, properties, setSelectedProperty]);
 
+    useEffect(() => {
+        if (propertyId) {
+            loadPropertyChat(propertyId);
+        }
+    }, [propertyId]);
+
+
+    useEffect(() => {
+        console.log('Location Data:', locationData);
+    }
+        , []);
     return (
         <div className="flex h-screen bg-emerald-50 overflow-hidden">
             <Sidebar />

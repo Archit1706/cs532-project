@@ -8,11 +8,24 @@ import QuickQuestions from '../QuickQuestions';
 import { useChatContext } from 'context/ChatContext';
 
 const ChatPanel = () => {
-    const { messages, isLoading, isTranslating, messagesEndRef } = useChatContext();
+    const {
+        messages,
+        isLoading,
+        isTranslating,
+        messagesEndRef,
+        selectedProperty,
+        isPropertyChat,
+        propertyDetails,
+    } = useChatContext();
 
     return (
         <div className="w-1/2 flex flex-col h-full bg-white rounded-2xl shadow-emerald-900 shadow-xl">
             <div className="flex-1 overflow-y-auto p-6 space-y-4 rounded-2xl" id="chat-container">
+                {isPropertyChat && propertyDetails?.basic_info?.address?.full && (
+                    <div className="mb-4 p-4 bg-teal-100 border border-teal-300 rounded-md text-teal-800 font-semibold">
+                        You are chatting about: {propertyDetails?.basic_info?.address?.full}
+                    </div>
+                )}
                 {messages.map((message: any) => (
                     <MessageBubble key={message.id} message={message} />
                 ))}

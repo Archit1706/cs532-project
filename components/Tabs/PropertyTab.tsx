@@ -4,10 +4,18 @@
 import React from 'react';
 import { useChatContext } from 'context/ChatContext';
 
-const PropertyTab = () => {
-    const { properties, isLoadingProperties, setSelectedProperty } = useChatContext();
+const PropertyTab = ({ source = "main" }: { source?: "main" | "nearby" }) => {
+    const {
+        properties,
+        nearbyProperties,
+        isLoadingProperties,
+        setSelectedProperty,
+        isPropertyChat,
+    } = useChatContext();
 
-    if (isLoadingProperties) {
+    const list = source === "nearby" ? nearbyProperties : properties;
+
+    if (isLoadingProperties && list.length === 0) {
         return (
             <div className="flex justify-center p-4">
                 <div className="flex space-x-2">
@@ -19,13 +27,13 @@ const PropertyTab = () => {
         );
     }
 
-    if (properties.length === 0) {
+    if (list.length === 0) {
         return <div className="text-slate-700 text-sm p-2">No properties found in this area.</div>;
     }
 
     return (
         <div className="flex overflow-x-auto gap-4 p-2 bg-teal-50 shadow-md shadow-teal-200 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
-            {properties.slice(0, 6).map((property: any, index: number) => (
+            {list.slice(0, 6).map((property: any, index: number) => (
                 <div
                     key={index}
                     onClick={() => setSelectedProperty(property)}

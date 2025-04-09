@@ -9,7 +9,7 @@ import { MdEdit } from 'react-icons/md';
 // Travel mode types
 enum TravelMode {
   DRIVING = "DRIVING",
-  TRANSIT = "TRANSIT", 
+  TRANSIT = "TRANSIT",
   BICYCLING = "BICYCLING",
   WALKING = "WALKING"
 }
@@ -38,7 +38,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
   const [modalDestination, setModalDestination] = useState<string>('');
   const [selectedTravelMode, setSelectedTravelMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  
+
   const mapRef = useRef<HTMLDivElement>(null);
   const destinationInputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -60,25 +60,25 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
           const geocoder = new google.maps.Geocoder();
           const mapElement = mapRef.current;
           if (!mapElement) return;
-    
+
           geocoder.geocode({ address: property.address }, (results, status) => {
             if (status === 'OK' && results && results[0]) {
               const location = results[0].geometry.location;
-              
+
               // Initialize map
               mapInstance.current = new google.maps.Map(mapElement, {
                 center: location,
                 zoom: 14,
                 mapTypeControl: false
               });
-              
+
               // Initialize directions service
               directionsService.current = new google.maps.DirectionsService();
               directionsRenderer.current = new google.maps.DirectionsRenderer({
                 map: mapInstance.current,
                 suppressMarkers: true
               });
-              
+
               // Add marker for property location
               new google.maps.Marker({
                 position: location,
@@ -96,24 +96,24 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
             }
           });
         };
-        
+
         if (property.latitude && property.longitude) {
           const location = { lat: property.latitude, lng: property.longitude };
-          
+
           // Initialize map
           mapInstance.current = new google.maps.Map(mapRef.current, {
             center: location,
             zoom: 14,
             mapTypeControl: false
           });
-          
+
           // Initialize directions service
           directionsService.current = new google.maps.DirectionsService();
           directionsRenderer.current = new google.maps.DirectionsRenderer({
             map: mapInstance.current,
             suppressMarkers: true
           });
-          
+
           // Add marker for property location
           new google.maps.Marker({
             position: location,
@@ -133,7 +133,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
         }
       }
     };
-    
+
     // Check if Google Maps API is already loaded
     if (window.google && window.google.maps) {
       initializeMap();
@@ -151,13 +151,13 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
         document.head.appendChild(script);
       }
     }
-    
+
     return () => {
       // Clear markers
       if (markersRef.current) {
         markersRef.current.forEach(marker => marker.setMap(null));
       }
-      
+
       // Clear route
       if (directionsRenderer.current) {
         directionsRenderer.current.setMap(null);
@@ -173,7 +173,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
           types: ['establishment', 'geocode'],
           fields: ['place_id', 'geometry', 'name']
         });
-        
+
         // Set bias to current map bounds
         if (mapInstance.current) {
           const bounds = mapInstance.current.getBounds();
@@ -181,7 +181,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
             autocompleteRef.current.setBounds(bounds);
           }
         }
-        
+
         // Focus input
         destinationInputRef.current.focus();
       }
@@ -211,12 +211,12 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
       newDestinations.splice(activeDestinationIndex, 1);
       setDestinations(newDestinations);
       setShowModal(false);
-      
+
       // Clear route for the deleted destination
       if (directionsRenderer.current) {
         directionsRenderer.current.setMap(null);
       }
-      
+
       // Remove marker
       if (markersRef.current[activeDestinationIndex]) {
         markersRef.current[activeDestinationIndex].setMap(null);
@@ -227,70 +227,70 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
 
   const handleModalSubmit = () => {
     if (!autocompleteRef.current) return;
-    
+
     const place = autocompleteRef.current.getPlace();
     if (!place || !place.geometry || !place.geometry.location) {
       setErrorMessage('Please select a valid location');
       return;
     }
-    
+
     if (destinations.length >= 10 && !isEditMode) {
       setErrorMessage('Maximum 10 destinations allowed');
       return;
     }
-    
+
     // Check for duplicate destinations
     if (!isEditMode && destinations.some(dest => dest.placeId === place.place_id)) {
       setErrorMessage('Destination already added');
       return;
     }
-    
+
     const getDirections = (destination: Destination) => {
       if (!directionsService.current || !mapInstance.current) return;
-      
+
       const request = {
         origin: originAddress,
         destination: { placeId: destination.placeId },
         travelMode: google.maps.TravelMode[destination.travelMode as keyof typeof google.maps.TravelMode],
         unitSystem: google.maps.UnitSystem.IMPERIAL
       };
-      
+
       directionsService.current.route(request, (result, status) => {
         if (status === google.maps.DirectionsStatus.OK && result) {
           // Update destination with distance and duration
           const route = result.routes[0];
           const leg = route.legs[0];
-          
+
           const updatedDestinations = [...destinations];
-          
+
           // Use existing index for edit mode, or add new destination
-          const destIndex = isEditMode && activeDestinationIndex !== null ? 
+          const destIndex = isEditMode && activeDestinationIndex !== null ?
             activeDestinationIndex : updatedDestinations.length;
-          
+
           // Update destination details
           const updatedDestination = {
             ...destination,
             distance: leg.distance?.text || '',
             duration: leg.duration?.text || ''
           };
-          
+
           if (isEditMode && activeDestinationIndex !== null) {
             updatedDestinations[activeDestinationIndex] = updatedDestination;
           } else {
             updatedDestinations.push(updatedDestination);
           }
-          
+
           setDestinations(updatedDestinations);
-          
+
           // Add or update marker
           if (markersRef.current[destIndex]) {
             markersRef.current[destIndex].setMap(null);
           }
-          
+
           const marker = new google.maps.Marker({
             position: leg.end_location,
             map: mapInstance.current,
-            label: { 
+            label: {
               text: destination.label,
               color: '#FFFFFF',
               fontWeight: 'bold'
@@ -306,71 +306,71 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
               labelOrigin: new google.maps.Point(10, 9)
             }
           });
-          
+
           if (isEditMode && activeDestinationIndex !== null) {
             markersRef.current[activeDestinationIndex] = marker;
           } else {
             markersRef.current.push(marker);
           }
-          
+
           // Display route
           if (directionsRenderer.current) {
             directionsRenderer.current.setDirections(result);
             directionsRenderer.current.setMap(mapInstance.current);
           }
-          
+
           // Set this destination as active
-          handleDestinationClick(isEditMode && activeDestinationIndex !== null ? 
+          handleDestinationClick(isEditMode && activeDestinationIndex !== null ?
             activeDestinationIndex : updatedDestinations.length - 1);
         }
       });
     };
-    
+
     // Create new destination
     const newDestination: Destination = {
       name: place.name || modalDestination,
       placeId: place.place_id || '',
-      label: isEditMode && activeDestinationIndex !== null ? 
-        destinations[activeDestinationIndex].label : 
+      label: isEditMode && activeDestinationIndex !== null ?
+        destinations[activeDestinationIndex].label :
         markerLabels[destinations.length % markerLabels.length],
       travelMode: selectedTravelMode,
       url: `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(originAddress)}&destination=${encodeURIComponent(place.name || modalDestination)}&destination_place_id=${place.place_id}&travelmode=${selectedTravelMode.toLowerCase()}`
     };
-    
+
     // Get directions for the destination
     getDirections(newDestination);
-    
+
     // Close modal
     setShowModal(false);
   };
 
   const handleDestinationClick = (index: number) => {
     if (!directionsService.current || !mapInstance.current) return;
-    
+
     // Update active destination
     setActiveDestinationIndex(index);
-    
+
     const destination = destinations[index];
-    
+
     // Show route for selected destination
     const request = {
       origin: originAddress,
       destination: { placeId: destination.placeId },
       travelMode: google.maps.TravelMode[destination.travelMode as keyof typeof google.maps.TravelMode]
     };
-    
+
     directionsService.current.route(request, (result, status) => {
       if (status === google.maps.DirectionsStatus.OK && result && directionsRenderer.current) {
         directionsRenderer.current.setDirections(result);
         directionsRenderer.current.setMap(mapInstance.current);
-        
+
         // Fit bounds to show the entire route
         if (mapInstance.current && result.routes[0].bounds) {
           mapInstance.current.fitBounds(result.routes[0].bounds);
         }
       }
     });
-    
+
     // Update markers appearance
     markersRef.current.forEach((marker, i) => {
       const isActive = i === index;
@@ -410,19 +410,19 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
       <div className="w-full h-80 rounded-lg border border-slate-200 overflow-hidden bg-slate-50 mb-3">
         <div ref={mapRef} className="w-full h-full"></div>
       </div>
-      
+
       {/* Destination Panel */}
       {destinations.length > 0 ? (
         <div className="mb-4 relative">
-          <div 
+          <div
             ref={destinationContainerRef}
-            className="flex overflow-x-auto pb-2 hide-scrollbar" 
+            className="flex overflow-x-auto pb-2 hide-scrollbar"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
             <div className="flex">
               {destinations.map((destination, index) => (
-                <div 
-                  key={index} 
+                <div
+                  key={index}
                   className={`relative flex-shrink-0 mr-3 p-3 rounded-lg border ${index === activeDestinationIndex ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white'} cursor-pointer`}
                   style={{ minWidth: '250px' }}
                   onClick={() => handleDestinationClick(index)}
@@ -435,7 +435,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                       {destination.name}
                     </span>
                   </div>
-                  
+
                   <div className="flex items-center text-slate-600 text-sm mb-1">
                     {destination.travelMode === TravelMode.DRIVING && <FaCar className="mr-1" />}
                     {destination.travelMode === TravelMode.WALKING && <FaWalking className="mr-1" />}
@@ -443,13 +443,13 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                     {destination.travelMode === TravelMode.BICYCLING && <FaBicycle className="mr-1" />}
                     <span>{destination.distance}</span>
                   </div>
-                  
+
                   <div className="text-xl font-bold text-slate-800">
                     {destination.duration}
                   </div>
-                  
+
                   <div className="absolute top-3 right-3 flex">
-                    <button 
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleEditDestination(index);
@@ -458,9 +458,9 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                     >
                       <MdEdit size={16} />
                     </button>
-                    <a 
-                      href={destination.url} 
-                      target="_blank" 
+                    <a
+                      href={destination.url}
+                      target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
                       className="p-1 text-slate-500 hover:text-teal-600 ml-1"
@@ -470,9 +470,9 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                   </div>
                 </div>
               ))}
-              
+
               {/* Add Destination Button */}
-              <div 
+              <div
                 className="flex-shrink-0 flex flex-col items-center justify-center h-32 px-4 py-6 bg-teal-50 text-teal-700 rounded-lg border border-teal-200 cursor-pointer mr-3"
                 style={{ minWidth: '150px' }}
                 onClick={handleAddDestination}
@@ -482,15 +482,15 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
               </div>
             </div>
           </div>
-          
+
           {/* Scroll controls */}
-          <button 
+          <button
             className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
             onClick={() => handleScroll(-1)}
           >
             <FaChevronLeft className="text-slate-500" />
           </button>
-          <button 
+          <button
             className="absolute right-0 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
             onClick={() => handleScroll(1)}
           >
@@ -506,7 +506,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
             <h3 className="font-bold text-lg mb-1">Estimate commute time</h3>
             <p className="text-sm">See travel time and directions to important places from this property</p>
           </div>
-          <button 
+          <button
             onClick={handleAddDestination}
             className="flex items-center bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md"
           >
@@ -515,13 +515,13 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
           </button>
         </div>
       )}
-      
+
       {/* Nearby Places Buttons */}
       <div className="text-sm text-slate-600">
         <p>Search for nearby places:</p>
-        
+
         <div className="flex flex-wrap gap-2 mt-2">
-          <button 
+          <button
             onClick={() => searchNearby("restaurants")}
             className="px-3 py-1 bg-teal-50 text-teal-700 rounded-full border border-teal-200 text-xs font-medium hover:bg-teal-100"
           >
@@ -565,14 +565,14 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
           </button>
         </div>
       </div>
-      
+
       {/* Custom Search Input */}
       <div className="mt-3">
         <div className="relative">
           <input
             type="text"
             placeholder="Search for other places nearby..."
-            className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+            className="w-full px-4 py-2 pr-10 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 placeholder:text-gray-400 text-teal-800"
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 const target = e.target as HTMLInputElement;
@@ -581,7 +581,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
               }
             }}
           />
-          <button 
+          <button
             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-teal-600"
             onClick={() => {
               const input = document.querySelector('input[placeholder="Search for other places nearby..."]') as HTMLInputElement;
@@ -595,7 +595,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
           </button>
         </div>
       </div>
-      
+
       {/* Modal for adding/editing destinations */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -603,19 +603,19 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
             <h2 className="text-xl font-semibold text-slate-800 mb-4">
               {isEditMode ? 'Edit destination' : 'Add destination'}
             </h2>
-            
+
             <input
               ref={destinationInputRef}
               type="text"
               placeholder="Enter a place or address"
               defaultValue={modalDestination}
-              className={`w-full p-2 border rounded-md mb-2 ${errorMessage ? 'border-red-500' : 'border-slate-300'}`}
+              className={`w-full p-2 border rounded-md mb-2 placeholder:text-gray-400 text-teal-800 ${errorMessage ? 'border-red-500' : 'border-slate-300'}`}
             />
-            
+
             {errorMessage && (
               <p className="text-red-500 text-sm mb-2">{errorMessage}</p>
             )}
-            
+
             <div className="flex border border-slate-300 rounded-md overflow-hidden mb-4">
               <button
                 className={`flex-1 py-2 flex justify-center items-center ${selectedTravelMode === TravelMode.DRIVING ? 'bg-teal-50 text-teal-700' : 'text-slate-600'}`}
@@ -642,7 +642,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                 <FaWalking />
               </button>
             </div>
-            
+
             <div className="flex justify-between">
               {isEditMode && (
                 <button
@@ -652,7 +652,7 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
                   Delete
                 </button>
               )}
-              
+
               <div className="ml-auto">
                 <button
                   onClick={() => setShowModal(false)}

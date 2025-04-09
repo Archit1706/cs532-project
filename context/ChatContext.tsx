@@ -19,6 +19,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [backendStatus, setBackendStatus] = useState<'unknown' | 'connected' | 'error'>('unknown');
     const [zipCode, setZipCode] = useState('');
     const [properties, setProperties] = useState<Property[]>([]);
+    const [nearbyProperties, setNearbyProperties] = useState<Property[]>([]);
     const [locationData, setLocationData] = useState<LocationData | null>(null);
     const [marketTrends, setMarketTrends] = useState<any>(null);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
@@ -27,6 +28,9 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [isTranslating, setIsTranslating] = useState(false);
     const [isLoadingProperties, setIsLoadingProperties] = useState(false);
     const [isLoadingMarketTrends, setIsLoadingMarketTrends] = useState<boolean>(false);
+    const [isPropertyChat, setIsPropertyChat] = useState(false);
+    const [propertyDetails, setPropertyDetails] = useState(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Add fetch function for market trends
@@ -151,6 +155,40 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const loadPropertyChat = async (propertyId: string) => {
+        try {
+            setIsPropertyChat(true);
+            setSelectedProperty(null);
+            const res = await fetch('/api/property_details', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ zpid: propertyId })
+            });
+            const json = await res.json();
+            setPropertyDetails(json.results);
+            console.log('Property details:', json.results);
+
+            const basic = json.results.basic_info;
+            const mockProperty = {
+                id: propertyId,
+                address: basic.address.full,
+                price: basic.price,
+                beds: basic.bedrooms,
+                baths: basic.bathrooms,
+                sqft: basic.livingArea,
+                type: basic.homeType,
+                imgSrc: json.results.images?.[0] || '',
+                zpid: propertyId,
+            };
+            setSelectedProperty(mockProperty);
+            if (json.results.basic_info?.address?.zip) {
+                setZipCode(json.results.basic_info.address.zip);
+            }
+        } catch (error) {
+            console.error('Failed to load property details:', error);
+        }
+    };
+
     useEffect(() => {
         if (zipCode.length === 5) {
             fetchLocationData(zipCode);
@@ -158,6 +196,25 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             console.log('market trends', marketTrends);
         }
     }, [zipCode]);
+
+    useEffect(() => {
+        if (propertyDetails?.nearbyHomes?.length > 0) {
+            setNearbyProperties(
+                propertyDetails.nearbyHomes.map(home => ({
+                    id: home.zpid,
+                    address: home.address?.streetAddress,
+                    price: home.price,
+                    beds: home.bedrooms,
+                    baths: home.bathrooms,
+                    sqft: home.livingArea,
+                    type: home.homeType,
+                    imgSrc: home.miniCardPhotos?.[0]?.url || '',
+                    zpid: home.zpid,
+                }))
+            );
+        }
+    }, [propertyDetails]);
+
 
     return (
         <ChatContext.Provider
@@ -177,8 +234,12 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 isTranslating, setIsTranslating,
                 isLoadingProperties, setIsLoadingProperties,
                 isLoadingMarketTrends, setIsLoadingMarketTrends,
+                propertyDetails, setPropertyDetails,
+                isPropertyChat, setIsPropertyChat,
+                nearbyProperties, setNearbyProperties,
                 fetchMarketTrends,
                 fetchLocationData,
+                loadPropertyChat,
                 messagesEndRef,
                 handleSendMessage,
                 debugFeatureExtraction // Expose for debugging
