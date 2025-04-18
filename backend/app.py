@@ -2,20 +2,24 @@ from flask import Flask, request, jsonify
 import os
 import re
 from langchain.chat_models import AzureChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
 from serpapi import GoogleSearch
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 import uuid
-import logging
 from flask_cors import CORS
 import http.client
 import json
 import urllib.parse
-from transformers import MarianMTModel, MarianTokenizer
-import torch
 import time
+import requests
+from transformers import MarianMTModel, MarianTokenizer
+import datetime
+import boto3
+from botocore.config import Config
+import logging
+import statistics
+import deepl
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
@@ -265,33 +269,6 @@ def search_nearby_houses(zipcode, query_type="house"):
         return {"error": str(e), "results": []}
     
     
-# Simple mock data for property examples
-property_examples = [
-    {
-        "address": "123 Main St, Boston, MA",
-        "price": "$750,000",
-        "beds": 3,
-        "baths": 2,
-        "sqft": 1800,
-        "type": "Single Family"
-    },
-    {
-        "address": "456 Commonwealth Ave, Boston, MA",
-        "price": "$1,200,000",
-        "beds": 4,
-        "baths": 3,
-        "sqft": 2400,
-        "type": "Townhouse"
-    },
-    {
-        "address": "789 Beacon St, Cambridge, MA",
-        "price": "$650,000",
-        "beds": 2,
-        "baths": 1,
-        "sqft": 1100,
-        "type": "Condo"
-    }
-]
 
 # Session management
 chat_histories = {}
@@ -647,8 +624,6 @@ def translate_text(text, source_lang, target_lang):
         return text  # Return original text on error
     
 
-import requests
-import json   
 
 
 # Option 1: Use a free external translation API (more reliable for deployment)
@@ -728,8 +703,7 @@ def translate_with_huggingface(text, source_lang, target_lang):
         logger.info(f"Using HuggingFace to translate from {source_lang} to {target_lang}, text length: {len(text)}")
         
         # Import here to avoid loading unless needed
-        from transformers import MarianMTModel, MarianTokenizer
-        import torch
+        
         
         # Set a flag to indicate if we're in testing mode
         testing_mode = False
@@ -1017,12 +991,6 @@ def extract_features():
 # R2 Storage Service
 ##########################################################################################################################################
 
-import json
-import datetime
-import boto3
-from botocore.config import Config
-import logging
-
 # R2 Storage Service
 class S3Service:
     def __init__(self, s3_client, bucket):
@@ -1115,8 +1083,6 @@ def save_chat():
 #######################################################################################################################################
 
 # Add to backend/app.py
-import statistics
-import requests
 
 @app.route('/api/market_trends', methods=['POST'])
 def market_trends():
