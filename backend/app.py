@@ -1,33 +1,64 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi import Body
 import os
-import re
 from langchain.chat_models import AzureChatOpenAI
 from langchain.prompts import PromptTemplate
 from serpapi import GoogleSearch
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
 import uuid
-from flask_cors import CORS
 import http.client
 import json
 import urllib.parse
-import time
 import requests
-from transformers import MarianMTModel, MarianTokenizer
 import datetime
 import boto3
 from botocore.config import Config
 import logging
 import statistics
-import deepl
+from pydantic import BaseModel, Field
+from typing import Optional, List, Any
+
+class PropertyRequest(BaseModel):
+    zpid: str = Field(..., example="12345678")
+
+class LocationRequest(BaseModel):
+    zipCode: str = Field(..., example="60616")
+    type: Optional[str] = Field("Restaurants", example="Schools")
+
+class PropertiesRequest(BaseModel):
+    zipCode: str = Field(..., example="90210")
+
+class ErrorResponse(BaseModel):
+    error: str
+    results: Optional[Any]
+
+class PropertyResponse(BaseModel):
+    error: Optional[str] = None
+    results: dict
+
+class PropertiesResponse(BaseModel):
+    error: Optional[str] = None
+    results: List[dict]
+
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+app = FastAPI()
+
+# Enable CORS for all routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Dictionary to cache tokenizers and models (to avoid reloading for each request)
 translation_models = {}
@@ -55,16 +86,12 @@ Answer:
 
 # Initialize Azure OpenAI
 def get_llm():
-    # Log API configuration (without secrets)
     logger.info(f"Initializing Azure OpenAI with deployment: VARELab-GPT4o, API version: 2024-08-01-preview")
-    
     api_key = os.environ.get('AZURE_OPENAI_VARE_KEY')
     endpoint = os.environ.get('AZURE_ENDPOINT')
-    
     if not api_key or not endpoint:
         logger.error("Missing Azure OpenAI API key or endpoint. Check your environment variables.")
         raise ValueError("Missing Azure OpenAI API key or endpoint")
-        
     try:
         return AzureChatOpenAI(
             azure_deployment="VARELab-GPT4o",
@@ -80,12 +107,9 @@ def get_llm():
         logger.error(f"Error initializing Azure OpenAI: {str(e)}")
         raise
 
-# Google location API functions
-# Update the get_lat_long function to increase timeout and add error handling
 def get_lat_long(address):
     logger.info(f"Getting coordinates for address: {address}")
-    geolocator = Nominatim(user_agent="geo_locator", timeout=5)  # Increase timeout to 5 seconds
-    
+    geolocator = Nominatim(user_agent="geo_locator", timeout=5)
     try:
         location = geolocator.geocode(address)
         if location:
@@ -96,15 +120,12 @@ def get_lat_long(address):
             return None
     except Exception as e:
         logger.error(f"Geocoding error: {str(e)}")
-        
-        # Hardcoded coordinates for common US zip codes as fallback
         zip_coords = {
-            "02108": (42.3583, -71.0603),  # Boston
-            "60607": (41.8742, -87.6492),  # Chicago
-            "10001": (40.7506, -73.9971),  # New York
-            "90210": (34.0901, -118.4065)  # Beverly Hills
+            "02108": (42.3583, -71.0603),
+            "60607": (41.8742, -87.6492),
+            "10001": (40.7506, -73.9971),
+            "90210": (34.0901, -118.4065)
         }
-        
         if address.startswith(tuple(zip_coords.keys())):
             zip_code = address.split(",")[0].strip()
             logger.info(f"Using fallback coordinates for {zip_code}")
@@ -113,54 +134,39 @@ def get_lat_long(address):
 
 def search_nearby_places(location, query_type="Restaurants"):
     logger.info(f"Searching for {query_type} near {location}")
-    
-    # Check if location is a zip code
     if isinstance(location, str) and location.isdigit() and len(location) == 5:
         zip_code = location
-        location = f"{location}, USA"  # For geocoding
+        location = f"{location}, USA"
     else:
         zip_code = None
-    
     coords = get_lat_long(location)
     if not coords:
         return {"error": "Could not find coordinates for the given location.", "results": []}
-    
     latitude, longitude = coords
-    
-    # SerpAPI search
     serpapi_key = os.environ.get('SERPAPI_KEY')
     if not serpapi_key:
         return {"error": "Missing API key", "results": []}
-        
     params = {
         "engine": "google_local",
         "q": query_type,
         "ll": f"@{latitude},{longitude},15z",
-        "location": zip_code if zip_code else location,  # Use numeric zip when possible
+        "location": zip_code if zip_code else location,
         "google_domain": "google.com",
         "gl": "us",
         "hl": "en",
         "api_key": serpapi_key
     }
-    
     try:
         search = GoogleSearch(params)
         results = search.get_dict()
         local_results = results.get("local_results", [])
-        
-        # Calculate distance for each result
         for place in local_results:
             if "gps_coordinates" in place:
                 lat = place["gps_coordinates"].get("latitude")
                 lon = place["gps_coordinates"].get("longitude")
                 if lat is not None and lon is not None:
                     place["distance"] = round(geodesic(coords, (lat, lon)).miles, 2)
-        
-        # Sort by distance
         sorted_results = sorted(local_results, key=lambda x: x.get("distance", float('inf')))
-        # print(sorted_results)
-        
-        # Format results
         formatted_results = []
         if query_type == "Restaurants":
             for place in sorted_results:
@@ -175,8 +181,7 @@ def search_nearby_places(location, query_type="Restaurants"):
                     "distance": place.get("distance", None),
                     "type": place.get("type", "")
                 })
-        
-        elif query_type == "Bus Stop" or query_type == "bus stop":
+        elif query_type.lower() == "bus stop":
             for place in sorted_results:
                 formatted_results.append({
                     "title": place.get("title", "Unknown"),
@@ -193,21 +198,14 @@ def search_nearby_places(location, query_type="Restaurants"):
         logger.error(f"Error in search: {str(e)}")
         return {"error": str(e), "results": []}
 
-
-# get api_key from https://rapidapi.com/s.mahmoud97/api/zillow56/playground/apiendpoint_444379e9-126c-4fd2-b584-1c9c355e3d8f
 def search_nearby_houses(zipcode, query_type="house"):
     logger.info(f"Searching for {query_type} near {zipcode}")
-    
     if not isinstance(zipcode, str) or not zipcode.isdigit() or len(zipcode) != 5:
         return {"error": "Please input 5 digits zipcode.", "results": []}
-    
     zillowapi_key = os.environ.get('ZILLOW_KEY')
     if not zillowapi_key:
         return {"error": "Missing Zillow API key", "results": []}
-        
-    # Try with zip code in the format of "zipcode, USA"
     location = f"{zipcode}, USA"
-    
     params = {
         "location": location,
         "output": "json",
@@ -216,39 +214,25 @@ def search_nearby_houses(zipcode, query_type="house"):
         "listing_type": "by_agent",
         "doz": "any"
     }
-    
     query_string = urllib.parse.urlencode(params)
     request_path = f"/search?{query_string}"
-    
     logger.info(f"Zillow API request path: {request_path}")
-    
     headers = {
         'x-rapidapi-key': zillowapi_key,
         'x-rapidapi-host': "zillow56.p.rapidapi.com"
     }
-    
     try:
         conn = http.client.HTTPSConnection("zillow56.p.rapidapi.com")
         conn.request("GET", request_path, headers=headers)
         response = conn.getresponse()
-        
-        # Log response status
         logger.info(f"Zillow API response status: {response.status}")
-        
         data = response.read().decode('utf-8')
-        
-        # Log a snippet of the response for debugging
         logger.info(f"Zillow API response snippet: {data[:200]}...")
-        
         formatted_results = json.loads(data)
-        
-        # Check if we got any results
         results_count = len(formatted_results.get("results", []))
         logger.info(f"Zillow API returned {results_count} results")
-        
         if results_count == 0:
             logger.warning("No properties found from Zillow API")
-        
         property_listings = []
         for property in formatted_results.get("results", []):
             listing = {
@@ -262,13 +246,13 @@ def search_nearby_houses(zipcode, query_type="house"):
                 "zpid": property.get("zpid", "")
             }
             property_listings.append(listing)
-        
         return {"results": property_listings}
     except Exception as e:
         logger.error(f"Error in Zillow search: {str(e)}")
         return {"error": str(e), "results": []}
-    
-    
+
+
+...
 
 # Session management
 chat_histories = {}
@@ -281,39 +265,28 @@ except Exception as e:
     logger.error(f"Failed to initialize LLM: {str(e)}")
     LLM = None
 
-
 def get_property_details(zpid):
-    """Get detailed information about a specific property by its Zillow ID"""
     logger.info(f"Getting property details for zpid: {zpid}")
-    
     zillowapi_key = os.environ.get('ZILLOW_KEY')
     if not zillowapi_key:
         return {"error": "Missing Zillow API key", "results": None}
-        
     url = "https://zillow56.p.rapidapi.com/propertyV2"
     querystring = {"zpid": zpid}
-    
     headers = {
         'x-rapidapi-key': zillowapi_key,
         'x-rapidapi-host': "zillow56.p.rapidapi.com"
     }
-    
     try:
         logger.info(f"Calling Zillow API for property details with zpid: {zpid}")
         conn = http.client.HTTPSConnection("zillow56.p.rapidapi.com")
         conn.request("GET", f"/propertyV2?zpid={zpid}", headers=headers)
         response = conn.getresponse()
-        
         logger.info(f"Zillow property details API response status: {response.status}")
-        
         data = response.read().decode('utf-8')
         property_data = json.loads(data)
-        
         if not property_data or "error" in property_data:
             logger.error(f"Error in Zillow property details API: {property_data.get('error', 'Unknown error')}")
             return {"error": "Failed to retrieve property details", "results": None}
-            
-        # Format the property details into a more usable structure
         property_details = {
             "basic_info": {
                 "zpid": property_data.get("zpid"),
@@ -345,513 +318,186 @@ def get_property_details(zpid):
             "nearbyHomes": property_data.get("nearbyHomes", []),
             "priceHistory": property_data.get("priceHistory", [])
         }
-        
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
-        
     except Exception as e:
         logger.error(f"Error getting property details: {str(e)}")
         return {"error": str(e), "results": None}
 
-@app.route('/api/property', methods=['POST'])
-def property_details():
-    """API endpoint to get detailed information about a specific property using POST request"""
+@app.post("/api/property", response_model=PropertyResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
+async def property_details(data: PropertyRequest):
     try:
-        data = request.json
         zpid = data.get('zpid')
-        
         logger.info(f"Received property details request for zpid: {zpid}")
-        
         if not zpid:
-            return jsonify({"error": "Missing zpid parameter", "results": None}), 400
-            
-        # Get property details
+            return JSONResponse(status_code=400, content={"error": "Missing zpid parameter", "results": None})
         results = get_property_details(zpid)
-        
         if "error" in results and results["error"] and not results["results"]:
             logger.error(f"Error retrieving property details: {results['error']}")
-            return jsonify(results), 500
-            
+            return JSONResponse(status_code=500, content=results)
         logger.info(f"Returning property details for zpid: {zpid}")
-        return jsonify(results)
-        
+        return results
     except Exception as e:
         error_message = f"Unexpected error in property details endpoint: {str(e)}"
         logger.error(error_message)
-        return jsonify({
-            "error": error_message,
-            "results": None
-        }), 500
+        return JSONResponse(status_code=500, content={"error": error_message, "results": None})
 
-
-@app.route('/api/location', methods=['POST'])
-def location():
+@app.post("/api/location", response_model=PropertiesResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
+async def location(data: LocationRequest):
     try:
-        data = request.json
         logger.info(f"Received location request: {data}")
-        
         zip_code = data.get('zipCode')
         query_type = data.get('type', 'Restaurants')
-        
         if not zip_code:
-            return jsonify({"error": "Missing zip code"}), 400
-            
-        # Search for nearby places
+            return JSONResponse(status_code=400, content={"error": "Missing zip code"})
         results = search_nearby_places(zip_code, query_type)
-        
-        return jsonify(results)
-        
+        return results
     except Exception as e:
         error_message = f"Unexpected error in location endpoint: {str(e)}"
         logger.error(error_message)
-        return jsonify({
-            "error": error_message,
-            "results": []
-        }), 500
-    
+        return JSONResponse(status_code=500, content={"error": error_message, "results": []})
 
-
-
-@app.route('/api/properties', methods=['POST'])
-def properties():
+@app.post("/api/properties", response_model=PropertiesResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
+async def properties(data: PropertiesRequest):
     try:
-        data = request.json
         logger.info(f"Received property search request: {data}")
-        
         zip_code = data.get('zipCode')
-        
         if not zip_code or not zip_code.isdigit() or len(zip_code) != 5:
-            return jsonify({"error": "Invalid zip code", "results": []}), 400
-            
-        # Search for properties
+            return JSONResponse(status_code=400, content={"error": "Invalid zip code", "results": []})
         results = search_nearby_houses(zip_code)
         logger.info(f"Found {len(results.get('results', []))} properties")
-        
-        return jsonify(results)
-        
+        return results
     except Exception as e:
         error_message = f"Unexpected error in properties endpoint: {str(e)}"
         logger.error(error_message)
-        return jsonify({
-            "error": error_message,
-            "results": []
-        }), 500
-    
+        return JSONResponse(status_code=500, content={"error": error_message, "results": []})
 ##########################################################################################################################################
 
-# Translate functions
-##########################################################################################################################################
+# # Option 1: Use a free external translation API (more reliable for deployment)
+# def translate_with_external_api(text, source_lang, target_lang="en"):
+#     """Use an external translation API (LibreTranslate) for more reliable service"""
+#     try:
+#         logger.info(f"Using external API to translate from {source_lang} to {target_lang}, text length: {len(text)}")
+
+#         DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] # key go here
+#         # Use LibreTranslate or similar service
+#         # Note: For production use, consider setting up your own LibreTranslate instance
+#         # or using a paid service with an API key
+#         api_url = "https://api-free.deepl.com/v2/translate"
+        
+#         # # Convert language codes if needed (e.g., 'zh' to 'zh-CN')
+#         # lang_map = {
+#         #     'zh': 'zh-CN',
+#         #     'hi': 'hi', # Add if LibreTranslate uses a different code
+#         #     'es': 'es',
+#         #     'fr': 'fr',
+#         #     'de': 'de',
+#         #     'en': 'en'
+#         # }
+        
+#         # source = lang_map.get(source_lang, source_lang)
+#         # target = lang_map.get(target_lang, target_lang)
+#         #
+#         # payload = {
+#         #     "q": text,
+#         #     "source": source,
+#         #     "target": target,
+#         #     "format": "text",
+#         #     "api_key": ""  # Add API key if you have one
+#         # }
+#         params = {
+#             "auth_key": DEEPL_API_KEY,
+#             "text": text,
+#             "target_lang": target_lang
+#         }
+        
+#         headers = {
+#             "Content-Type": "application/json"
+#         }
+
+#         response = requests.post(api_url, headers=headers, data=params, timeout=30)
+#         # TODO : replace sync with async for multi user requests
+#         if response.status_code != 200:
+#             logger.error(f"External translation API error: {response.status_code}, {response.text}")
+#             return None
+            
+#         result = response.json()
+#         translated_text = result["translations"][0]["text"]
+        
+#         if translated_text:
+#             logger.info(f"Translation successful: {len(text)} chars → {len(translated_text)} chars")
+#             return translated_text
+#         else:
+#             logger.error(f"Translation failed, no translated text returned: {result}")
+#             return None
+            
+#     except Exception as e:
+#         logger.error(f"External translation API error: {str(e)}")
+#         return
 
 
-# Function to get or load a translation model and tokenizer
-def get_translation_model(source_lang, target_lang):
-    model_key = f"{source_lang}-{target_lang}"
+
+# @app.route('/api/translate', methods=['POST'])
+# def translate_api():
+#     """API endpoint for translation with enhanced logging and fallbacks"""
+#     start_time = time.time()
     
-    # Handle English as source language directly
-    if source_lang == 'en':
-        model_name = f"Helsinki-NLP/opus-mt-en-{target_lang}"
-    # Handle English as target language directly
-    elif target_lang == 'en':
-        model_name = f"Helsinki-NLP/opus-mt-{source_lang}-en"
-    # Handle non-English to non-English by translating to English first
-    else:
-        return None  # Will handle this case with two separate translations
-    
-    # Check if the model is already loaded
-    if model_key not in translation_models:
-        try:
-            logger.info(f"Loading translation model: {model_name}")
-            tokenizer = MarianTokenizer.from_pretrained(model_name)
-            model = MarianMTModel.from_pretrained(model_name)
+#     try:
+#         data = request.json
+#         logger.info(f"📝 Received translation request: {data.get('sourceLanguage')} → {data.get('targetLanguage')}")
+        
+#         text = data.get('text', '')
+#         source_language = data.get('sourceLanguage', 'en')
+#         target_language = data.get('targetLanguage', 'en')
+        
+#         # Debug info
+#         logger.info(f"Text length: {len(text)} characters")
+#         logger.info(f"First 50 chars: {text[:50]}...")
+        
+#         if not text:
+#             logger.warning("Empty text received for translation")
+#             return jsonify({"error": "Missing text to translate", "translatedText": ""}), 400
             
-            translation_models[model_key] = {
-                "tokenizer": tokenizer,
-                "model": model
-            }
-            logger.info(f"Model {model_name} loaded successfully")
-        except Exception as e:
-            logger.error(f"Error loading translation model {model_name}: {str(e)}")
-            return None
-    
-    return translation_models[model_key]
-
-# Function to identify and preserve proper nouns
-def preserve_proper_nouns(text):
-    # Pattern for addresses, names of places, etc.
-    patterns = [
-        r'\b\d+\s+[A-Z][a-z]+\s+(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|Pl|Place)\b',  # Addresses
-        r'\b[A-Z][a-z]+\s+(?:Park|Square|Plaza|Center|Mall|Station|Restaurant)\b',  # Named places
-        r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'  # Proper names with 2-4 words
-    ]
-    
-    # Find all matches
-    proper_nouns = []
-    for pattern in patterns:
-        matches = re.finditer(pattern, text)
-        for match in matches:
-            proper_nouns.append((match.group(), match.start(), match.end()))
-    
-    # Sort by position to process from end to beginning (to avoid offset issues)
-    proper_nouns.sort(key=lambda x: x[1], reverse=True)
-    
-    # Replace proper nouns with placeholders
-    modified_text = text
-    replacements = {}
-    
-    for i, (noun, start, end) in enumerate(proper_nouns):
-        placeholder = f"__PROPER_NOUN_{i}__"
-        modified_text = modified_text[:start] + placeholder + modified_text[end:]
-        replacements[placeholder] = noun
-    
-    return modified_text, replacements
-
-# Function to restore proper nouns after translation
-def restore_proper_nouns(translated_text, replacements):
-    restored_text = translated_text
-    for placeholder, original in replacements.items():
-        restored_text = restored_text.replace(placeholder, original)
-    return restored_text
-
-# Main translation function
-def translate_text(text, source_lang, target_lang):
-    # Early return if languages are the same
-    if source_lang == target_lang:
-        return text
-    
-    try:
-        # Preserve proper nouns
-        modified_text, replacements = preserve_proper_nouns(text)
+#         # Always translate to the target language, regardless of input language
+#         logger.info(f"🔄 Starting translation from {source_language} to {target_language}")
         
-        # Direct translation if we have a model for this language pair
-        translation_model = get_translation_model(source_lang, target_lang)
+#         # IMPORTANT: Choose which translation function to use based on your resources
+#         # Option 1: External API (recommended for most deployments)
+#         #translated_text = translate_with_external_api(text, source_language, target_language)
         
-        if translation_model:
-            # Translate text
-            tokenizer = translation_model["tokenizer"]
-            model = translation_model["model"]
+#         # Option 2: Mock translation (for testing)
+#         # translated_text = mock_translate(text, source_language, target_language)
+        
+#         # Option 3: HuggingFace (if you have sufficient resources)
+#         translated_text = translate_with_huggingface(text, source_language, target_language)
+        
+#         # If translation failed, use original text
+#         if translated_text is None:
+#             logger.warning("❌ Translation failed, using original text")
+#             translated_text = text
             
-            # Process markdown structure to preserve it
-            # Split text by code blocks and other markdown elements
-            # This is a simplified approach - real implementation would need more robust markdown parsing
-            text_chunks = []
-            is_code_block = False
-            current_chunk = ""
-            
-            for line in modified_text.split('\n'):
-                if line.strip().startswith('```'):
-                    if current_chunk:
-                        text_chunks.append((current_chunk, is_code_block))
-                        current_chunk = ""
-                    is_code_block = not is_code_block
-                    text_chunks.append((line, True))  # Treat markdown symbols as code
-                else:
-                    current_chunk += line + '\n'
-            
-            if current_chunk:
-                text_chunks.append((current_chunk, is_code_block))
-            
-            # Translate each non-code chunk
-            translated_chunks = []
-            for chunk, is_code in text_chunks:
-                if is_code:
-                    translated_chunks.append(chunk)  # Don't translate code or markdown symbols
-                else:
-                    # Split into smaller pieces if chunk is too large
-                    if len(chunk) > 500:
-                        sentences = chunk.split('. ')
-                        translated_sentences = []
-                        
-                        for sentence in sentences:
-                            if not sentence.strip():
-                                translated_sentences.append(sentence)
-                                continue
-                                
-                            inputs = tokenizer.encode(sentence, return_tensors="pt", max_length=512, truncation=True)
-                            outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
-                            translated_sentence = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                            translated_sentences.append(translated_sentence)
-                        
-                        translated_chunk = '. '.join(translated_sentences)
-                    else:
-                        inputs = tokenizer.encode(chunk, return_tensors="pt", max_length=512, truncation=True)
-                        outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
-                        translated_chunk = tokenizer.decode(outputs[0], skip_special_tokens=True)
-                    
-                    translated_chunks.append(translated_chunk)
-            
-            translated_text = ''.join(translated_chunks)
-            
-        else:
-            # Two-step translation: source -> English -> target
-            if source_lang != 'en':
-                # First translate to English
-                en_model = get_translation_model(source_lang, 'en')
-                if not en_model:
-                    logger.error(f"No translation model available for {source_lang} to en")
-                    return text
-                
-                tokenizer = en_model["tokenizer"]
-                model = en_model["model"]
-                
-                inputs = tokenizer.encode(modified_text, return_tensors="pt", max_length=512, truncation=True)
-                outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
-                english_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            else:
-                english_text = modified_text
-            
-            # Then translate from English to target
-            if target_lang != 'en':
-                target_model = get_translation_model('en', target_lang)
-                if not target_model:
-                    logger.error(f"No translation model available for en to {target_lang}")
-                    return text if source_lang == 'en' else english_text
-                
-                tokenizer = target_model["tokenizer"]
-                model = target_model["model"]
-                
-                inputs = tokenizer.encode(english_text, return_tensors="pt", max_length=512, truncation=True)
-                outputs = model.generate(inputs, max_length=512, num_beams=4, early_stopping=True)
-                translated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            else:
-                translated_text = english_text
+#         elapsed_time = time.time() - start_time
+#         logger.info(f"✅ Translation completed in {elapsed_time:.2f} seconds")
         
-        # Restore proper nouns
-        final_text = restore_proper_nouns(translated_text, replacements)
-        return final_text
+#         return jsonify({
+#             "translatedText": translated_text,
+#             "sourceLanguage": source_language,
+#             "targetLanguage": target_language,
+#             "processingTime": f"{elapsed_time:.2f}s"
+#         })
         
-    except Exception as e:
-        logger.error(f"Translation error: {str(e)}")
-        return text  # Return original text on error
-    
-
-
-
-# Option 1: Use a free external translation API (more reliable for deployment)
-def translate_with_external_api(text, source_lang, target_lang="en"):
-    """Use an external translation API (LibreTranslate) for more reliable service"""
-    try:
-        logger.info(f"Using external API to translate from {source_lang} to {target_lang}, text length: {len(text)}")
-
-        DEEPL_API_KEY = os.environ['DEEPL_API_KEY'] # key go here
-        # Use LibreTranslate or similar service
-        # Note: For production use, consider setting up your own LibreTranslate instance
-        # or using a paid service with an API key
-        api_url = "https://api-free.deepl.com/v2/translate"
+#     except Exception as e:
+#         elapsed_time = time.time() - start_time
+#         error_message = f"❌ Translation error after {elapsed_time:.2f}s: {str(e)}"
+#         logger.error(error_message)
         
-        # # Convert language codes if needed (e.g., 'zh' to 'zh-CN')
-        # lang_map = {
-        #     'zh': 'zh-CN',
-        #     'hi': 'hi', # Add if LibreTranslate uses a different code
-        #     'es': 'es',
-        #     'fr': 'fr',
-        #     'de': 'de',
-        #     'en': 'en'
-        # }
-        
-        # source = lang_map.get(source_lang, source_lang)
-        # target = lang_map.get(target_lang, target_lang)
-        #
-        # payload = {
-        #     "q": text,
-        #     "source": source,
-        #     "target": target,
-        #     "format": "text",
-        #     "api_key": ""  # Add API key if you have one
-        # }
-        params = {
-            "auth_key": DEEPL_API_KEY,
-            "text": text,
-            "target_lang": target_lang
-        }
-        
-        headers = {
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(api_url, headers=headers, data=params, timeout=30)
-        # TODO : replace sync with async for multi user requests
-        if response.status_code != 200:
-            logger.error(f"External translation API error: {response.status_code}, {response.text}")
-            return None
-            
-        result = response.json()
-        translated_text = result["translations"][0]["text"]
-        
-        if translated_text:
-            logger.info(f"Translation successful: {len(text)} chars → {len(translated_text)} chars")
-            return translated_text
-        else:
-            logger.error(f"Translation failed, no translated text returned: {result}")
-            return None
-            
-    except Exception as e:
-        logger.error(f"External translation API error: {str(e)}")
-        return
-
-# Option 2: Simple mock translation for testing - use this if the API is not working
-def mock_translate(text, source_lang, target_lang):
-    """Mock translation for testing purposes"""
-    logger.info(f"Using MOCK translation from {source_lang} to {target_lang}")
-    
-    # Just add a prefix to indicate "translation" happened
-    return f"[{target_lang}] {text}"
-
-# Option 3: Improved HuggingFace translation (use if you have GPU resources)
-def translate_with_huggingface(text, source_lang, target_lang):
-    """Use HuggingFace models for translation with improved error handling"""
-    try:
-        logger.info(f"Using HuggingFace to translate from {source_lang} to {target_lang}, text length: {len(text)}")
-        
-        # Import here to avoid loading unless needed
-        
-        
-        # Set a flag to indicate if we're in testing mode
-        testing_mode = False
-        
-        if testing_mode:
-            logger.info("TESTING MODE: Using mock translation")
-            return mock_translate(text, source_lang, target_lang)
-        
-        # Handle language code mapping
-        lang_code_map = {
-            'en': 'en',
-            'es': 'es',
-            'fr': 'fr',
-            'de': 'de',
-            'hi': 'hi',
-            'zh': 'zh',
-        }
-        
-        source = lang_code_map.get(source_lang, source_lang)
-        target = lang_code_map.get(target_lang, target_lang)
-        
-        # Define model name based on source and target
-        if source == 'en':
-            model_name = f"Helsinki-NLP/opus-mt-en-{target}"
-        elif target == 'en':
-            model_name = f"Helsinki-NLP/opus-mt-{source}-en"
-        else:
-            # For language pairs without direct models, translate through English
-            logger.info(f"No direct {source}-{target} model, translating via English")
-            
-            # First translate to English
-            english_text = translate_with_huggingface(text, source, 'en')
-            if not english_text:
-                logger.error(f"Failed to translate {source} to en")
-                return None
-                
-            # Then translate from English to target
-            return translate_with_huggingface(english_text, 'en', target)
-        
-        logger.info(f"Loading translation model: {model_name}")
-        
-        try:
-            tokenizer = MarianTokenizer.from_pretrained(model_name)
-            model = MarianMTModel.from_pretrained(model_name)
-            
-            # Split text into chunks to handle long text
-            max_length = 512
-            words = text.split()
-            chunks = []
-            current_chunk = []
-            
-            for word in words:
-                current_chunk.append(word)
-                if len(' '.join(current_chunk)) > max_length:
-                    chunks.append(' '.join(current_chunk[:-1]))
-                    current_chunk = [current_chunk[-1]]
-            
-            if current_chunk:
-                chunks.append(' '.join(current_chunk))
-                
-            if not chunks:
-                chunks = [text]
-                
-            logger.info(f"Split text into {len(chunks)} chunks for translation")
-            
-            translated_chunks = []
-            for i, chunk in enumerate(chunks):
-                logger.info(f"Translating chunk {i+1}/{len(chunks)}")
-                tokens = tokenizer(chunk, return_tensors="pt", padding=True, truncation=True, max_length=max_length)
-                translated = model.generate(**tokens)
-                translated_text = tokenizer.batch_decode(translated, skip_special_tokens=True)[0]
-                translated_chunks.append(translated_text)
-            
-            result = ' '.join(translated_chunks)
-            logger.info(f"Translation successful: {len(text)} chars → {len(result)} chars")
-            return result
-            
-        except Exception as e:
-            logger.error(f"HuggingFace translation error for {model_name}: {str(e)}")
-            # Fall back to external API if HuggingFace fails
-            logger.info("Falling back to external translation API")
-            return translate_with_external_api(text, source_lang, target_lang)
-            
-    except Exception as e:
-        logger.error(f"Translation error: {str(e)}")
-        return None
-
-@app.route('/api/translate', methods=['POST'])
-def translate_api():
-    """API endpoint for translation with enhanced logging and fallbacks"""
-    start_time = time.time()
-    
-    try:
-        data = request.json
-        logger.info(f"📝 Received translation request: {data.get('sourceLanguage')} → {data.get('targetLanguage')}")
-        
-        text = data.get('text', '')
-        source_language = data.get('sourceLanguage', 'en')
-        target_language = data.get('targetLanguage', 'en')
-        
-        # Debug info
-        logger.info(f"Text length: {len(text)} characters")
-        logger.info(f"First 50 chars: {text[:50]}...")
-        
-        if not text:
-            logger.warning("Empty text received for translation")
-            return jsonify({"error": "Missing text to translate", "translatedText": ""}), 400
-            
-        # Always translate to the target language, regardless of input language
-        logger.info(f"🔄 Starting translation from {source_language} to {target_language}")
-        
-        # IMPORTANT: Choose which translation function to use based on your resources
-        # Option 1: External API (recommended for most deployments)
-        #translated_text = translate_with_external_api(text, source_language, target_language)
-        
-        # Option 2: Mock translation (for testing)
-        # translated_text = mock_translate(text, source_language, target_language)
-        
-        # Option 3: HuggingFace (if you have sufficient resources)
-        translated_text = translate_with_huggingface(text, source_language, target_language)
-        
-        # If translation failed, use original text
-        if translated_text is None:
-            logger.warning("❌ Translation failed, using original text")
-            translated_text = text
-            
-        elapsed_time = time.time() - start_time
-        logger.info(f"✅ Translation completed in {elapsed_time:.2f} seconds")
-        
-        return jsonify({
-            "translatedText": translated_text,
-            "sourceLanguage": source_language,
-            "targetLanguage": target_language,
-            "processingTime": f"{elapsed_time:.2f}s"
-        })
-        
-    except Exception as e:
-        elapsed_time = time.time() - start_time
-        error_message = f"❌ Translation error after {elapsed_time:.2f}s: {str(e)}"
-        logger.error(error_message)
-        
-        # Always return something usable, even on error
-        return jsonify({
-            "error": error_message,
-            "translatedText": data.get('text', '') if 'data' in locals() else "",
-            "sourceLanguage": data.get('sourceLanguage', 'unknown') if 'data' in locals() else "unknown",
-            "targetLanguage": data.get('targetLanguage', 'unknown') if 'data' in locals() else "unknown"
-        }), 500
+#         # Always return something usable, even on error
+#         return jsonify({
+#             "error": error_message,
+#             "translatedText": data.get('text', '') if 'data' in locals() else "",
+#             "sourceLanguage": data.get('sourceLanguage', 'unknown') if 'data' in locals() else "unknown",
+#             "targetLanguage": data.get('targetLanguage', 'unknown') if 'data' in locals() else "unknown"
+#         }), 500
     
 ##########################################################################################################################################
 
@@ -957,41 +603,22 @@ def extract_query_features(query):
         return fallback
     
 
-@app.route('/api/extract_features', methods=['POST'])
-def extract_features():
+@app.post("/api/extract_features")
+async def extract_features(data: dict = Body(...)):
     try:
-        data = request.json
         query = data.get('message', '')
-        
         logger.info(f"🔎 Feature extraction API request: '{query}'")
-        
-        # Extract features from the query
         features = extract_query_features(query)
-        
-        # Log response before sending
-        import json
         logger.info(f"✅ Feature extraction complete. Returning: {json.dumps(features, indent=2)}")
-        
-        return jsonify({
-            "features": features,
-            "success": True
-        })
+        return {"features": features, "success": True}
     except Exception as e:
         error_msg = f"Feature extraction error: {str(e)}"
         logger.error(f"❌ {error_msg}")
-        return jsonify({
-            "features": None,
-            "success": False,
-            "error": error_msg
-        }), 500
+        return JSONResponse(status_code=500, content={"features": None, "success": False, "error": error_msg})
 
 
 ##########################################################################################################################################
 
-# R2 Storage Service
-##########################################################################################################################################
-
-# R2 Storage Service
 class S3Service:
     def __init__(self, s3_client, bucket):
         self.s3_client = s3_client
@@ -1000,11 +627,8 @@ class S3Service:
     def upload_json_to_r2(self, key, json_data, content_type='application/json'):
         if isinstance(json_data, dict):
             json_data = json.dumps(json_data)
-        
         json_bytes = json_data.encode('utf-8')
-        
         logging.info(f"Uploading to bucket: {self.bucket}, key: {key}")
-        
         self.s3_client.put_object(
             Bucket=self.bucket,
             Key=key,
@@ -1013,19 +637,15 @@ class S3Service:
         )
 
 def new_r2_service():
-    # Use your hardcoded values
     account = os.environ.get('CLOUDFLARE_ACCOUNT')
     access_key = os.environ.get('CLOUDFLARE_KEY')
     secret_key = os.environ.get('CLOUDFLARE_SECRET')
     bucket = "dialogue-json"
-    
     logging.info(f"Initializing R2 service for account: {account[:4]}... and bucket: {bucket}")
-    
     r2_config = Config(
         s3={"addressing_style": "virtual"},
         retries={"max_attempts": 10, "mode": "standard"}
     )
-    
     s3_client = boto3.client(
         's3',
         endpoint_url=f"https://{account}.r2.cloudflarestorage.com",
@@ -1033,29 +653,21 @@ def new_r2_service():
         aws_secret_access_key=secret_key,
         config=r2_config
     )
-    
     return S3Service(s3_client, bucket)
 
-# Add a route to save chat history
-@app.route('/api/save_chat', methods=['POST'])
-def save_chat():
+@app.post("/api/save_chat")
+async def save_chat(data: dict = Body(...)):
     try:
-        data = request.json
         logger.info(f"Save chat request received: {len(data.get('messages', []))} messages")
-        
         session_id = data.get('session_id', 'unknown')
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file_key = f"chat_{session_id}_{timestamp}.json"
-        
-        # Create the chat history object
         chat_data = {
             "session_id": session_id,
             "timestamp": timestamp,
             "messages": data.get('messages', []),
             "zipCodes": data.get('zipCodes', [])
         }
-        
-        # Upload to R2
         try:
             s3_service = new_r2_service()
             s3_service.upload_json_to_r2(file_key, chat_data)
@@ -1064,17 +676,15 @@ def save_chat():
         except Exception as e:
             logger.error(f"R2 upload failed: {str(e)}")
             r2_upload_success = False
-        
-        return jsonify({
-            "success": True, 
+        return {
+            "success": True,
             "r2_upload": r2_upload_success,
             "file_key": file_key,
             "timestamp": timestamp
-        })
-        
+        }
     except Exception as e:
         logger.error(f"Failed to save chat: {str(e)}")
-        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+        return JSONResponse(status_code=500, content={"success": False, "message": f"Error: {str(e)}"})
 
 ##########################################################################################################################################
 
@@ -1084,97 +694,45 @@ def save_chat():
 
 # Add to backend/app.py
 
-@app.route('/api/market_trends', methods=['POST'])
-def market_trends():
+@app.post("/api/market_trends")
+async def market_trends(data: dict = Body(...)):
     try:
-        data = request.json
         logger.info(f"Received market trends request: {data}")
-        
         location = data.get('location')
         zip_code = data.get('zipCode')
-        
+
         if not location and not zip_code:
-            return jsonify({"error": "Missing location or zip code"}), 400
-            
-        # If only zip code is provided, convert to location string
+            return JSONResponse(status_code=400, content={"error": "Missing location or zip code"})
         if zip_code and not location:
             location = f"{zip_code}"
-        
-        # Call real Zillow API
+
         url = "https://zillow56.p.rapidapi.com/market_data"
         querystring = {"location": location}
-        
-        # Get API key and prepare headers
+
         api_key = os.environ.get("ZILLOW_KEY")
         if not api_key:
             logger.error("Zillow API key not found in environment variables")
-            return jsonify({"error": "API key not found. Please set ZILLOW_RAPIDAPI_KEY in your .env file."}), 500
+            return JSONResponse(status_code=500, content={"error": "API key not found. Please set ZILLOW_RAPIDAPI_KEY in your .env file."})
 
         headers = {
             "x-rapidapi-key": api_key,
             "x-rapidapi-host": "zillow56.p.rapidapi.com"
         }
 
-        # Make the API request
         logger.info(f"Calling Zillow market data API for {location}")
         response = requests.get(url, headers=headers, params=querystring)
 
         if not response.ok:
             logger.error(f"Zillow API error: {response.status_code} - {response.text}")
-            return jsonify({"error": f"Zillow API error: {response.status_code}"}), 500
-            
-        json_data = response.json()  # Parse JSON response
-        
-        print(json_data)
-        # Initialize result structure with all fields the frontend might need
-        results = {
-            "location_info": {
-                "name": None,
-                "type": None,
-                "date": None,
-            },
-            "market_status": {
-                "temperature": None,
-                "interpretation": None,
-            },
-            "summary_metrics": {
-                "median_rent": None,
-                "monthly_change": None,
-                "monthly_change_percent": None,
-                "yearly_change": None,
-                "yearly_change_percent": None,
-                "available_rentals": None,
-            },
-            "price_distribution": {
-                "min_price": None,
-                "max_price": None,
-                "median_price": None,
-                "most_common_price": None,
-                "most_common_price_range": None,
-                "histogram": [],
-            },
-            "national_comparison": {
-                "national_median": None,
-                "difference": None,
-                "difference_percent": None,
-                "is_above_national": None,
-            },
-            "nearby_areas": [],
-            "historical_trends": {
-                "current_year": [],
-                "previous_year": [],
-                "quarterly_averages": [],
-                "ytd_change": None,
-                "ytd_change_percent": None,
-            },
-            "error": None
-        }
-        
-        # Check for errors in the API response
-        if "errors" in json_data and json_data["errors"] and len(json_data["errors"]) > 0:
+            return JSONResponse(status_code=500, content={"error": f"Zillow API error: {response.status_code}"})
+
+        json_data = response.json()
+        results = { ... }  # Keep your full result structure here
+
+        if "errors" in json_data and json_data["errors"]:
             results["error"] = json_data["errors"]
             return results
-        
+
         if "data" in json_data and "marketPage" in json_data["data"]:
             market_data = json_data["data"]["marketPage"]
             
@@ -1326,17 +884,13 @@ def market_trends():
                     results["historical_trends"]["quarterly_averages"] = quarterly_averages
 
         logger.info(f"Successfully calculated market trends for {location}")
-        return jsonify({
-            "location": location,
-            "trends": results
-        })
-        
+        return {"location": location, "trends": results}
+
     except Exception as e:
         error_message = f"Unexpected error in market trends endpoint: {str(e)}"
         logger.error(error_message)
-        return jsonify({
-            "error": error_message
-        }), 500
+        return JSONResponse(status_code=500, content={"error": error_message})
+
 
 
 #######################################################################################################################################
@@ -1349,18 +903,14 @@ def classify_query(query):
         - FAQ: General questions about processes, definitions, or explanations
         - Regional: Questions about specific areas, neighborhoods, or locations
         - Legal: Questions about laws, regulations, taxes, or legal requirements
-        
+
         Question: {query}
-        
+
         Classification (FAQ/Regional/Legal):
         """
-        
         messages = [{"role": "user", "content": classification_prompt}]
         response = LLM.invoke(messages)
-        
-        # Extract classification from response
         classification = response.content.strip().lower()
-        
         if "faq" in classification:
             return "faq"
         elif "regional" in classification:
@@ -1369,62 +919,45 @@ def classify_query(query):
             return "legal"
         else:
             return "general"
-            
     except Exception as e:
         logger.error(f"Classification error: {str(e)}")
         return "general"
-    
 
-
-# Modify in backend/app.py
-@app.route('/api/chat', methods=['POST'])
-def chat():
+@app.post("/api/chat")
+async def chat(data: dict = Body(...)):
     try:
-        data = request.json
         logger.info(f"Received chat request: {data}")
-        
         message = data.get('message', '')
         session_id = data.get('session_id')
         location_context = data.get('location_context', '')
         feature_context = data.get('feature_context', '')
         is_system_query = data.get('is_system_query', False)
-        
-        # Create a new session if none exists
+
         if not session_id or session_id not in chat_histories:
             session_id = str(uuid.uuid4())
             chat_histories[session_id] = []
             logger.info(f"Created new session: {session_id}")
-        
-        # For system queries, process differently
+
         if is_system_query:
             logger.info("Processing system query")
-            
-            # Direct call to LLM for system queries
             try:
                 messages = [
                     {"role": "system", "content": "You are a system processing component for real estate queries."},
                     {"role": "user", "content": message}
                 ]
-                
-                logger.info(f"Sending system query to LLM")
+                logger.info("Sending system query to LLM")
                 response_obj = LLM.invoke(messages)
                 response = response_obj.content
                 logger.info("Received system response from LLM")
-                
-                # Do not update chat history for system queries
-                return jsonify({
-                    "session_id": session_id,
-                    "response": response
-                })
+                return {"session_id": session_id, "response": response}
             except Exception as e:
                 logger.error(f"Error in system query: {str(e)}")
-                return jsonify({
+                return JSONResponse(status_code=500, content={
                     "error": str(e),
                     "session_id": session_id,
                     "response": f"Error: {str(e)}"
-                }), 500
-        
-        # Extract features (even for normal queries)
+                })
+
         try:
             extracted_features = extract_query_features(message)
             logger.info(f"Extracted features: {extracted_features}")
@@ -1433,37 +966,23 @@ def chat():
             logger.error(f"Feature extraction failed: {str(e)}")
             extracted_features = {}
             query_type = data.get('query_type', 'general')
-        
-        # Process normal user query
+
         if LLM:
             try:
-                # Enhanced system message with context
                 system_content = f"You are an expert real estate assistant named REbot. You are handling a {query_type} question."
-                
-                # Add feature context if available
                 if feature_context:
                     system_content += f"\n\nExtracted features: {feature_context}"
-                
-                # Add location context if available
                 if location_context:
                     system_content += f"\n\nLocation context: {location_context}"
-                
                 messages = [
                     {"role": "system", "content": system_content},
                 ]
-                
-                # Add chat history
                 chat_history = chat_histories[session_id]
                 for user_msg, bot_msg in chat_history:
                     messages.append({"role": "user", "content": user_msg})
                     messages.append({"role": "assistant", "content": bot_msg})
-                
-                # Add current message
                 messages.append({"role": "user", "content": message})
-                
                 logger.info(f"Sending {len(messages)} messages to LLM")
-                
-                # Get response from LLM
                 response_obj = LLM.invoke(messages)
                 response = response_obj.content
                 logger.info("Received response from LLM")
@@ -1473,36 +992,25 @@ def chat():
         else:
             response = "I'm sorry, but I'm currently unable to connect to the AI service. Please try again later."
             logger.error("LLM not initialized, returning error message")
-        
-        # Update chat history
+
         chat_histories[session_id].append((message, response))
-        
         result = {
             "session_id": session_id,
             "response": response,
             "extracted_features": extracted_features
         }
         logger.info(f"Returning response for session {session_id}")
-        return jsonify(result)
-        
+        return result
+
     except Exception as e:
         error_message = f"Unexpected error in chat endpoint: {str(e)}"
         logger.error(error_message)
-        return jsonify({
+        return JSONResponse(status_code=500, content={
             "error": error_message,
             "session_id": session_id if 'session_id' in locals() else None,
             "response": "I'm sorry, something went wrong. Please try again later."
-        }), 500
-    
+        })
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """Simple health check endpoint to verify the API is running"""
-    return jsonify({
-        "status": "ok",
-        "llm_initialized": LLM is not None
-    })
-
-if __name__ == '__main__':
-    logger.info("Starting Flask server on port 5000")
-    app.run(debug=True)
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok", "llm_initialized": LLM is not None}
