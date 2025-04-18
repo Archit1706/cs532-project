@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi import Body
 import os
 from langchain.chat_models import AzureChatOpenAI
 from langchain.prompts import PromptTemplate
@@ -19,7 +18,10 @@ from botocore.config import Config
 import logging
 import statistics
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 class PropertyRequest(BaseModel):
     zpid: str = Field(..., example="12345678")
@@ -42,6 +44,57 @@ class PropertyResponse(BaseModel):
 class PropertiesResponse(BaseModel):
     error: Optional[str] = None
     results: List[dict]
+
+class ExtractFeaturesRequest(BaseModel):
+    message: str = Field(..., example="Looking for a 2-bedroom house near downtown.")
+
+class ExtractFeaturesResponse(BaseModel):
+    features: Dict[str, Any]
+    success: bool
+    error: Optional[str] = None
+
+class SaveChatRequest(BaseModel):
+    session_id: str = Field(..., example="session_001")
+    messages: List[Dict[str, Any]] = Field(..., example=[{"sender": "user", "text": "Hello!"}])
+    zipCodes: Optional[List[str]] = Field(default=[], example=["90210", "60616"])
+
+class SaveChatResponse(BaseModel):
+    success: bool
+    r2_upload: bool
+    file_key: str
+    timestamp: str
+
+class ErrorResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class MarketTrendsRequest(BaseModel):
+    location: Optional[str] = Field(None, example="Chicago, IL")
+    zipCode: Optional[str] = Field(None, example="60616")
+
+
+class MarketTrendsResponse(BaseModel):
+    location: str
+    trends: Dict[str, Any] 
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., example="Find me a 2-bedroom apartment in Chicago.")
+    session_id: Optional[str] = Field(None, example="a1b2c3d4-5678-90ef-ghij-klmnopqrstuv")
+    location_context: Optional[str] = Field(None, example="Chicago, IL")
+    feature_context: Optional[str] = Field(None, example="2 bedrooms, pet-friendly")
+    is_system_query: Optional[bool] = Field(False, example=True)
+
+class ChatResponse(BaseModel):
+    session_id: str
+    response: str
+    extracted_features: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+class ChatErrorResponse(BaseModel):
+    error: str
+    session_id: Optional[str]
+    response: str
 
 
 # Set up logging
@@ -252,8 +305,6 @@ def search_nearby_houses(zipcode, query_type="house"):
         return {"error": str(e), "results": []}
 
 
-...
-
 # Session management
 chat_histories = {}
 
@@ -327,7 +378,7 @@ def get_property_details(zpid):
 @app.post("/api/property", response_model=PropertyResponse, responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}})
 async def property_details(data: PropertyRequest):
     try:
-        zpid = data.get('zpid')
+        zpid = data.zpid
         logger.info(f"Received property details request for zpid: {zpid}")
         if not zpid:
             return JSONResponse(status_code=400, content={"error": "Missing zpid parameter", "results": None})
@@ -346,8 +397,8 @@ async def property_details(data: PropertyRequest):
 async def location(data: LocationRequest):
     try:
         logger.info(f"Received location request: {data}")
-        zip_code = data.get('zipCode')
-        query_type = data.get('type', 'Restaurants')
+        zip_code = data.zipCode
+        query_type = data.type
         if not zip_code:
             return JSONResponse(status_code=400, content={"error": "Missing zip code"})
         results = search_nearby_places(zip_code, query_type)
@@ -361,7 +412,7 @@ async def location(data: LocationRequest):
 async def properties(data: PropertiesRequest):
     try:
         logger.info(f"Received property search request: {data}")
-        zip_code = data.get('zipCode')
+        zip_code = data.zipCode
         if not zip_code or not zip_code.isdigit() or len(zip_code) != 5:
             return JSONResponse(status_code=400, content={"error": "Invalid zip code", "results": []})
         results = search_nearby_houses(zip_code)
@@ -603,10 +654,15 @@ def extract_query_features(query):
         return fallback
     
 
-@app.post("/api/extract_features")
-async def extract_features(data: dict = Body(...)):
+
+@app.post(
+    "/api/extract_features",
+    response_model=ExtractFeaturesResponse,
+    responses={500: {"model": ExtractFeaturesResponse}}
+)
+async def extract_features(data: ExtractFeaturesRequest):
     try:
-        query = data.get('message', '')
+        query = data.message
         logger.info(f"🔎 Feature extraction API request: '{query}'")
         features = extract_query_features(query)
         logger.info(f"✅ Feature extraction complete. Returning: {json.dumps(features, indent=2)}")
@@ -655,11 +711,15 @@ def new_r2_service():
     )
     return S3Service(s3_client, bucket)
 
-@app.post("/api/save_chat")
-async def save_chat(data: dict = Body(...)):
+@app.post(
+    "/api/save_chat",
+    response_model=SaveChatResponse,
+    responses={500: {"model": ErrorResponse}}
+)
+async def save_chat(data: SaveChatRequest):
     try:
         logger.info(f"Save chat request received: {len(data.get('messages', []))} messages")
-        session_id = data.get('session_id', 'unknown')
+        session_id = data.session_id
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file_key = f"chat_{session_id}_{timestamp}.json"
         chat_data = {
@@ -694,12 +754,19 @@ async def save_chat(data: dict = Body(...)):
 
 # Add to backend/app.py
 
-@app.post("/api/market_trends")
-async def market_trends(data: dict = Body(...)):
+@app.post(
+    "/api/market_trends",
+    response_model=MarketTrendsResponse,
+    responses={
+        400: {"description": "Missing required parameters"},
+        500: {"description": "Internal server error"}
+    }
+)
+async def market_trends(data: MarketTrendsRequest):
     try:
         logger.info(f"Received market trends request: {data}")
-        location = data.get('location')
-        zip_code = data.get('zipCode')
+        location = data.location
+        zip_code = data.zipCode
 
         if not location and not zip_code:
             return JSONResponse(status_code=400, content={"error": "Missing location or zip code"})
@@ -727,7 +794,15 @@ async def market_trends(data: dict = Body(...)):
             return JSONResponse(status_code=500, content={"error": f"Zillow API error: {response.status_code}"})
 
         json_data = response.json()
-        results = { ... }  # Keep your full result structure here
+        results = {
+            "location_info": {},
+            "market_status": {},
+            "summary_metrics": {},
+            "price_distribution": {},
+            "national_comparison": {},
+            "nearby_areas": [],
+            "historical_trends": {}
+        }
 
         if "errors" in json_data and json_data["errors"]:
             results["error"] = json_data["errors"]
@@ -923,24 +998,39 @@ def classify_query(query):
         logger.error(f"Classification error: {str(e)}")
         return "general"
 
-@app.post("/api/chat")
-async def chat(data: dict = Body(...)):
+@app.post(
+    "/api/chat",
+    response_model=ChatResponse,
+    responses={
+        500: {"model": ChatErrorResponse, "description": "Internal Server Error"}
+    }
+)
+async def chat(data: ChatRequest):
     try:
         logger.info(f"Received chat request: {data}")
-        message = data.get('message', '')
-        session_id = data.get('session_id')
-        location_context = data.get('location_context', '')
-        feature_context = data.get('feature_context', '')
-        is_system_query = data.get('is_system_query', False)
+        message = data.message
+        session_id = data.session_id
+        location_context = data.location_context or ""
+        feature_context = data.feature_context or ""
+        is_system_query = data.is_system_query
 
+        # Generate a new session ID if needed
         if not session_id or session_id not in chat_histories:
             session_id = str(uuid.uuid4())
             chat_histories[session_id] = []
             logger.info(f"Created new session: {session_id}")
 
+        # Handle system queries
         if is_system_query:
             logger.info("Processing system query")
             try:
+                if not LLM:
+                    return JSONResponse(status_code=500, content={
+                        "error": "LLM not initialized",
+                        "session_id": session_id,
+                        "response": "Error: LLM service is not available"
+                    })
+                
                 messages = [
                     {"role": "system", "content": "You are a system processing component for real estate queries."},
                     {"role": "user", "content": message}
@@ -958,15 +1048,27 @@ async def chat(data: dict = Body(...)):
                     "response": f"Error: {str(e)}"
                 })
 
-        try:
-            extracted_features = extract_query_features(message)
-            logger.info(f"Extracted features: {extracted_features}")
-            query_type = extracted_features.get('queryType', 'general')
-        except Exception as e:
-            logger.error(f"Feature extraction failed: {str(e)}")
-            extracted_features = {}
-            query_type = data.get('query_type', 'general')
+        # Extract features - with better error handling
+        extracted_features = {}
+        query_type = "general"  # Default fallback
+        
+        if LLM:  # Only try to extract features if LLM is available
+            try:
+                extracted_features = extract_query_features(message)
+                logger.info(f"Extracted features: {extracted_features}")
+                query_type = extracted_features.get('queryType', 'general')
+            except Exception as e:
+                logger.error(f"Feature extraction failed: {str(e)}")
+                # Fallback to simple classification if we have LLM
+                try:
+                    query_type = classify_query(message)
+                    logger.info(f"Query classified as: {query_type}")
+                except Exception as classify_err:
+                    logger.error(f"Classification also failed: {str(classify_err)}")
+        else:
+            logger.warning("Skipping feature extraction - LLM not available")
 
+        # Process chat message
         if LLM:
             try:
                 system_content = f"You are an expert real estate assistant named REbot. You are handling a {query_type} question."
@@ -974,13 +1076,16 @@ async def chat(data: dict = Body(...)):
                     system_content += f"\n\nExtracted features: {feature_context}"
                 if location_context:
                     system_content += f"\n\nLocation context: {location_context}"
+                
                 messages = [
                     {"role": "system", "content": system_content},
                 ]
+                
                 chat_history = chat_histories[session_id]
                 for user_msg, bot_msg in chat_history:
                     messages.append({"role": "user", "content": user_msg})
                     messages.append({"role": "assistant", "content": bot_msg})
+                
                 messages.append({"role": "user", "content": message})
                 logger.info(f"Sending {len(messages)} messages to LLM")
                 response_obj = LLM.invoke(messages)
@@ -993,6 +1098,7 @@ async def chat(data: dict = Body(...)):
             response = "I'm sorry, but I'm currently unable to connect to the AI service. Please try again later."
             logger.error("LLM not initialized, returning error message")
 
+        # Save to chat history and return
         chat_histories[session_id].append((message, response))
         result = {
             "session_id": session_id,
@@ -1010,7 +1116,7 @@ async def chat(data: dict = Body(...)):
             "session_id": session_id if 'session_id' in locals() else None,
             "response": "I'm sorry, something went wrong. Please try again later."
         })
-
+    
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "llm_initialized": LLM is not None}
