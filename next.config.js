@@ -14,7 +14,7 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://cs532-project.onrender.com/api/:path*',
+        destination: 'https://cs532-project-dubl.onrender.com/api/:path*',
       },
     ];
   },

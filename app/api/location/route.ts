@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Forward the request to the Flask backend
-    const flaskResponse = await fetch('https://cs532-project.onrender.com/api/location', {
+    const flaskResponse = await fetch('https://cs532-project-dubl.onrender.com/api/location', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

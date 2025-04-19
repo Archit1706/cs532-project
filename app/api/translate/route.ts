@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
     // Real translation via Flask backend
     try {
-      const translationResponse = await fetch('https://cs532-project.onrender.com/api/translate', {
+      const translationResponse = await fetch('https://cs532-project-dubl.onrender.com/api/translate', {
         // const translationResponse = await fetch('http://127.0.0.1:5000/api/translate', {
         method: 'POST',
         headers: {

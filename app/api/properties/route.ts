@@ -6,7 +6,7 @@ export async function POST(request: Request) {
     console.log(`Fetching properties for zip code ${body.zipCode}`);
 
     // Forward the request to the Flask backend
-    const flaskResponse = await fetch('https://cs532-project.onrender.com/api/properties', {
+    const flaskResponse = await fetch('https://cs532-project-dubl.onrender.com/api/properties', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

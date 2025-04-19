@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     `;
 
     // Forward to Flask backend for LLM processing
-    const flaskResponse = await fetch('https://cs532-project.onrender.com/api/chat', {
+    const flaskResponse = await fetch('https://cs532-project-dubl.onrender.com/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       const jsonMatch = data.response.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const extractedFeatures = JSON.parse(jsonMatch[0]);
-        
+
         return NextResponse.json({
           features: extractedFeatures,
           success: true

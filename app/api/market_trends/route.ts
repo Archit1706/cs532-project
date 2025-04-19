@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     console.log('Market trends request:', body);
 
     // const flaskResponse = await fetch('http://127.0.0.1:5000/api/market_trends', {
-    const flaskResponse = await fetch('https://cs532-project.onrender.com/api/market_trends', {
+    const flaskResponse = await fetch('https://cs532-project-dubl.onrender.com/api/market_trends', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
