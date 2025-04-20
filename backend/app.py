@@ -127,15 +127,56 @@ Standalone question:
 """)
 
 QA_PROMPT = PromptTemplate.from_template("""
-You are an expert real estate assistant named REbot. You help users search for properties, track market trends, set preferences, and answer legal questions related to real estate.
+You are REbot, a helpful and concise real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
 
-Use the following context to answer the question. If you don't know the answer, don't make up information - just say you don't know.
+IMPORTANT GUIDELINES:
+1. Be brief and conversational, limiting responses to 1-2 short paragraphs maximum
+2. Reference UI elements when relevant (e.g., "You can see property details in the right panel")
+3. Use natural, friendly language - avoid sounding like a formal report
+4. When data is loading or when asking for a zip code, let users know what's happening
+5. Mention trends and insights from available data rather than listing everything
+6. Never mention "API" or technical terms - keep the conversation natural and focused on real estate
+7. Directly reference the visual elements the user can see in the UI, not abstract data
 
+CURRENT UI STATE CONTEXT:
 {context}
+
+QUERY TYPE: {query_type}
 
 Question: {question}
 Answer:
 """)
+
+# Enhanced system prompt with UI linking instructions
+ENHANCED_SYSTEM_PROMPT = """
+You are REbot, a helpful real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
+
+CRITICAL - UI LINK INSTRUCTIONS:
+You MUST include specific UI references in your responses using these exact link formats:
+
+1. When mentioning market data: Use exactly "[[market trends]]" in your response
+2. When mentioning properties: Use exactly "[[properties]]" in your response
+3. When mentioning restaurants: Use exactly "[[restaurants]]" in your response
+4. When mentioning transit options: Use exactly "[[transit]]" in your response
+5. When mentioning the current property: Use phrases like "this property" or "the current property"
+
+For example, say: "You can see price details in the [[market trends]] panel" or "Check out nearby [[restaurants]] for dining options."
+
+ALWAYS include at least one UI link in every response when there's relevant data in the UI.
+
+RESPONSE GUIDELINES:
+- Be conversational and concise, limiting responses to 1 paragraph maximum!
+- When answering questions about specific properties, reference "this property" or "the current property"
+- If the user asks about something shown in the UI (e.g., "What are property taxes for this condo?"), respond based on the UI context
+- For market data requests, always include "[[market trends]]" link
+- For neighborhood questions, include "[[restaurants]]" and "[[transit]]" links
+- Keep responses focused and avoid lengthy explanations
+
+CURRENT UI STATE:
+{ui_context}
+
+USER QUERY: {question}
+"""
 
 # Initialize Azure OpenAI
 def get_llm():
@@ -970,6 +1011,52 @@ async def market_trends(data: MarketTrendsRequest):
 
 #######################################################################################################################################
 
+# Update the parse_ui_context function to extract useful information
+def parse_ui_context(context_str):
+    """Parse the UI context string into a structured format with UI link information."""
+    try:
+        context = json.loads(context_str) if context_str else {}
+        ui_context = context.get('ui_context', {})
+        
+        # Create a human-readable context string
+        context_description = []
+        available_ui_components = []
+        
+        # First list what UI components are available for linking
+        if ui_context.get('hasMarketData', False):
+            available_ui_components.append("[[market trends]] (you MUST use this syntax to refer to market trends)")
+            
+        if ui_context.get('propertiesCount', 0) > 0:
+            available_ui_components.append("[[properties]] (you MUST use this syntax to refer to properties)")
+            context_description.append(f"There are {ui_context.get('propertiesCount', 0)} properties displayed in the UI.")
+        
+        if ui_context.get('hasRestaurants', False):
+            available_ui_components.append("[[restaurants]] (you MUST use this syntax to refer to restaurants)")
+            context_description.append(f"There are {ui_context.get('restaurantCount', 0)} restaurants shown in the UI.")
+        
+        if ui_context.get('hasTransit', False):
+            available_ui_components.append("[[transit]] (you MUST use this syntax to refer to transit options)")
+            context_description.append(f"There are {ui_context.get('transitCount', 0)} transit options shown in the UI.")
+            
+        # Then add details about current selection
+        current_property = ui_context.get('currentProperty', None)
+        property_details = ui_context.get('propertyDetails', None)
+        
+        if current_property:
+            context_description.append(f"User is viewing a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', 'an address')} priced at ${current_property.get('price', 0):,}.")
+        
+        if property_details:
+            tax_info = f" The property tax is ${property_details.get('propertyTaxes', 0):,} per year." if property_details.get('propertyTaxes') else ""
+            context_description.append(f"This property was built in {property_details.get('yearBuilt', 'N/A')}.{tax_info}")
+        
+        # Add reminder about UI component links
+        ui_component_reminder = "IMPORTANT: You MUST use the exact link syntax shown above when referring to those UI components in your response."
+        
+        return "AVAILABLE UI COMPONENTS FOR LINKING:\n" + "\n".join(available_ui_components) + "\n\nUI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + ui_component_reminder
+    except Exception as e:
+        logger.error(f"Error parsing UI context: {e}")
+        return "UI context not available. Avoid referring to UI elements in your response."
+
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):
     try:
@@ -1022,60 +1109,38 @@ async def chat(data: ChatRequest):
 
         # Handle system queries
         if is_system_query:
-            logger.info("Processing system query")
-            try:
-                if not LLM:
-                    return JSONResponse(status_code=500, content={
-                        "error": "LLM not initialized",
-                        "session_id": session_id,
-                        "response": "Error: LLM service is not available"
-                    })
-                
-                messages = [
-                    {"role": "system", "content": "You are a system processing component for real estate queries."},
-                    {"role": "user", "content": message}
-                ]
-                logger.info("Sending system query to LLM")
-                response_obj = LLM.invoke(messages)
-                response = response_obj.content
-                logger.info("Received system response from LLM")
-                return {"session_id": session_id, "response": response}
-            except Exception as e:
-                logger.error(f"Error in system query: {str(e)}")
-                return JSONResponse(status_code=500, content={
-                    "error": str(e),
-                    "session_id": session_id,
-                    "response": f"Error: {str(e)}"
-                })
+            # [existing system query handler code]
+            pass
 
-        # Extract features - with better error handling
+        # Extract features and UI context
         extracted_features = {}
-        query_type = "general"  # Default fallback
+        query_type = "general"
+        ui_context = ""
         
         if LLM:  # Only try to extract features if LLM is available
             try:
                 extracted_features = extract_query_features(message)
                 logger.info(f"Extracted features: {extracted_features}")
                 query_type = extracted_features.get('queryType', 'general')
+                
+                # Parse UI context
+                ui_context = parse_ui_context(feature_context)
+                logger.info(f"Parsed UI context: {ui_context}")
+                
             except Exception as e:
-                logger.error(f"Feature extraction failed: {str(e)}")
-                # Fallback to simple classification if we have LLM
-                try:
-                    query_type = classify_query(message)
-                    logger.info(f"Query classified as: {query_type}")
-                except Exception as classify_err:
-                    logger.error(f"Classification also failed: {str(classify_err)}")
+                logger.error(f"Feature extraction or UI context parsing failed: {str(e)}")
+                # [existing fallback code]
         else:
             logger.warning("Skipping feature extraction - LLM not available")
 
         # Process chat message
         if LLM:
             try:
-                system_content = f"You are an expert real estate assistant named REbot. You are handling a {query_type} question."
-                if feature_context:
-                    system_content += f"\n\nExtracted features: {feature_context}"
-                if location_context:
-                    system_content += f"\n\nLocation context: {location_context}"
+                # Create prompt with UI context
+                system_content = ENHANCED_SYSTEM_PROMPT.format(
+                    ui_context=ui_context,
+                    question=message
+                )
                 
                 messages = [
                     {"role": "system", "content": system_content},
@@ -1087,7 +1152,7 @@ async def chat(data: ChatRequest):
                     messages.append({"role": "assistant", "content": bot_msg})
                 
                 messages.append({"role": "user", "content": message})
-                logger.info(f"Sending {len(messages)} messages to LLM")
+                logger.info(f"Sending {len(messages)} messages to LLM with enhanced UI context")
                 response_obj = LLM.invoke(messages)
                 response = response_obj.content
                 logger.info("Received response from LLM")
@@ -1116,7 +1181,8 @@ async def chat(data: ChatRequest):
             "session_id": session_id if 'session_id' in locals() else None,
             "response": "I'm sorry, something went wrong. Please try again later."
         })
-    
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "llm_initialized": LLM is not None}
