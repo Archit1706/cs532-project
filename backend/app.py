@@ -1012,6 +1012,9 @@ async def market_trends(data: MarketTrendsRequest):
 #######################################################################################################################################
 
 # Update the parse_ui_context function to extract useful information
+# Add property market tab to UI context in backend/app.py
+
+# Add to parse_ui_context function
 def parse_ui_context(context_str):
     """Parse the UI context string into a structured format with UI link information."""
     try:
@@ -1044,6 +1047,8 @@ def parse_ui_context(context_str):
         
         if current_property:
             context_description.append(f"User is viewing a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', 'an address')} priced at ${current_property.get('price', 0):,}.")
+            # Add property market tab to available components
+            available_ui_components.append("[[property market]] (you MUST use this syntax to refer to the property's market analysis tab)")
         
         if property_details:
             tax_info = f" The property tax is ${property_details.get('propertyTaxes', 0):,} per year." if property_details.get('propertyTaxes') else ""
@@ -1057,6 +1062,7 @@ def parse_ui_context(context_str):
         logger.error(f"Error parsing UI context: {e}")
         return "UI context not available. Avoid referring to UI elements in your response."
 
+# Update the createLinkableContent function in ChatContext.tsx to include property market link
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):
     try:

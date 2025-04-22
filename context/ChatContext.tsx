@@ -8,7 +8,7 @@ export const ChatContext = createContext<any>(null);
 export const useChatContext = () => useContext(ChatContext);
 
 interface UIComponentLink {
-  type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail';
+  type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket';
   label: string;
   data?: any;
 }
@@ -40,44 +40,54 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    const handleUILink = (link: UIComponentLink) => {
-        console.log('UI link clicked:', link);
-        
-        // Set the appropriate tab based on link type
-        setActiveTab('explore');
-        
-        // Handle specific component activations
-        switch(link.type) {
-            case 'market':
-                console.log('Activating market trends tab');
-                setActiveTab('explore');
-                break;
-            case 'property':
-                console.log('Activating properties tab');
-                // If data includes a specific property, select it
-                if (link.data && typeof link.data === 'object') {
-                    setSelectedProperty(link.data);
-                }
-                break;
-            case 'restaurants':
-                console.log('Activating restaurants tab');
-                setActiveTab('explore');
-                break;
-            case 'transit':
-                console.log('Activating transit tab');
-                setActiveTab('explore');
-                break;
-            case 'propertyDetail':
-                console.log('Viewing specific property details', link.data);
-                // If data includes a property ID, load property details
-                if (link.data && link.data.zpid) {
-                    loadPropertyChat(link.data.zpid);
-                }
-                break;
-            default:
-                console.warn('Unknown UI link type:', link.type);
-        }
-    };
+ // Add property market handler to handleUILink function
+const handleUILink = (link: UIComponentLink) => {
+    console.log('UI link clicked:', link);
+    
+    // Set the appropriate tab based on link type
+    setActiveTab('explore');
+    
+    // Handle specific component activations
+    switch(link.type) {
+        case 'market':
+            console.log('Activating market trends tab');
+            setActiveTab('explore');
+            break;
+        case 'property':
+            console.log('Activating properties tab');
+            // If data includes a specific property, select it
+            if (link.data && typeof link.data === 'object') {
+                setSelectedProperty(link.data);
+            }
+            break;
+        case 'restaurants':
+            console.log('Activating restaurants tab');
+            setActiveTab('explore');
+            break;
+        case 'transit':
+            console.log('Activating transit tab');
+            setActiveTab('explore');
+            break;
+        case 'propertyDetail':
+            console.log('Viewing specific property details', link.data);
+            // If data includes a property ID, load property details
+            if (link.data && link.data.zpid) {
+                loadPropertyChat(link.data.zpid);
+            }
+            break;
+        case 'propertyMarket':
+            console.log('Viewing property market analysis');
+            // If we're already on a property detail page, switch to market tab
+            if (isPropertyChat && propertyDetails) {
+                // This function requires access to the SinglePropertyOverview component's state
+                // We'll need to implement a mechanism to communicate this
+                document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+            }
+            break;
+        default:
+            console.warn('Unknown UI link type:', link.type);
+    }
+};
 
     const createLinkableContent = (message: string) => {
         // Define patterns to detect UI link mentions
@@ -97,6 +107,10 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
             {
                 regex: /\[\[transit\]\]/gi,
                 replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'
+            },
+            {
+                regex: /\[\[property\s+market\]\]/gi,
+                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
             }
         ];
         

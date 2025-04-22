@@ -1,6 +1,9 @@
+// Update SinglePropertyOverview.tsx to add the market tab
+
 import React, { useState } from "react";
 import { useChatContext } from "context/ChatContext";
 import PropertyRoutesMap from "./PropertyRoutesMap";
+import PropertyMarketTab from "./Tabs/PropertyMarketTab";
 import {
     MdHome,
     MdKingBed,
@@ -16,10 +19,9 @@ import {
     MdSchool,
     MdHistory,
     MdAttachFile,
-
 } from "react-icons/md";
 import { TbAirConditioning } from "react-icons/tb";
-import { FaRoute, FaMoneyBill } from "react-icons/fa6";
+import { FaRoute, FaMoneyBill, FaChartLine } from "react-icons/fa";
 import { IoIosPricetag } from "react-icons/io";
 
 // Improved Section Component with more dynamic styling
@@ -43,6 +45,8 @@ const Section = ({
     </div>
 );
 
+
+
 const SinglePropertyOverview = () => {
     const { propertyDetails } = useChatContext();
     const [activeTab, setActiveTab] = useState('details');
@@ -54,6 +58,8 @@ const SinglePropertyOverview = () => {
     const address = info.address?.full || `${info.address?.streetAddress}, ${info.address?.city}, ${info.address?.state} ${info.address?.zipcode}`;
     const image = propertyDetails?.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
 
+
+    
     const renderFacts = () =>
         features.atAGlanceFacts?.map((fact: any, i: number) => (
             <div
@@ -198,7 +204,7 @@ const SinglePropertyOverview = () => {
             {/* Tabbed Navigation */}
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
                 <div className="flex border-b border-slate-200">
-                    {['Details', 'Price History', 'Schools'].map((tab) => (
+                    {['Details', 'Price History', 'Schools', 'Market Analysis'].map((tab) => (
                         <button
                             key={tab}
                             className={`flex-1 py-3 text-sm font-medium 
@@ -207,7 +213,12 @@ const SinglePropertyOverview = () => {
                                     : 'text-slate-600 hover:bg-slate-50'}`}
                             onClick={() => setActiveTab(tab.toLowerCase())}
                         >
-                            {tab}
+                            {tab === 'Market Analysis' ? (
+                                <div className="flex items-center justify-center">
+                                    <FaChartLine className="mr-1" />
+                                    {tab}
+                                </div>
+                            ) : tab}
                         </button>
                     ))}
                 </div>
@@ -329,6 +340,12 @@ const SinglePropertyOverview = () => {
                             {renderSchools()}
                         </Section>
                     )}
+                    
+                    {activeTab === 'market analysis' && (
+                        <div className="animate-fadeIn">
+                            <PropertyMarketTab />
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -350,5 +367,7 @@ const SinglePropertyOverview = () => {
         </div>
     );
 };
+
+
 
 export default SinglePropertyOverview;

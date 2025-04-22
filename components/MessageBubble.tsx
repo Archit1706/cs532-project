@@ -17,13 +17,16 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
     // Parse and set up UI link event handlers after the component renders
     useEffect(() => {
         if (messageRef.current && message.type === 'bot') {
-            // Handle regular UI links
+            // Find all links with data-ui-link attribute
             const linkElements = messageRef.current.querySelectorAll('a[data-ui-link]');
+            console.log('Found UI links:', linkElements.length);
             
+            // Add click handlers to each link
             linkElements.forEach(link => {
                 link.addEventListener('click', (e) => {
                     e.preventDefault();
                     const linkType = link.getAttribute('data-ui-link');
+                    console.log('Link clicked:', linkType);
                     
                     // Handle property detail links with zpid data
                     let data = null;
@@ -48,13 +51,13 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
 
     const formatMessageContent = (content: string) => {
         // First check for raw UI component references in format [[component_name]]
-        // This catches any patterns the backend didn't convert properly
         let processedContent = content;
         const uiComponentPatterns = [
             { regex: /\[\[market(?:\s+trends)?\]\]/gi, type: 'market' },
             { regex: /\[\[properties\]\]/gi, type: 'property' },
             { regex: /\[\[restaurants\]\]/gi, type: 'restaurants' },
-            { regex: /\[\[transit\]\]/gi, type: 'transit' }
+            { regex: /\[\[transit\]\]/gi, type: 'transit' },
+            { regex: /\[\[property\s+market\]\]/gi, type: 'propertyMarket' }
         ];
         
         // Convert any raw UI references to clickable links
