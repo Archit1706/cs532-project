@@ -5,7 +5,14 @@ import Header from "@/components/header";
 import Footer from "@/components/footer";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
-
+import {
+  ClerkProvider,
+  SignInButton,
+  SignUpButton,
+  SignedIn,
+  SignedOut,
+  UserButton,
+} from '@clerk/nextjs'
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -19,30 +26,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="light"
-        />
-        {/* <div className="flex flex-col min-h-screen">
+    <ClerkProvider>
+      <html lang="en">
+        <body className={inter.className}>
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+            theme="light"
+          />
+          {/* <div className="flex flex-col min-h-screen">
           <Header />
           <main className="flex-grow">
             {children}
           </main>
           <Footer />
         </div> */}
-        {children}
+          {children}
 
-      </body>
-    </html>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

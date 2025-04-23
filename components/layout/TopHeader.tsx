@@ -4,6 +4,14 @@
 import React from 'react';
 import { FaPlus } from "react-icons/fa6";
 import Image from 'next/image';
+import {
+    ClerkProvider,
+    SignInButton,
+    SignUpButton,
+    SignedIn,
+    SignedOut,
+    UserButton,
+} from '@clerk/nextjs'
 
 const TopHeader = () => {
     return (
@@ -15,6 +23,13 @@ const TopHeader = () => {
                 <button className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700">
                     <FaPlus className="w-4 h-4" /> Chat
                 </button>
+                <SignedOut>
+                    <SignInButton />
+                    <SignUpButton />
+                </SignedOut>
+                <SignedIn>
+                    <UserButton />
+                </SignedIn>
                 <div className="flex items-center gap-3">
                     <Image
                         src="https://randomuser.me/api/portraits/men/32.jpg"
