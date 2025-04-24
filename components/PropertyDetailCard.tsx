@@ -60,9 +60,6 @@ const PropertyDetailCard: React.FC<Props> = ({ property, onClose }) => {
                         <div className="text-slate-600">{property.type}</div>
                     </div>
 
-                    {/* Property Routes Map Component */}
-                    <PropertyRoutesMap property={property} />
-
                     {/* Chat button */}
                     <Link target='_blank' href={`/chat?propertyId=${property.zpid}`}>
                         <button className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-md w-full justify-center mt-4">
@@ -70,6 +67,11 @@ const PropertyDetailCard: React.FC<Props> = ({ property, onClose }) => {
                             Chat with this property
                         </button>
                     </Link>
+
+                    {/* Property Routes Map Component */}
+                    <PropertyRoutesMap property={property} />
+
+
                 </div>
             </div>
         </div>

@@ -6,15 +6,32 @@ import { useChatContext } from 'context/ChatContext';
 import PropertyDetailCard from '../PropertyDetailCard';
 import SinglePropertyOverview from '../SinglePropertyOverview';
 import WelcomeCard from '../WelcomeCard';
-import { MdExplore, MdNotifications } from 'react-icons/md';
+import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats } from 'react-icons/md';
 import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
 import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
 
+// Create unique IDs for each section that can be used as anchors
+const SECTION_IDS = {
+  PROPERTIES: 'properties-section',
+  MARKET: 'market-trends-section',
+  AMENITIES: 'local-amenities-section',
+  TRANSIT: 'transit-section'
+};
+
 const InfoPanel = () => {
-    const { selectedProperty, setSelectedProperty, locationData, activeTab, setActiveTab, isPropertyChat, propertyDetails } = useChatContext();
+    const { 
+      selectedProperty, 
+      setSelectedProperty, 
+      locationData, 
+      activeTab, 
+      setActiveTab, 
+      isPropertyChat, 
+      propertyDetails,
+      zipCode
+    } = useChatContext();
 
     const renderTabContent = () => {
         if (activeTab === 'explore') {
@@ -41,20 +58,98 @@ const InfoPanel = () => {
                 return <PropertyDetailCard property={selectedProperty} onClose={() => setSelectedProperty(null)} />;
             }
 
-            if (!locationData)
-                return <></>;
-            // return <WelcomeCard />;
+            if (!locationData || !zipCode)
+                return <WelcomeCard />;
 
             return (
-                <div className="space-y-6 m-6">
-                    <h2 className="text-lg font-semibold text-slate-700">Properties in Your Area</h2>
-                    <PropertyTab />
-                    <h2 className="text-lg font-semibold text-slate-700 mt-4">Market Details</h2>
-                    <MarketTab />
-                    <h2 className="text-lg font-semibold text-slate-700 mt-4">Local Amenities</h2>
-                    <RestaurantTab />
-                    <h2 className="text-lg font-semibold text-slate-700 mt-4">Transit</h2>
-                    <TransitTab />
+                <div className="space-y-6 m-6 pb-12 overflow-y-auto">
+                    {/* Properties Section with Improved Header */}
+                    <section id={SECTION_IDS.PROPERTIES} className="scroll-mt-16">
+                        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-md mb-4">
+                            <div className="flex items-center p-4">
+                                <MdHome className="text-white mr-3 text-2xl" />
+                                <h2 className="text-xl font-bold text-white">Properties in {zipCode}</h2>
+                                <a 
+                                  href={`#${SECTION_IDS.PROPERTIES}`} 
+                                  className="ml-auto text-blue-100 hover:text-white"
+                                  title="Copy link to this section"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.PROPERTIES}`);
+                                  }}
+                                >
+                                  #
+                                </a>
+                            </div>
+                        </div>
+                        <PropertyTab />
+                    </section>
+                    
+                    {/* Market Trends Section with Improved Header */}
+                    <section id={SECTION_IDS.MARKET} className="scroll-mt-16 mt-8">
+                        <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl shadow-md mb-4">
+                            <div className="flex items-center p-4">
+                                <MdQueryStats className="text-white mr-3 text-2xl" />
+                                <h2 className="text-xl font-bold text-white">Market Trends</h2>
+                                <a 
+                                  href={`#${SECTION_IDS.MARKET}`} 
+                                  className="ml-auto text-emerald-100 hover:text-white"
+                                  title="Copy link to this section"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.MARKET}`);
+                                  }}
+                                >
+                                  #
+                                </a>
+                            </div>
+                        </div>
+                        <MarketTab />
+                    </section>
+                    
+                    {/* Local Amenities Section with Improved Header */}
+                    <section id={SECTION_IDS.AMENITIES} className="scroll-mt-16 mt-8">
+                        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl shadow-md mb-4">
+                            <div className="flex items-center p-4">
+                                <MdRestaurant className="text-white mr-3 text-2xl" />
+                                <h2 className="text-xl font-bold text-white">Local Amenities</h2>
+                                <a 
+                                  href={`#${SECTION_IDS.AMENITIES}`} 
+                                  className="ml-auto text-amber-100 hover:text-white"
+                                  title="Copy link to this section"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.AMENITIES}`);
+                                  }}
+                                >
+                                  #
+                                </a>
+                            </div>
+                        </div>
+                        <RestaurantTab />
+                    </section>
+                    
+                    {/* Transit Section with Improved Header */}
+                    <section id={SECTION_IDS.TRANSIT} className="scroll-mt-16 mt-8">
+                        <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl shadow-md mb-4">
+                            <div className="flex items-center p-4">
+                                <MdDirectionsTransit className="text-white mr-3 text-2xl" />
+                                <h2 className="text-xl font-bold text-white">Transit Options</h2>
+                                <a 
+                                  href={`#${SECTION_IDS.TRANSIT}`} 
+                                  className="ml-auto text-indigo-100 hover:text-white"
+                                  title="Copy link to this section"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.TRANSIT}`);
+                                  }}
+                                >
+                                  #
+                                </a>
+                            </div>
+                        </div>
+                        <TransitTab />
+                    </section>
                 </div>
             );
         }

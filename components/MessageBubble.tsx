@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message } from 'types/chat';
 import { useChatContext } from '../context/ChatContext';
+import { SECTION_IDS } from '../context/ChatContext'; // Import section IDs
 
 interface Props {
     message: Message;
@@ -28,14 +29,13 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
             const linkElements = messageRef.current.querySelectorAll('a[data-ui-link]');
             console.log('Found UI links:', linkElements.length);
             
-            // Add click handlers to each link
+            // Handle both UI component links and section links
             linkElements.forEach(link => {
                 // Log details about the link
                 console.log('Link found:', {
                     text: link.textContent,
                     type: link.getAttribute('data-ui-link'),
-                    // Use getAttribute instead of dataset for TypeScript compatibility
-                    'data-ui-link': link.getAttribute('data-ui-link')
+                    href: link.getAttribute('href'),
                 });
                 
                 // Remove any existing click handlers to prevent duplicates
@@ -51,30 +51,60 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
                     // Type assertion to HTMLElement to avoid TypeScript errors
                     const linkEl = newLink as HTMLElement;
                     const linkType = linkEl.getAttribute('data-ui-link');
-                    console.log('Link clicked:', linkType);
+                    const href = linkEl.getAttribute('href');
                     
-                    // Handle property detail links with zpid data
-                    let data = null;
-                    if (linkType === 'propertyDetail') {
-                        const zpid = linkEl.getAttribute('data-zpid');
-                        if (zpid) {
-                            data = { zpid };
-                        }
-                    }
+                    console.log('Link clicked:', linkType, href);
                     
-                    if (linkType) {
-                        // Add a visual feedback that the link was clicked
-                        linkEl.style.backgroundColor = '#bae6fd';
-                        linkEl.style.color = '#0369a1';
-                        
-                        // Call the handler
+                    // Handle section links vs. UI component links
+                    if (href && href.startsWith('#') && Object.values(SECTION_IDS).includes(href.substring(1))) {
+                        // This is a section link
                         handleUILink({
                             type: linkType as any,
                             label: linkEl.textContent || 'View',
-                            data
+                            data: { sectionId: href.substring(1) }
                         });
+                    } else {
+                        // Handle property detail links with zpid data
+                        let data = null;
+                        if (linkType === 'propertyDetail') {
+                            const zpid = linkEl.getAttribute('data-zpid');
+                            if (zpid) {
+                                data = { zpid };
+                            }
+                        }
+                        
+                        if (linkType) {
+                            // Add a visual feedback that the link was clicked
+                            linkEl.style.backgroundColor = '#bae6fd';
+                            linkEl.style.color = '#0369a1';
+                            
+                            // Call the handler
+                            handleUILink({
+                                type: linkType as any,
+                                label: linkEl.textContent || 'View',
+                                data
+                            });
+                        }
                     }
                 });
+            });
+            
+            // Also handle regular anchor links for section navigation
+            const sectionLinks = messageRef.current.querySelectorAll('a[href^="#"]');
+            sectionLinks.forEach(link => {
+                if (!link.hasAttribute('data-ui-link')) {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const href = link.getAttribute('href');
+                        if (href) {
+                            const sectionId = href.substring(1);
+                            const section = document.getElementById(sectionId);
+                            if (section) {
+                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        }
+                    });
+                }
             });
         }
     }, [message, handleUILink, content]);
@@ -84,19 +114,31 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
         // Process raw UI component references in format [[component_name]]
         let processedContent = contentStr;
         const uiComponentPatterns = [
-            { regex: /\[\[market(?:\s+trends)?\]\]/gi, type: 'market' },
-            { regex: /\[\[properties\]\]/gi, type: 'property' },
-            { regex: /\[\[restaurants\]\]/gi, type: 'restaurants' },
-            { regex: /\[\[transit\]\]/gi, type: 'transit' },
-            { regex: /\[\[property\s+market\]\]/gi, type: 'propertyMarket' }
+            { 
+                regex: /\[\[market(?:\s+trends)?\]\]/gi, 
+                replacement: `<a href="#${SECTION_IDS.MARKET}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="market">market trends</a>` 
+            },
+            { 
+                regex: /\[\[properties\]\]/gi, 
+                replacement: `<a href="#${SECTION_IDS.PROPERTIES}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="property">properties</a>` 
+            },
+            { 
+                regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi, 
+                replacement: `<a href="#${SECTION_IDS.AMENITIES}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="restaurants">local amenities</a>` 
+            },
+            { 
+                regex: /\[\[transit\]\]/gi, 
+                replacement: `<a href="#${SECTION_IDS.TRANSIT}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="transit">transit options</a>` 
+            },
+            { 
+                regex: /\[\[property\s+market\]\]/gi, 
+                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="propertyMarket">property market analysis</a>' 
+            }
         ];
         
         // Convert any raw UI references to clickable links
         uiComponentPatterns.forEach(pattern => {
-            processedContent = processedContent.replace(
-                pattern.regex, 
-                `<a href="#" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="${pattern.type}">$&</a>`
-            );
+            processedContent = processedContent.replace(pattern.regex, pattern.replacement);
         });
         
         return processedContent;

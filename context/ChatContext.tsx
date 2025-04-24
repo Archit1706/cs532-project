@@ -6,7 +6,15 @@ import { extractFeaturesWithLLM } from '../utils/llmFeatureExtractor';
 
 export const ChatContext = createContext<any>(null);
 export const useChatContext = () => useContext(ChatContext);
+// Define the section IDs for use in links (same as in InfoPanel.tsx)
+export const SECTION_IDS = {
+    PROPERTIES: 'properties-section',
+    MARKET: 'market-trends-section',
+    AMENITIES: 'local-amenities-section',
+    TRANSIT: 'transit-section'
+  };
 
+  
 interface UIComponentLink {
   type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket';
   label: string;
@@ -42,120 +50,115 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
 // Update handleUILink function in ChatContext.tsx
 
+// Update the handleUILink function to handle section links
 const handleUILink = (link: UIComponentLink) => {
     console.log('UI link clicked:', link);
     
-    // Handle specific component activations
+    // Set the active tab to explore for all section links
+    if (['market', 'property', 'restaurants', 'transit'].includes(link.type)) {
+        setActiveTab('explore');
+        
+        // Get the section ID
+        let sectionId;
+        switch(link.type) {
+            case 'market':
+                sectionId = SECTION_IDS.MARKET;
+                break;
+            case 'property':
+                sectionId = SECTION_IDS.PROPERTIES;
+                break;
+            case 'restaurants':
+                sectionId = SECTION_IDS.AMENITIES;
+                break;
+            case 'transit':
+                sectionId = SECTION_IDS.TRANSIT;
+                break;
+        }
+        
+        // Scroll to the section after a short delay to ensure the explore tab is active
+        if (sectionId) {
+            setTimeout(() => {
+                const element = document.getElementById(sectionId);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 100);
+        }
+        
+        return;
+    }
+    
+    // Handle other link types as before
     switch(link.type) {
-        case 'market':
-            console.log('Activating market trends tab');
-            // First ensure market trends data is loaded
-            if (!marketTrends && zipCode) {
-                fetchMarketTrends(undefined, zipCode);
-            }
-            // Then switch to the correct tab
-            setActiveTab('market');
-            break;
-            
-        case 'property':
-            console.log('Activating properties tab');
-            setActiveTab('properties');
-            // If data includes a specific property, select it
-            if (link.data && typeof link.data === 'object') {
-                setSelectedProperty(link.data);
-            }
-            break;
-            
-        case 'restaurants':
-            console.log('Activating restaurants tab');
-            setActiveTab('restaurants');
-            if (locationData?.restaurants?.length === 0 && zipCode) {
-                fetchLocationData(zipCode);
-            }
-            break;
-            
-        case 'transit':
-            console.log('Activating transit tab');
-            setActiveTab('transit');
-            if (locationData?.transit?.length === 0 && zipCode) {
-                fetchLocationData(zipCode);
-            }
-            break;
-            
         case 'propertyDetail':
             console.log('Viewing specific property details', link.data);
-            // If data includes a property ID, load property details
             if (link.data && link.data.zpid) {
                 loadPropertyChat(link.data.zpid);
             }
             break;
-            
         case 'propertyMarket':
             console.log('Viewing property market analysis');
-            // If we're already on a property detail page, switch to market tab
             if (isPropertyChat && propertyDetails) {
-                // Dispatch the custom event with a slight delay to ensure it's caught
                 setTimeout(() => {
                     console.log('Dispatching switchToPropertyMarketTab event');
                     document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
                 }, 100);
             } else if (selectedProperty) {
-                // If property is selected but not in property chat mode, load it first
                 console.log('Loading property before switching to market tab');
                 loadPropertyChat(selectedProperty.zpid);
                 
-                // Then switch to market tab after a delay to allow property to load
                 setTimeout(() => {
                     console.log('Dispatching switchToPropertyMarketTab event after loading property');
                     document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
                 }, 1000);
             }
             break;
-            
         default:
             console.warn('Unknown UI link type:', link.type);
     }
 };
-    const createLinkableContent = (message: string) => {
-        // Define patterns to detect UI link mentions
-        const patterns = [
-            {
-                regex: /\[\[market(?:\s+trends)?\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>'
-            },
-            {
-                regex: /\[\[properties\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>'
-            },
-            {
-                regex: /\[\[restaurants\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">restaurants</a>'
-            },
-            {
-                regex: /\[\[transit\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'
-            },
-            {
-                regex: /\[\[property\s+market\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
-            }
-        ];
-        
-        // Process each pattern
-        let processedContent = message;
-        patterns.forEach(pattern => {
-            processedContent = processedContent.replace(pattern.regex, pattern.replacement);
-        });
-        
-        // Also create property links for specific properties being discussed
-        if (selectedProperty) {
-            const propertyPattern = new RegExp(`\\b(this|the current|the selected|your) (property|condo|home|house)\\b`, 'gi');
-            processedContent = processedContent.replace(propertyPattern, 
-                `<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetail" data-zpid="${selectedProperty.zpid}">$1 $2</a>`);
+// Update the createLinkableContent function
+const createLinkableContent = (message: string) => {
+    // Define patterns to detect UI link mentions
+    const patterns = [
+        // Updated to include section links
+        {
+            regex: /\[\[market(?:\s+trends)?\]\]/gi,
+            replacement: `<a href="#${SECTION_IDS.MARKET}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>`
+        },
+        {
+            regex: /\[\[properties\]\]/gi,
+            replacement: `<a href="#${SECTION_IDS.PROPERTIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>`
+        },
+        {
+            regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi,
+            replacement: `<a href="#${SECTION_IDS.AMENITIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">local amenities</a>`
+        },
+        {
+            regex: /\[\[transit\]\]/gi,
+            replacement: `<a href="#${SECTION_IDS.TRANSIT}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>`
+        },
+        {
+            regex: /\[\[property\s+market\]\]/gi,
+            replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
         }
-        
-        return processedContent;
-    };
+    ];
+    
+    // Process each pattern
+    let processedContent = message;
+    patterns.forEach(pattern => {
+        processedContent = processedContent.replace(pattern.regex, pattern.replacement);
+    });
+    
+    // Also create property links for specific properties being discussed
+    if (selectedProperty) {
+        const propertyPattern = new RegExp(`\\b(this|the current|the selected|your) (property|condo|home|house)\\b`, 'gi');
+        processedContent = processedContent.replace(propertyPattern, 
+            `<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetail" data-zpid="${selectedProperty.zpid}">$1 $2</a>`);
+    }
+    
+    return processedContent;
+};
 
     const fetchMarketTrends = async (location?: string, zipCode?: string) => {
         console.log('Fetching market trends for:', location || zipCode);

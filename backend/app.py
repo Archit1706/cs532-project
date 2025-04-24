@@ -148,24 +148,25 @@ Answer:
 """)
 
 # Enhanced system prompt with UI linking instructions
+# Updated system prompt with section link instructions
 ENHANCED_SYSTEM_PROMPT = """
 You are REbot, a helpful real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
 
 CRITICAL - UI LINK INSTRUCTIONS:
-You MUST include specific UI references in your responses using these exact link formats:
+You MUST include specific section references in your responses using these exact link formats:
 
 1. When mentioning market data: Use exactly "[[market trends]]" in your response
 2. When mentioning properties: Use exactly "[[properties]]" in your response
-3. When mentioning restaurants: Use exactly "[[restaurants]]" in your response
+3. When mentioning restaurants or local amenities: Use exactly "[[restaurants]]" or "[[local amenities]]" in your response
 4. When mentioning transit options: Use exactly "[[transit]]" in your response
 5. When mentioning the current property: Use phrases like "this property" or "the current property"
 
-For example, say: "You can see price details in the [[market trends]] panel" or "Check out nearby [[restaurants]] for dining options."
+For example, say: "Check out available homes in the [[properties]] section" or "You can view local dining options in the [[restaurants]] section"
 
-ALWAYS include at least one UI link in every response when there's relevant data in the UI.
+When answering questions about the local area, ALWAYS include at least one relevant section link that directs the user to the appropriate tab in the UI.
 
 RESPONSE GUIDELINES:
-- Be conversational and concise, limiting responses to 1 paragraph maximum!
+- Be conversational and concise (1-2 short paragraphs maximum)
 - When answering questions about specific properties, reference "this property" or "the current property"
 - If the user asks about something shown in the UI (e.g., "What are property taxes for this condo?"), respond based on the UI context
 - For market data requests, always include "[[market trends]]" link
@@ -177,6 +178,7 @@ CURRENT UI STATE:
 
 USER QUERY: {question}
 """
+
 
 # Initialize Azure OpenAI
 def get_llm():
@@ -1015,6 +1017,7 @@ async def market_trends(data: MarketTrendsRequest):
 # Add property market tab to UI context in backend/app.py
 
 # Add to parse_ui_context function
+# Update the parse_ui_context function to emphasize available sections
 def parse_ui_context(context_str):
     """Parse the UI context string into a structured format with UI link information."""
     try:
@@ -1023,45 +1026,53 @@ def parse_ui_context(context_str):
         
         # Create a human-readable context string
         context_description = []
-        available_ui_components = []
+        available_sections = []
         
         # First list what UI components are available for linking
-        if ui_context.get('hasMarketData', False):
-            available_ui_components.append("[[market trends]] (you MUST use this syntax to refer to market trends)")
+        if ui_context.get('hasMarketData', False) or ui_context.get('zipCode'):
+            available_sections.append("[[market trends]] - Shows market data for the area")
             
-        if ui_context.get('propertiesCount', 0) > 0:
-            available_ui_components.append("[[properties]] (you MUST use this syntax to refer to properties)")
+        if ui_context.get('propertiesCount', 0) > 0 or ui_context.get('zipCode'):
+            available_sections.append("[[properties]] - Shows properties in the area")
             context_description.append(f"There are {ui_context.get('propertiesCount', 0)} properties displayed in the UI.")
         
-        if ui_context.get('hasRestaurants', False):
-            available_ui_components.append("[[restaurants]] (you MUST use this syntax to refer to restaurants)")
+        if ui_context.get('hasRestaurants', False) or ui_context.get('zipCode'):
+            available_sections.append("[[restaurants]] or [[local amenities]] - Shows dining and amenities in the area")
             context_description.append(f"There are {ui_context.get('restaurantCount', 0)} restaurants shown in the UI.")
         
-        if ui_context.get('hasTransit', False):
-            available_ui_components.append("[[transit]] (you MUST use this syntax to refer to transit options)")
+        if ui_context.get('hasTransit', False) or ui_context.get('zipCode'):
+            available_sections.append("[[transit]] - Shows transit options in the area")
             context_description.append(f"There are {ui_context.get('transitCount', 0)} transit options shown in the UI.")
             
+        # Add zip code context
+        if ui_context.get('zipCode'):
+            context_description.append(f"The user is looking at data for ZIP code {ui_context.get('zipCode')}.")
+        
         # Then add details about current selection
         current_property = ui_context.get('currentProperty', None)
         property_details = ui_context.get('propertyDetails', None)
         
         if current_property:
             context_description.append(f"User is viewing a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', 'an address')} priced at ${current_property.get('price', 0):,}.")
-            # Add property market tab to available components
-            available_ui_components.append("[[property market]] (you MUST use this syntax to refer to the property's market analysis tab)")
+            # Add property market tab to available sections
+            available_sections.append("[[property market]] - Shows market analysis for this specific property")
         
         if property_details:
             tax_info = f" The property tax is ${property_details.get('propertyTaxes', 0):,} per year." if property_details.get('propertyTaxes') else ""
             context_description.append(f"This property was built in {property_details.get('yearBuilt', 'N/A')}.{tax_info}")
         
-        # Add reminder about UI component links
-        ui_component_reminder = "IMPORTANT: You MUST use the exact link syntax shown above when referring to those UI components in your response."
+        # Add reminder about section links
+        section_reminder = """
+IMPORTANT REMINDER:
+- ALWAYS include at least one section link in your response (e.g., [[properties]], [[market trends]], etc.)
+- When answering questions about the area, include relevant section links
+- Use the EXACT syntax shown above for section links
+"""
         
-        return "AVAILABLE UI COMPONENTS FOR LINKING:\n" + "\n".join(available_ui_components) + "\n\nUI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + ui_component_reminder
+        return "AVAILABLE UI SECTIONS (USE THESE EXACT LINK FORMATS):\n" + "\n".join(available_sections) + "\n\nUI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + section_reminder
     except Exception as e:
         logger.error(f"Error parsing UI context: {e}")
-        return "UI context not available. Avoid referring to UI elements in your response."
-
+        return "UI context not available. Include general links to [[properties]], [[market trends]], [[restaurants]], and [[transit]] in your response."
 # Update the createLinkableContent function in ChatContext.tsx to include property market link
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):
