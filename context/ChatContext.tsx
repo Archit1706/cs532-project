@@ -3,6 +3,9 @@ import React, { createContext, useContext, useRef, useState, useEffect } from 'r
 import { Message, Property, LocationData, FeatureExtraction } from '../types/chat';
 import { fetchLocationData as fetchLocationDetails } from '../utils/locationUtils';
 import { extractFeaturesWithLLM } from '../utils/llmFeatureExtractor';
+// Add the import for property tab IDs
+import { PROPERTY_TAB_IDS } from '../components/SinglePropertyOverview';
+
 
 export const ChatContext = createContext<any>(null);
 export const useChatContext = () => useContext(ChatContext);
@@ -16,7 +19,7 @@ export const SECTION_IDS = {
 
 
 interface UIComponentLink {
-  type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket';
+  type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket' | 'propertyDetails' | 'propertyPriceHistory' | 'propertySchools' | 'propertyMarketAnalysis';
   label: string;
   data?: any;
 }
@@ -46,56 +49,147 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [propertyDetails, setPropertyDetails] = useState<any>(null);
     const [dynamicQuestions, setDynamicQuestions] = useState<string[]>([]);
 
+    const [propertyContext, setPropertyContext] = useState<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
 // Update handleUILink function in ChatContext.tsx
+
+// Add to the UI context for backend
+const buildUIContext = () => {
+    return {
+        currentProperty: selectedProperty ? {
+            zpid: selectedProperty.zpid,
+            address: selectedProperty.address,
+            price: selectedProperty.price,
+            beds: selectedProperty.beds,
+            baths: selectedProperty.baths,
+            type: selectedProperty.type
+        } : null,
+        propertyDetails: propertyDetails ? {
+            address: propertyDetails.basic_info?.address?.full || null,
+            price: propertyDetails.basic_info?.price || null,
+            yearBuilt: propertyDetails.basic_info?.yearBuilt || null,
+            propertyTaxes: propertyDetails.taxes && propertyDetails.taxes.length > 0 ? 
+                propertyDetails.taxes[0].taxPaid : null,
+        } : null,
+        propertyContext: propertyContext, // Include full property context
+        propertiesCount: properties.length,
+        activeTab: activeTab,
+        zipCode: zipCode,
+        hasRestaurants: (locationData?.restaurants?.length ?? 0) > 0,
+        restaurantCount: locationData?.restaurants?.length || 0,
+        hasTransit: (locationData?.transit ?? []).length > 0,
+        transitCount: locationData?.transit?.length || 0,
+        hasMarketData: marketTrends !== null,
+        marketLocation: marketTrends?.location || null,
+        propertyTabsLinks: {
+            details: `#${PROPERTY_TAB_IDS.DETAILS}`,
+            priceHistory: `#${PROPERTY_TAB_IDS.PRICE_HISTORY}`,
+            schools: `#${PROPERTY_TAB_IDS.SCHOOLS}`,
+            marketAnalysis: `#${PROPERTY_TAB_IDS.MARKET_ANALYSIS}`
+        }
+    };
+};
 
 // Update the handleUILink function to handle section links
 const handleUILink = (link: UIComponentLink) => {
     console.log('UI link clicked:', link);
     
-    // Set the active tab to explore for all section links
-    if (['market', 'property', 'restaurants', 'transit'].includes(link.type)) {
-        setActiveTab('explore');
-        
-        // Get the section ID
-        let sectionId;
-        switch(link.type) {
-            case 'market':
-                sectionId = SECTION_IDS.MARKET;
-                break;
-            case 'property':
-                sectionId = SECTION_IDS.PROPERTIES;
-                break;
-            case 'restaurants':
-                sectionId = SECTION_IDS.AMENITIES;
-                break;
-            case 'transit':
-                sectionId = SECTION_IDS.TRANSIT;
-                break;
-        }
-        
-        // Scroll to the section after a short delay to ensure the explore tab is active
-        if (sectionId) {
+    // Handle property tab links
+    if (['propertyDetails', 'propertyPriceHistory', 'propertySchools', 'propertyMarketAnalysis'].includes(link.type)) {
+        // First ensure we're on a property details page
+        if (isPropertyChat && propertyDetails) {
+            // Map to the tab ID
+            let tabId;
+            switch(link.type) {
+                case 'propertyDetails':
+                    tabId = PROPERTY_TAB_IDS.DETAILS;
+                    break;
+                case 'propertyPriceHistory':
+                    tabId = PROPERTY_TAB_IDS.PRICE_HISTORY;
+                    break;
+                case 'propertySchools':
+                    tabId = PROPERTY_TAB_IDS.SCHOOLS;
+                    break;
+                case 'propertyMarketAnalysis':
+                    tabId = PROPERTY_TAB_IDS.MARKET_ANALYSIS;
+                    break;
+            }
+            
+            // Switch to the tab
+            if (tabId) {
+                // Use custom event to trigger tab change
+                document.dispatchEvent(new CustomEvent('switchToPropertyTab', { 
+                    detail: { tabId }
+                }));
+                
+                // Scroll to the tab element
+                setTimeout(() => {
+                    const element = document.getElementById(tabId);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }, 100);
+            }
+        } else if (selectedProperty) {
+            // If we're not in property chat mode, load the property first
+            console.log('Loading property before switching to tab');
+            loadPropertyChat(selectedProperty.zpid);
+            
+            // Then switch to the tab after a delay
             setTimeout(() => {
-                const element = document.getElementById(sectionId);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-            }, 100);
+                const tabId = link.type === 'propertyDetails' ? PROPERTY_TAB_IDS.DETAILS :
+                             link.type === 'propertyPriceHistory' ? PROPERTY_TAB_IDS.PRICE_HISTORY :
+                             link.type === 'propertySchools' ? PROPERTY_TAB_IDS.SCHOOLS :
+                             PROPERTY_TAB_IDS.MARKET_ANALYSIS;
+                             
+                console.log(`Switching to property tab: ${link.type} (${tabId})`);
+                document.dispatchEvent(new CustomEvent('switchToPropertyTab', { 
+                    detail: { tabId }
+                }));
+            }, 1000);
         }
         
         return;
     }
     
-    // Handle other link types as before
+    // Handle other link types (market, restaurants, etc.)
     switch(link.type) {
-        case 'propertyDetail':
-            console.log('Viewing specific property details', link.data);
-            if (link.data && link.data.zpid) {
-                loadPropertyChat(link.data.zpid);
+        case 'market':
+            console.log('Activating market trends tab');
+            // First ensure market trends data is loaded
+            if (!marketTrends && zipCode) {
+                fetchMarketTrends(undefined, zipCode);
+            }
+            // Then switch to the correct tab
+            setActiveTab('market');
+            break;
+            
+        case 'property':
+            console.log('Activating properties tab');
+            setActiveTab('properties');
+            // If data includes a specific property, select it
+            if (link.data && typeof link.data === 'object') {
+                setSelectedProperty(link.data);
             }
             break;
+            
+        case 'restaurants':
+            console.log('Activating restaurants tab');
+            setActiveTab('restaurants');
+            if (locationData?.restaurants?.length === 0 && zipCode) {
+                fetchLocationData(zipCode);
+            }
+            break;
+            
+        case 'transit':
+            console.log('Activating transit tab');
+            setActiveTab('transit');
+            if (locationData?.transit?.length === 0 && zipCode) {
+                fetchLocationData(zipCode);
+            }
+            break;
+            
         case 'propertyMarket':
             console.log('Viewing property market analysis');
             if (isPropertyChat && propertyDetails) {
@@ -113,10 +207,12 @@ const handleUILink = (link: UIComponentLink) => {
                 }, 1000);
             }
             break;
+            
         default:
             console.warn('Unknown UI link type:', link.type);
     }
 };
+
 // Update the createLinkableContent function
 const createLinkableContent = (message: string) => {
     // Define patterns to detect UI link mentions
@@ -350,10 +446,6 @@ const createLinkableContent = (message: string) => {
         }
     };
 
-// Improved handleSendMessage with immediate query display
-// Update this in ChatContext.tsx
-// Update handleSendMessage in ChatContext.tsx to better handle message content
-
 // ChatContext.tsx - handleSendMessage function update
 const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
     if (!message.trim()) return;
@@ -480,10 +572,10 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
                 message,
                 session_id: sessionId,
                 zipCode,
-                // Add extracted features and current UI state to provide context
+                // Add extracted features and enhanced UI state
                 feature_context: JSON.stringify({
                     extracted: features,
-                    ui_context: uiContext
+                    ui_context: buildUIContext()
                 }),
                 location_context: zipCode || '{}'
             }),
@@ -635,7 +727,8 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
                 messagesEndRef,
                 handleSendMessage,
                 generateFollowUpQuestions,
-                debugFeatureExtraction // Expose for debugging
+                debugFeatureExtraction, // Expose for debugging
+                propertyContext, setPropertyContext,
             }}
         >
             {children}

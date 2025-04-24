@@ -121,6 +121,14 @@ SECTION_IDS = {
     "TRANSIT": "transit-section"
 }
 
+# Define property tab IDs - these should match what's in your frontend
+PROPERTY_TAB_IDS = {
+    "DETAILS": "property-details-tab",
+    "PRICE_HISTORY": "property-price-history-tab",
+    "SCHOOLS": "property-schools-tab",
+    "MARKET_ANALYSIS": "property-market-analysis-tab"
+}
+
 # Dictionary to cache tokenizers and models (to avoid reloading for each request)
 translation_models = {}
 
@@ -163,20 +171,24 @@ You are REbot, a helpful real estate AI assistant that helps users search for pr
 CRITICAL - UI LINK INSTRUCTIONS:
 You MUST include specific section references in your responses using these exact link formats:
 
-1. When mentioning market data: Use exactly "[[market trends]]" in your response
-2. When mentioning properties: Use exactly "[[properties]]" in your response
-3. When mentioning restaurants or local amenities: Use exactly "[[restaurants]]" or "[[local amenities]]" in your response
-4. When mentioning transit options: Use exactly "[[transit]]" in your response
-5. When mentioning the current property: Use phrases like "this property" or "the current property"
+1. When discussing a specific property's details: Use exactly "[[property details]]" in your response
+2. When discussing a property's price history: Use exactly "[[price history]]" in your response
+3. When discussing nearby schools: Use exactly "[[property schools]]" or "[[schools]]" in your response
+4. When discussing market analysis for a property: Use exactly "[[property market analysis]]" in your response
+5. When mentioning market data for the area: Use exactly "[[market trends]]" in your response
+6. When mentioning properties in the area: Use exactly "[[properties]]" in your response
+7. When mentioning restaurants or local amenities: Use exactly "[[restaurants]]" or "[[local amenities]]" in your response
+8. When mentioning transit options: Use exactly "[[transit]]" in your response
 
-For example, say: "Check out available homes in the [[properties]] section" or "You can view local dining options in the [[restaurants]] section"
+For example, say: "You can see more information in the [[property details]] tab" or "Check out the [[price history]] for this property"
 
-When answering questions about the local area, ALWAYS include at least one relevant section link that directs the user to the appropriate tab in the UI.
+When answering questions about a specific property, ALWAYS include at least one relevant property tab link.
+When answering questions about the local area, ALWAYS include at least one relevant section link.
 
 RESPONSE GUIDELINES:
-- Be conversational and concise (1-2 short paragraphs maximum)
-- When answering questions about specific properties, reference "this property" or "the current property"
-- If the user asks about something shown in the UI (e.g., "What are property taxes for this condo?"), respond based on the UI context
+- Be conversational and concise (1-3 short paragraphs maximum)
+- When answering questions about specific properties, use property tab links (property details, price history, etc.)
+- If the user asks about price history, school information, or market analysis, direct them to the specific tab
 - For market data requests, always include "[[market trends]]" link
 - For neighborhood questions, include "[[restaurants]]" and "[[transit]]" links
 - Keep responses focused and avoid lengthy explanations
@@ -210,6 +222,20 @@ def format_response_with_links(response_text):
         # Property market link (without section ID since it's a different view)
         (r'\[\[property\s+market\]\]', 
          '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>')
+
+                # Property tab links - added for better property context support
+        (r'\[\[property\s+details\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
+        
+        (r'\[\[price\s+history\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory">price history</a>'),
+        
+        (r'\[\[property\s+schools\]\]|\[\[schools\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["SCHOOLS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertySchools">schools</a>'),
+        
+        (r'\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["MARKET_ANALYSIS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis">market analysis</a>')
+    
     ]
     
     # Apply all replacements
@@ -1054,11 +1080,7 @@ async def market_trends(data: MarketTrendsRequest):
 
 #######################################################################################################################################
 
-# Update the parse_ui_context function to extract useful information
-# Add property market tab to UI context in backend/app.py
-
-# Add to parse_ui_context function
-# Update the parse_ui_context function to emphasize available sections
+# Correct the linkn s in chat
 def parse_ui_context(context_str):
     """Parse the UI context string into a structured format with UI link information."""
     try:
@@ -1068,8 +1090,66 @@ def parse_ui_context(context_str):
         # Create a human-readable context string
         context_description = []
         available_sections = []
+        property_tabs = []
         
-        # First list what UI components are available for linking
+        # First check if we're in a property view with tabs
+        if ui_context.get('propertyContext') or ui_context.get('currentProperty'):
+            # Add available property tab links
+            property_tabs = [
+                "[[property details]] - Shows details about this property",
+                "[[price history]] - Shows the property's price and tax history",
+                "[[property schools]] - Shows nearby schools",
+                "[[property market analysis]] - Shows market analysis for this property"
+            ]
+            
+            # Extract detailed property information from propertyContext if available
+            property_context = ui_context.get('propertyContext', {})
+            if property_context:
+                context_description.append(f"This is a {property_context.get('beds', '')}bd {property_context.get('baths', '')}ba {property_context.get('type', 'property')} at {property_context.get('address', '')}, priced at ${property_context.get('price', 0):,}.")
+                context_description.append(f"It was built in {property_context.get('yearBuilt', 'N/A')} and has {property_context.get('sqft', 0)} square feet.")
+                
+                # Add price history if available
+                if property_context.get('priceHistory'):
+                    price_history = property_context.get('priceHistory', [])
+                    if price_history:
+                        context_description.append(f"Price history includes {len(price_history)} events:")
+                        # Include up to 3 most recent price events
+                        for event in price_history[:3]:
+                            context_description.append(f"- {event.get('date')}: {event.get('event')} at ${event.get('price', 0):,}")
+                
+                # Add tax history if available
+                if property_context.get('taxHistory'):
+                    tax_history = property_context.get('taxHistory', [])
+                    if tax_history:
+                        most_recent_tax = tax_history[0]
+                        context_description.append(f"Most recent property tax (year {most_recent_tax.get('year')}): ${most_recent_tax.get('taxPaid', 0):,}")
+                        if most_recent_tax.get('value'):
+                            context_description.append(f"Assessed value: ${most_recent_tax.get('value', 0):,}")
+                
+                # Add school information if available
+                if property_context.get('schools'):
+                    schools = property_context.get('schools', [])
+                    context_description.append(f"The property is near {len(schools)} schools:")
+                    # Include up to 3 schools
+                    for school in schools[:3]:
+                        context_description.append(f"- {school.get('name')}: {school.get('type')}, rating {school.get('rating')}/10, {school.get('distance')} miles away")
+                
+                # Add feature summaries
+                if property_context.get('features'):
+                    features = property_context.get('features', {})
+                    if features.get('appliances'):
+                        context_description.append(f"Appliances: {', '.join(features.get('appliances', []))}")
+                    if features.get('heating'):
+                        context_description.append(f"Heating: {', '.join(features.get('heating', []))}")
+                    if features.get('cooling'):
+                        context_description.append(f"Cooling: {', '.join(features.get('cooling', []))}")
+            else:
+                # If no detailed context, use simpler info from currentProperty
+                current_property = ui_context.get('currentProperty', {})
+                if current_property:
+                    context_description.append(f"This is a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', '')}, priced at ${current_property.get('price', 0):,}.")
+        
+        # Add standard UI sections if available
         if ui_context.get('hasMarketData', False) or ui_context.get('zipCode'):
             available_sections.append("[[market trends]] - Shows market data for the area")
             
@@ -1089,31 +1169,31 @@ def parse_ui_context(context_str):
         if ui_context.get('zipCode'):
             context_description.append(f"The user is looking at data for ZIP code {ui_context.get('zipCode')}.")
         
-        # Then add details about current selection
-        current_property = ui_context.get('currentProperty', None)
-        property_details = ui_context.get('propertyDetails', None)
-        
-        if current_property:
-            context_description.append(f"User is viewing a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', 'an address')} priced at ${current_property.get('price', 0):,}.")
-            # Add property market tab to available sections
-            available_sections.append("[[property market]] - Shows market analysis for this specific property")
-        
-        if property_details:
-            tax_info = f" The property tax is ${property_details.get('propertyTaxes', 0):,} per year." if property_details.get('propertyTaxes') else ""
-            context_description.append(f"This property was built in {property_details.get('yearBuilt', 'N/A')}.{tax_info}")
-        
         # Add reminder about section links
-        section_reminder = """
+        link_reminder = """
 IMPORTANT REMINDER:
-- ALWAYS include at least one section link in your response (e.g., [[properties]], [[market trends]], etc.)
-- When answering questions about the area, include relevant section links
-- Use the EXACT syntax shown above for section links
+- ALWAYS include at least one section link in your response
+- When talking about the property, use the property tab links (e.g., [[property details]], [[price history]])
+- When talking about the area, use the section links (e.g., [[market trends]], [[restaurants]])
+- Use the EXACT syntax shown above for links
 """
         
-        return "AVAILABLE UI SECTIONS (USE THESE EXACT LINK FORMATS):\n" + "\n".join(available_sections) + "\n\nUI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + section_reminder
+        # Combine all sections based on context
+        result = ""
+        if property_tabs:
+            result += "PROPERTY TAB LINKS (USE THESE EXACT FORMATS):\n" + "\n".join(property_tabs) + "\n\n"
+        
+        if available_sections:
+            result += "AREA SECTION LINKS (USE THESE EXACT FORMATS):\n" + "\n".join(available_sections) + "\n\n"
+            
+        result += "UI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + link_reminder
+        
+        return result
     except Exception as e:
         logger.error(f"Error parsing UI context: {e}")
         return "UI context not available. Include general links to [[properties]], [[market trends]], [[restaurants]], and [[transit]] in your response."
+
+
 # Update the createLinkableContent function in ChatContext.tsx to include property market link
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):

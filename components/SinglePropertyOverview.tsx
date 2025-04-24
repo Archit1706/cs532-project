@@ -1,6 +1,6 @@
-// Update SinglePropertyOverview.tsx to add the market tab
+// SinglePropertyOverview.tsx with improved tab linking
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useChatContext } from "context/ChatContext";
 import PropertyRoutesMap from "./PropertyRoutesMap";
 import PropertyMarketTab from "./Tabs/PropertyMarketTab";
@@ -19,10 +19,19 @@ import {
     MdSchool,
     MdHistory,
     MdAttachFile,
+    MdLink,
 } from "react-icons/md";
 import { TbAirConditioning } from "react-icons/tb";
 import { FaRoute, FaMoneyBill, FaChartLine } from "react-icons/fa";
 import { IoIosPricetag } from "react-icons/io";
+
+// Define tab IDs for direct linking
+export const PROPERTY_TAB_IDS = {
+    DETAILS: "property-details-tab",
+    PRICE_HISTORY: "property-price-history-tab",
+    SCHOOLS: "property-schools-tab", 
+    MARKET_ANALYSIS: "property-market-analysis-tab"
+};
 
 // Improved Section Component with more dynamic styling
 const Section = ({
@@ -45,11 +54,108 @@ const Section = ({
     </div>
 );
 
-
-
 const SinglePropertyOverview = () => {
-    const { propertyDetails } = useChatContext();
+    const { propertyDetails, setPropertyContext } = useChatContext();
     const [activeTab, setActiveTab] = useState('details');
+
+    // Handle URL hash for direct tab linking
+    useEffect(() => {
+        // Check if URL has a hash that matches one of our tab IDs
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            // Map hash to tab name
+            const tabMap = {
+                [PROPERTY_TAB_IDS.DETAILS]: 'details',
+                [PROPERTY_TAB_IDS.PRICE_HISTORY]: 'price history',
+                [PROPERTY_TAB_IDS.SCHOOLS]: 'schools',
+                [PROPERTY_TAB_IDS.MARKET_ANALYSIS]: 'market analysis'
+            };
+            
+            if (tabMap[hash]) {
+                setActiveTab(tabMap[hash]);
+                // Scroll to the tab section
+                setTimeout(() => {
+                    const element = document.getElementById(hash);
+                    if (element) {
+                        element.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }, 100);
+            }
+        }
+    }, []);
+
+    // Listen for the tab switch event
+    useEffect(() => {
+        const handleTabSwitch = () => {
+            console.log('Event received: switchToPropertyMarketTab');
+            setActiveTab('market analysis');
+        };
+        
+        // Listen for custom event from UI links
+        document.addEventListener('switchToPropertyMarketTab', handleTabSwitch);
+        
+        // Cleanup
+        return () => {
+            document.removeEventListener('switchToPropertyMarketTab', handleTabSwitch);
+        };
+    }, []);
+
+    // Store complete property context for the chat
+    useEffect(() => {
+        if (propertyDetails?.basic_info) {
+            // Create a clean, structured context object with all the important details
+            const contextData = {
+                address: propertyDetails.basic_info.address?.full,
+                price: propertyDetails.basic_info.price,
+                beds: propertyDetails.basic_info.bedrooms,
+                baths: propertyDetails.basic_info.bathrooms,
+                sqft: propertyDetails.basic_info.livingArea,
+                yearBuilt: propertyDetails.basic_info.yearBuilt,
+                type: propertyDetails.basic_info.homeType,
+                daysOnMarket: propertyDetails.basic_info.daysOnZillow,
+                priceHistory: propertyDetails.priceHistory?.map((item: { date: any; event: any; price: any; }) => ({
+                    date: item.date,
+                    event: item.event,
+                    price: item.price
+                })),
+                taxHistory: propertyDetails.taxes?.map((item: { time: string | number | Date; taxPaid: any; value: any; }) => ({
+                    year: new Date(item.time).getFullYear(),
+                    taxPaid: item.taxPaid,
+                    value: item.value
+                })),
+                schools: propertyDetails.schools?.map((school: { name: any; type: any; grades: any; rating: any; distance: any; }) => ({
+                    name: school.name,
+                    type: school.type,
+                    grades: school.grades,
+                    rating: school.rating,
+                    distance: school.distance
+                })),
+                features: {
+                    appliances: propertyDetails.features?.appliances,
+                    cooling: propertyDetails.features?.cooling,
+                    heating: propertyDetails.features?.heating,
+                    exteriorFeatures: propertyDetails.features?.exteriorFeatures,
+                    rooms: propertyDetails.features?.rooms?.map((room: { roomType: any; roomDimensions: any; }) => ({
+                        type: room.roomType,
+                        dimensions: room.roomDimensions
+                    }))
+                },
+                tabLinks: {
+                    details: `#${PROPERTY_TAB_IDS.DETAILS}`,
+                    priceHistory: `#${PROPERTY_TAB_IDS.PRICE_HISTORY}`,
+                    schools: `#${PROPERTY_TAB_IDS.SCHOOLS}`,
+                    marketAnalysis: `#${PROPERTY_TAB_IDS.MARKET_ANALYSIS}`
+                }
+            };
+            
+            // Store this in context for the chat to access
+            if (setPropertyContext) {
+                setPropertyContext(contextData);
+            }
+            
+            console.log('Property context set for chat:', contextData);
+        }
+    }, [propertyDetails, setPropertyContext]);
 
     if (!propertyDetails?.basic_info) return null;
 
@@ -58,24 +164,6 @@ const SinglePropertyOverview = () => {
     const address = info.address?.full || `${info.address?.streetAddress}, ${info.address?.city}, ${info.address?.state} ${info.address?.zipcode}`;
     const image = propertyDetails?.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
 
-
-        // Add event listener for tab switching from chat links
-        useEffect(() => {
-            const handleTabSwitch = () => {
-                console.log('Event received: switchToPropertyMarketTab');
-                setActiveTab('market analysis');
-            };
-            
-            // Listen for custom event from UI links
-            document.addEventListener('switchToPropertyMarketTab', handleTabSwitch);
-            
-            // Cleanup
-            return () => {
-                document.removeEventListener('switchToPropertyMarketTab', handleTabSwitch);
-            };
-        }, []);
-
-        
     const renderFacts = () =>
         features.atAGlanceFacts?.map((fact: any, i: number) => (
             <div
@@ -164,6 +252,21 @@ const SinglePropertyOverview = () => {
             </div>
         ));
 
+    // Function to copy tab link to clipboard
+    const copyTabLink = (tabId: string) => {
+        const url = `${window.location.href.split('#')[0]}#${tabId}`;
+        navigator.clipboard.writeText(url);
+        
+        // Visual feedback
+        const linkBtn = document.getElementById(`copy-${tabId}`);
+        if (linkBtn) {
+            linkBtn.classList.add('text-teal-500');
+            setTimeout(() => {
+                linkBtn.classList.remove('text-teal-500');
+            }, 1000);
+        }
+    };
+
     return (
         <div className="max-w-5xl mx-auto bg-slate-50 p-4 rounded-2xl">
             {/* Property Header */}
@@ -218,29 +321,43 @@ const SinglePropertyOverview = () => {
             </div>
 
             {/* Tabbed Navigation */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
+            <div id="property-tabs" className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
                 <div className="flex border-b border-slate-200">
-                    {['Details', 'Price History', 'Schools', 'Market Analysis'].map((tab) => (
-                        <button
-                            key={tab}
-                            className={`flex-1 py-3 text-sm font-medium 
-                                ${activeTab.toLowerCase() === tab.toLowerCase()
-                                    ? 'bg-teal-50 text-teal-600 border-b-2 border-teal-600'
-                                    : 'text-slate-600 hover:bg-slate-50'}`}
-                            onClick={() => setActiveTab(tab.toLowerCase())}
-                        >
-                            {tab === 'Market Analysis' ? (
-                                <div className="flex items-center justify-center">
-                                    <FaChartLine className="mr-1" />
-                                    {tab}
-                                </div>
-                            ) : tab}
-                        </button>
+                    {[
+                        { name: 'Details', id: PROPERTY_TAB_IDS.DETAILS },
+                        { name: 'Price History', id: PROPERTY_TAB_IDS.PRICE_HISTORY },
+                        { name: 'Schools', id: PROPERTY_TAB_IDS.SCHOOLS },
+                        { name: 'Market Analysis', id: PROPERTY_TAB_IDS.MARKET_ANALYSIS, icon: FaChartLine }
+                    ].map((tab) => (
+                        <div key={tab.id} className="relative flex-1">
+                            <button
+                                id={tab.id}
+                                className={`w-full py-3 text-sm font-medium flex items-center justify-center
+                                    ${activeTab.toLowerCase() === tab.name.toLowerCase()
+                                        ? 'bg-teal-50 text-teal-600 border-b-2 border-teal-600'
+                                        : 'text-slate-600 hover:bg-slate-50'}`}
+                                onClick={() => setActiveTab(tab.name.toLowerCase())}
+                            >
+                                {tab.icon && <tab.icon className="mr-1" />}
+                                {tab.name}
+                            </button>
+                            <button
+                                id={`copy-${tab.id}`}
+                                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyTabLink(tab.id);
+                                }}
+                                title="Copy link to this tab"
+                            >
+                                <MdLink size={16} />
+                            </button>
+                        </div>
                     ))}
                 </div>
                 <div className="p-4">
                     {activeTab === 'details' && (
-                        <div className="space-y-6">
+                        <div className="space-y-6" id={PROPERTY_TAB_IDS.DETAILS}>
                             {/* Full-width Description */}
                             {info.description && (
                                 <Section title="Description" icon={MdInfo} className="w-full">
@@ -346,19 +463,23 @@ const SinglePropertyOverview = () => {
 
 
                     {activeTab === 'price history' && (
-                        <Section title="Price History" icon={MdHistory}>
-                            {renderPriceHistory()}
-                        </Section>
+                        <div id={PROPERTY_TAB_IDS.PRICE_HISTORY}>
+                            <Section title="Price History" icon={MdHistory}>
+                                {renderPriceHistory()}
+                            </Section>
+                        </div>
                     )}
 
                     {activeTab === 'schools' && (
-                        <Section title="Nearby Schools" icon={MdSchool}>
-                            {renderSchools()}
-                        </Section>
+                        <div id={PROPERTY_TAB_IDS.SCHOOLS}>
+                            <Section title="Nearby Schools" icon={MdSchool}>
+                                {renderSchools()}
+                            </Section>
+                        </div>
                     )}
                     
                     {activeTab === 'market analysis' && (
-                        <div className="animate-fadeIn">
+                        <div id={PROPERTY_TAB_IDS.MARKET_ANALYSIS} className="animate-fadeIn">
                             <PropertyMarketTab />
                         </div>
                     )}
@@ -383,7 +504,5 @@ const SinglePropertyOverview = () => {
         </div>
     );
 };
-
-
 
 export default SinglePropertyOverview;
