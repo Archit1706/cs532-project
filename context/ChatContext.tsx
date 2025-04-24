@@ -29,7 +29,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [locationData, setLocationData] = useState<LocationData | null>(null);
     const [marketTrends, setMarketTrends] = useState<any>(null);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-    const [activeTab, setActiveTab] = useState<'explore' | 'saved' | 'updates'>('explore');
+    const [activeTab, setActiveTab] = useState<'explore' | 'saved' | 'updates' | 'market' | 'properties' | 'restaurants' | 'transit'>('explore');
     const [selectedLanguage, setSelectedLanguage] = useState('en');
     const [isTranslating, setIsTranslating] = useState(false);
     const [isLoadingProperties, setIsLoadingProperties] = useState(false);
@@ -40,34 +40,48 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
- // Add property market handler to handleUILink function
+// Update handleUILink function in ChatContext.tsx
+
 const handleUILink = (link: UIComponentLink) => {
     console.log('UI link clicked:', link);
-    
-    // Set the appropriate tab based on link type
-    setActiveTab('explore');
     
     // Handle specific component activations
     switch(link.type) {
         case 'market':
             console.log('Activating market trends tab');
-            setActiveTab('explore');
+            // First ensure market trends data is loaded
+            if (!marketTrends && zipCode) {
+                fetchMarketTrends(undefined, zipCode);
+            }
+            // Then switch to the correct tab
+            setActiveTab('market');
             break;
+            
         case 'property':
             console.log('Activating properties tab');
+            setActiveTab('properties');
             // If data includes a specific property, select it
             if (link.data && typeof link.data === 'object') {
                 setSelectedProperty(link.data);
             }
             break;
+            
         case 'restaurants':
             console.log('Activating restaurants tab');
-            setActiveTab('explore');
+            setActiveTab('restaurants');
+            if (locationData?.restaurants?.length === 0 && zipCode) {
+                fetchLocationData(zipCode);
+            }
             break;
+            
         case 'transit':
             console.log('Activating transit tab');
-            setActiveTab('explore');
+            setActiveTab('transit');
+            if (locationData?.transit?.length === 0 && zipCode) {
+                fetchLocationData(zipCode);
+            }
             break;
+            
         case 'propertyDetail':
             console.log('Viewing specific property details', link.data);
             // If data includes a property ID, load property details
@@ -75,20 +89,33 @@ const handleUILink = (link: UIComponentLink) => {
                 loadPropertyChat(link.data.zpid);
             }
             break;
+            
         case 'propertyMarket':
             console.log('Viewing property market analysis');
             // If we're already on a property detail page, switch to market tab
             if (isPropertyChat && propertyDetails) {
-                // This function requires access to the SinglePropertyOverview component's state
-                // We'll need to implement a mechanism to communicate this
-                document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                // Dispatch the custom event with a slight delay to ensure it's caught
+                setTimeout(() => {
+                    console.log('Dispatching switchToPropertyMarketTab event');
+                    document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                }, 100);
+            } else if (selectedProperty) {
+                // If property is selected but not in property chat mode, load it first
+                console.log('Loading property before switching to market tab');
+                loadPropertyChat(selectedProperty.zpid);
+                
+                // Then switch to market tab after a delay to allow property to load
+                setTimeout(() => {
+                    console.log('Dispatching switchToPropertyMarketTab event after loading property');
+                    document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                }, 1000);
             }
             break;
+            
         default:
             console.warn('Unknown UI link type:', link.type);
     }
 };
-
     const createLinkableContent = (message: string) => {
         // Define patterns to detect UI link mentions
         const patterns = [

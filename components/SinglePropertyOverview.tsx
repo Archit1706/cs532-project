@@ -1,6 +1,6 @@
 // Update SinglePropertyOverview.tsx to add the market tab
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useChatContext } from "context/ChatContext";
 import PropertyRoutesMap from "./PropertyRoutesMap";
 import PropertyMarketTab from "./Tabs/PropertyMarketTab";
@@ -59,7 +59,23 @@ const SinglePropertyOverview = () => {
     const image = propertyDetails?.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
 
 
-    
+        // Add event listener for tab switching from chat links
+        useEffect(() => {
+            const handleTabSwitch = () => {
+                console.log('Event received: switchToPropertyMarketTab');
+                setActiveTab('market analysis');
+            };
+            
+            // Listen for custom event from UI links
+            document.addEventListener('switchToPropertyMarketTab', handleTabSwitch);
+            
+            // Cleanup
+            return () => {
+                document.removeEventListener('switchToPropertyMarketTab', handleTabSwitch);
+            };
+        }, []);
+
+        
     const renderFacts = () =>
         features.atAGlanceFacts?.map((fact: any, i: number) => (
             <div

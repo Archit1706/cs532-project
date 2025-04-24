@@ -23,24 +23,42 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
             
             // Add click handlers to each link
             linkElements.forEach(link => {
-                link.addEventListener('click', (e) => {
+                // Log details about the link
+                console.log('Link found:', {
+                    text: link.textContent,
+                    type: link.getAttribute('data-ui-link'),
+                    dataset: (link as HTMLElement).dataset
+                });
+                
+                // Remove any existing click handlers to prevent duplicates
+                const newLink = link.cloneNode(true);
+                link.parentNode?.replaceChild(newLink, link);
+                
+                newLink.addEventListener('click', (e) => {
                     e.preventDefault();
-                    const linkType = link.getAttribute('data-ui-link');
+                    e.stopPropagation();
+                    
+                    const linkType = (newLink as HTMLElement).getAttribute('data-ui-link');
                     console.log('Link clicked:', linkType);
                     
                     // Handle property detail links with zpid data
                     let data = null;
                     if (linkType === 'propertyDetail') {
-                        const zpid = link.getAttribute('data-zpid');
+                        const zpid = (newLink as HTMLElement).getAttribute('data-zpid');
                         if (zpid) {
                             data = { zpid };
                         }
                     }
                     
                     if (linkType) {
+                        // Add a visual feedback that the link was clicked
+                        (newLink as HTMLElement).style.backgroundColor = '#bae6fd';
+                        (newLink as HTMLElement).style.color = '#0369a1';
+                        
+                        // Call the handler
                         handleUILink({
                             type: linkType as any,
-                            label: link.textContent || 'View',
+                            label: newLink.textContent || 'View',
                             data
                         });
                     }
@@ -70,6 +88,8 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
         
         // If message has markdown formatting, render it
         if (content.includes('#') || content.includes('**') || content.includes('*')) {
+            // For markdown content, we'll need to post-process after rendering
+            // to ensure links are clickable
             return (
                 <div className="markdown">
                     <ReactMarkdown>
