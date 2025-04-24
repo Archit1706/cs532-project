@@ -1,7 +1,7 @@
 // components/MessageBubble.tsx
 "use client";
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message } from 'types/chat';
 import { useChatContext } from '../context/ChatContext';
@@ -13,8 +13,15 @@ interface Props {
 const MessageBubble: React.FC<Props> = ({ message }) => {
     const { handleUILink } = useChatContext();
     const messageRef = useRef<HTMLDivElement>(null);
+    const [content, setContent] = useState(message.content);
     
-    // Parse and set up UI link event handlers after the component renders
+    // Process content immediately to ensure links are in the initial render
+    useEffect(() => {
+        const processedContent = formatMessageContentString(message.content);
+        setContent(processedContent);
+    }, [message.content]);
+    
+    // Set up event handlers after render
     useEffect(() => {
         if (messageRef.current && message.type === 'bot') {
             // Find all links with data-ui-link attribute
@@ -27,24 +34,29 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
                 console.log('Link found:', {
                     text: link.textContent,
                     type: link.getAttribute('data-ui-link'),
-                    dataset: (link as HTMLElement).dataset
+                    // Use getAttribute instead of dataset for TypeScript compatibility
+                    'data-ui-link': link.getAttribute('data-ui-link')
                 });
                 
                 // Remove any existing click handlers to prevent duplicates
-                const newLink = link.cloneNode(true);
-                link.parentNode?.replaceChild(newLink, link);
+                const newLink = link.cloneNode(true) as HTMLElement;
+                if (link.parentNode) {
+                    link.parentNode.replaceChild(newLink, link);
+                }
                 
                 newLink.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     
-                    const linkType = (newLink as HTMLElement).getAttribute('data-ui-link');
+                    // Type assertion to HTMLElement to avoid TypeScript errors
+                    const linkEl = newLink as HTMLElement;
+                    const linkType = linkEl.getAttribute('data-ui-link');
                     console.log('Link clicked:', linkType);
                     
                     // Handle property detail links with zpid data
                     let data = null;
                     if (linkType === 'propertyDetail') {
-                        const zpid = (newLink as HTMLElement).getAttribute('data-zpid');
+                        const zpid = linkEl.getAttribute('data-zpid');
                         if (zpid) {
                             data = { zpid };
                         }
@@ -52,24 +64,25 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
                     
                     if (linkType) {
                         // Add a visual feedback that the link was clicked
-                        (newLink as HTMLElement).style.backgroundColor = '#bae6fd';
-                        (newLink as HTMLElement).style.color = '#0369a1';
+                        linkEl.style.backgroundColor = '#bae6fd';
+                        linkEl.style.color = '#0369a1';
                         
                         // Call the handler
                         handleUILink({
                             type: linkType as any,
-                            label: newLink.textContent || 'View',
+                            label: linkEl.textContent || 'View',
                             data
                         });
                     }
                 });
             });
         }
-    }, [message, handleUILink]);
+    }, [message, handleUILink, content]);
 
-    const formatMessageContent = (content: string) => {
-        // First check for raw UI component references in format [[component_name]]
-        let processedContent = content;
+    // Function to process the text content and add UI links
+    const formatMessageContentString = (contentStr: string): string => {
+        // Process raw UI component references in format [[component_name]]
+        let processedContent = contentStr;
         const uiComponentPatterns = [
             { regex: /\[\[market(?:\s+trends)?\]\]/gi, type: 'market' },
             { regex: /\[\[properties\]\]/gi, type: 'property' },
@@ -86,33 +99,23 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
             );
         });
         
-        // If message has markdown formatting, render it
-        if (content.includes('#') || content.includes('**') || content.includes('*')) {
-            // For markdown content, we'll need to post-process after rendering
-            // to ensure links are clickable
+        return processedContent;
+    };
+
+    const renderContent = () => {
+        // If message has markdown formatting
+        if (message.content.includes('#') || message.content.includes('**') || message.content.includes('*')) {
             return (
                 <div className="markdown">
                     <ReactMarkdown>
-                        {processedContent}
+                        {message.content}
                     </ReactMarkdown>
                 </div>
             );
         }
 
-        // If message contains HTML (from processed UI links), render it as HTML
-        if (processedContent.includes('<a href') || processedContent.includes('data-ui-link')) {
-            return (
-                <div dangerouslySetInnerHTML={{ __html: processedContent }} />
-            );
-        }
-
-        // Default text rendering with newlines
-        return processedContent.split('\n').map((line, i) => (
-            <React.Fragment key={i}>
-                {line}
-                {i < processedContent.split('\n').length - 1 && <br />}
-            </React.Fragment>
-        ));
+        // For content with HTML (our processed links)
+        return <div dangerouslySetInnerHTML={{ __html: content }} />;
     };
 
     return (
@@ -124,7 +127,7 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
                     : 'bg-gray-50 text-slate-800 border border-slate-200 rounded-tl-none'
                     }`}
             >
-                {formatMessageContent(message.content)}
+                {renderContent()}
             </div>
         </div>
     );
