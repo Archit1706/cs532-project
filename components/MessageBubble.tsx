@@ -1,11 +1,10 @@
-// components/MessageBubble.tsx
+// components/MessageBubble.tsx with extensive debugging
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Message } from 'types/chat';
 import { useChatContext } from '../context/ChatContext';
-import { SECTION_IDS } from '../context/ChatContext'; // Import section IDs
 
 interface Props {
     message: Message;
@@ -14,151 +13,86 @@ interface Props {
 const MessageBubble: React.FC<Props> = ({ message }) => {
     const { handleUILink } = useChatContext();
     const messageRef = useRef<HTMLDivElement>(null);
-    const [content, setContent] = useState(message.content);
     
-    // Process content immediately to ensure links are in the initial render
+    // Debug the initial message content
     useEffect(() => {
-        const processedContent = formatMessageContentString(message.content);
-        setContent(processedContent);
-    }, [message.content]);
+        if (message.type === 'bot') {
+            console.log('Original message content:', message.content);
+            console.log('Contains market link?', message.content.includes('market'));
+            console.log('Contains a tags?', message.content.includes('<a'));
+            console.log('Contains data-ui-link?', message.content.includes('data-ui-link'));
+        }
+    }, [message.content, message.type]);
     
-    // Set up event handlers after render
+    // Add event listeners to links after component mounts
     useEffect(() => {
         if (messageRef.current && message.type === 'bot') {
-            // Find all links with data-ui-link attribute
-            const linkElements = messageRef.current.querySelectorAll('a[data-ui-link]');
-            console.log('Found UI links:', linkElements.length);
+            // Find all links in the message
+            const allLinks = messageRef.current.querySelectorAll('a');
+            console.log('All links found:', allLinks.length);
             
-            // Handle both UI component links and section links
-            linkElements.forEach(link => {
-                // Log details about the link
-                console.log('Link found:', {
-                    text: link.textContent,
-                    type: link.getAttribute('data-ui-link'),
+            // Log details of all links
+            allLinks.forEach((link, index) => {
+                console.log(`Link ${index}:`, {
                     href: link.getAttribute('href'),
+                    text: link.textContent,
+                    hasDataAttr: link.hasAttribute('data-ui-link'),
+                    dataValue: link.getAttribute('data-ui-link'),
+                    classList: Array.from(link.classList),
+                    outerHTML: link.outerHTML,
                 });
                 
-                // Remove any existing click handlers to prevent duplicates
-                const newLink = link.cloneNode(true) as HTMLElement;
-                if (link.parentNode) {
-                    link.parentNode.replaceChild(newLink, link);
-                }
-                
-                newLink.addEventListener('click', (e) => {
+                // Add click event to all links
+                link.addEventListener('click', (e) => {
                     e.preventDefault();
-                    e.stopPropagation();
+                    console.log(`Link ${index} clicked`);
                     
-                    // Type assertion to HTMLElement to avoid TypeScript errors
-                    const linkEl = newLink as HTMLElement;
-                    const linkType = linkEl.getAttribute('data-ui-link');
-                    const href = linkEl.getAttribute('href');
-                    
-                    console.log('Link clicked:', linkType, href);
-                    
-                    // Handle section links vs. UI component links
-                    if (href && href.startsWith('#') && Object.values(SECTION_IDS).includes(href.substring(1))) {
-                        // This is a section link
-                        handleUILink({
-                            type: linkType as any,
-                            label: linkEl.textContent || 'View',
-                            data: { sectionId: href.substring(1) }
-                        });
-                    } else {
-                        // Handle property detail links with zpid data
+                    // If it has data-ui-link attribute, use the link handler
+                    if (link.hasAttribute('data-ui-link')) {
+                        const linkType = link.getAttribute('data-ui-link');
                         let data = null;
+                        
+                        // For property links
                         if (linkType === 'propertyDetail') {
-                            const zpid = linkEl.getAttribute('data-zpid');
+                            const zpid = link.getAttribute('data-zpid');
                             if (zpid) {
                                 data = { zpid };
                             }
                         }
                         
-                        if (linkType) {
-                            // Add a visual feedback that the link was clicked
-                            linkEl.style.backgroundColor = '#bae6fd';
-                            linkEl.style.color = '#0369a1';
+                        // Call the handler
+                        console.log('Calling handleUILink with:', { type: linkType, text: link.textContent });
+                        handleUILink({
+                            type: linkType as any,
+                            label: link.textContent || 'View',
+                            data
+                        });
+                        
+                        // Add visual feedback
+                        link.style.backgroundColor = '#bae6fd';
+                        link.style.color = '#0369a1';
+                    } else {
+                        // Handle regular href links
+                        const href = link.getAttribute('href');
+                        console.log('Regular link href:', href);
+                        
+                        if (href && href.startsWith('#')) {
+                            const sectionId = href.substring(1);
+                            console.log('Section ID from href:', sectionId);
                             
-                            // Call the handler
-                            handleUILink({
-                                type: linkType as any,
-                                label: linkEl.textContent || 'View',
-                                data
-                            });
+                            const section = document.getElementById(sectionId);
+                            if (section) {
+                                console.log(`Scrolling to section: ${sectionId}`);
+                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            } else {
+                                console.log(`Section not found: ${sectionId}`);
+                            }
                         }
                     }
                 });
             });
-            
-            // Also handle regular anchor links for section navigation
-            const sectionLinks = messageRef.current.querySelectorAll('a[href^="#"]');
-            sectionLinks.forEach(link => {
-                if (!link.hasAttribute('data-ui-link')) {
-                    link.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        const href = link.getAttribute('href');
-                        if (href) {
-                            const sectionId = href.substring(1);
-                            const section = document.getElementById(sectionId);
-                            if (section) {
-                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }
-                        }
-                    });
-                }
-            });
         }
-    }, [message, handleUILink, content]);
-
-    // Function to process the text content and add UI links
-    const formatMessageContentString = (contentStr: string): string => {
-        // Process raw UI component references in format [[component_name]]
-        let processedContent = contentStr;
-        const uiComponentPatterns = [
-            { 
-                regex: /\[\[market(?:\s+trends)?\]\]/gi, 
-                replacement: `<a href="#${SECTION_IDS.MARKET}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="market">market trends</a>` 
-            },
-            { 
-                regex: /\[\[properties\]\]/gi, 
-                replacement: `<a href="#${SECTION_IDS.PROPERTIES}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="property">properties</a>` 
-            },
-            { 
-                regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi, 
-                replacement: `<a href="#${SECTION_IDS.AMENITIES}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="restaurants">local amenities</a>` 
-            },
-            { 
-                regex: /\[\[transit\]\]/gi, 
-                replacement: `<a href="#${SECTION_IDS.TRANSIT}" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="transit">transit options</a>` 
-            },
-            { 
-                regex: /\[\[property\s+market\]\]/gi, 
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline bg-teal-50 px-1 rounded" data-ui-link="propertyMarket">property market analysis</a>' 
-            }
-        ];
-        
-        // Convert any raw UI references to clickable links
-        uiComponentPatterns.forEach(pattern => {
-            processedContent = processedContent.replace(pattern.regex, pattern.replacement);
-        });
-        
-        return processedContent;
-    };
-
-    const renderContent = () => {
-        // If message has markdown formatting
-        if (message.content.includes('#') || message.content.includes('**') || message.content.includes('*')) {
-            return (
-                <div className="markdown">
-                    <ReactMarkdown>
-                        {message.content}
-                    </ReactMarkdown>
-                </div>
-            );
-        }
-
-        // For content with HTML (our processed links)
-        return <div dangerouslySetInnerHTML={{ __html: content }} />;
-    };
+    }, [message, handleUILink]);
 
     return (
         <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -168,9 +102,8 @@ const MessageBubble: React.FC<Props> = ({ message }) => {
                     ? 'bg-teal-700 text-white rounded-tr-none'
                     : 'bg-gray-50 text-slate-800 border border-slate-200 rounded-tl-none'
                     }`}
-            >
-                {renderContent()}
-            </div>
+                dangerouslySetInnerHTML={{ __html: message.content }}
+            />
         </div>
     );
 };

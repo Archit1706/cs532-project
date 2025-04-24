@@ -113,6 +113,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Define section IDs - these should match what's in your frontend
+SECTION_IDS = {
+    "PROPERTIES": "properties-section",
+    "MARKET": "market-trends-section",
+    "AMENITIES": "local-amenities-section",
+    "TRANSIT": "transit-section"
+}
+
 # Dictionary to cache tokenizers and models (to avoid reloading for each request)
 translation_models = {}
 
@@ -178,6 +186,39 @@ CURRENT UI STATE:
 
 USER QUERY: {question}
 """
+
+# Function to format response with proper HTML links
+def format_response_with_links(response_text):
+    """Replace link placeholders with actual HTML links."""
+    replacements = [
+        # Market trends link
+        (r'\[\[market(?:\s+trends)?\]\]', 
+         f'<a href="#{SECTION_IDS["MARKET"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>'),
+        
+        # Properties link
+        (r'\[\[properties\]\]', 
+         f'<a href="#{SECTION_IDS["PROPERTIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>'),
+        
+        # Restaurants/amenities link
+        (r'\[\[restaurants\]\]|\[\[local\s+amenities\]\]', 
+         f'<a href="#{SECTION_IDS["AMENITIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">local amenities</a>'),
+        
+        # Transit link
+        (r'\[\[transit\]\]', 
+         f'<a href="#{SECTION_IDS["TRANSIT"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'),
+        
+        # Property market link (without section ID since it's a different view)
+        (r'\[\[property\s+market\]\]', 
+         '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>')
+    ]
+    
+    # Apply all replacements
+    import re
+    result = response_text
+    for pattern, replacement in replacements:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    
+    return result
 
 
 # Initialize Azure OpenAI
@@ -1109,6 +1150,7 @@ def classify_query(query):
         500: {"model": ChatErrorResponse, "description": "Internal Server Error"}
     }
 )
+
 async def chat(data: ChatRequest):
     try:
         logger.info(f"Received chat request: {data}")
@@ -1171,8 +1213,13 @@ async def chat(data: ChatRequest):
                 messages.append({"role": "user", "content": message})
                 logger.info(f"Sending {len(messages)} messages to LLM with enhanced UI context")
                 response_obj = LLM.invoke(messages)
+                
                 response = response_obj.content
                 logger.info("Received response from LLM")
+
+                # Format links in the response
+                formatted_response = format_response_with_links(response)
+                logger.info("Formatted response with links")
             except Exception as e:
                 response = f"I'm sorry, I encountered an error while processing your request: {str(e)}"
                 logger.error(f"Error calling LLM: {str(e)}")
@@ -1184,7 +1231,7 @@ async def chat(data: ChatRequest):
         chat_histories[session_id].append((message, response))
         result = {
             "session_id": session_id,
-            "response": response,
+            "response": formatted_response,
             "extracted_features": extracted_features
         }
         logger.info(f"Returning response for session {session_id}")

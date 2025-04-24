@@ -14,7 +14,7 @@ export const SECTION_IDS = {
     TRANSIT: 'transit-section'
   };
 
-  
+
 interface UIComponentLink {
   type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket';
   label: string;
@@ -352,11 +352,13 @@ const createLinkableContent = (message: string) => {
 
 // Improved handleSendMessage with immediate query display
 // Update this in ChatContext.tsx
+// Update handleSendMessage in ChatContext.tsx to better handle message content
 
+// ChatContext.tsx - handleSendMessage function update
 const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
     if (!message.trim()) return;
 
-    // Generate IDs for this message sequence
+    // Generate a unique ID for this messaging sequence
     const requestId = Date.now();
     const userMsgId = requestId;
     const loadingMsgId = requestId + 1;
@@ -460,7 +462,7 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
             propertiesCount: properties.length,
             activeTab: activeTab,
             zipCode: zipCode,
-            hasRestaurants: (locationData?.restaurants?.length ?? 0) > 0,
+            hasRestaurants: (locationData?.restaurants ?? []).length > 0,
             restaurantCount: locationData?.restaurants?.length || 0,
             hasTransit: (locationData?.transit?.length ?? 0) > 0,
             transitCount: locationData?.transit?.length || 0,
@@ -489,9 +491,10 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
 
         const data = await response.json();
         
-        // Process the response to make UI elements clickable
-        const processedResponse = createLinkableContent(data.response);
-
+        // Important: Since we're using dangerouslySetInnerHTML directly, don't modify the response
+        // This ensures links stay intact instead of being processed twice
+        console.log('Raw response from backend:', data.response);
+        
         // Replace loading message if it exists
         if (showingLoadingMessage) {
             setMessages((prev: Message[]) => {
@@ -501,8 +504,8 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
                 return [...withoutLoading, {
                     id: finalResponseId,
                     type: 'bot',
-                    content: processedResponse,
-                    rawContent: data.response
+                    content: data.response, // Use the raw content directly
+                    rawContent: data.response // Keep a copy of the original response
                 }];
             });
         } else {
@@ -510,7 +513,7 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
             const botMessage: Message = {
                 id: finalResponseId,
                 type: 'bot',
-                content: processedResponse,
+                content: data.response, // Use the raw content directly
                 rawContent: data.response
             };
             setMessages((prev: Message[]) => [...prev, botMessage]);
@@ -544,6 +547,7 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
         setIsLoading(false);
     }
 };
+
 
     useEffect(() => {
         if (zipCode.length === 5) {
