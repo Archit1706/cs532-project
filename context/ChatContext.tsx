@@ -385,15 +385,15 @@ const createLinkableContent = (message: string) => {
         }
     };
 
-    const generateFollowUpQuestions = async () => {
-        if (messages.length < 2) return; // Only generate after some conversation
-
-        try {
+       const generateFollowUpQuestions = async () => {
+            if (messages.length < 2) return; // Only generate after some conversation
+        
+            try {
             const recentMessages = messages.slice(-4); // Get last 4 messages
             const conversationContext = recentMessages.map(msg => 
                 `${msg.type === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
             ).join('\n');
-
+        
             // Create context based on UI state
             let uiContext = "Current UI state:";
             if (properties.length > 0) uiContext += ` Showing ${properties.length} properties in the UI.`;
@@ -402,7 +402,7 @@ const createLinkableContent = (message: string) => {
             if (marketTrends) uiContext += ` Showing market trends for ${marketTrends.location}.`;
             if (selectedProperty) uiContext += ` User is viewing details for a ${selectedProperty.beds}bd ${selectedProperty.baths}ba ${selectedProperty.type}.`;
             if (zipCode) uiContext += ` Current zip code is ${zipCode}.`;
-
+        
             const promptForQuestions = `
             Based on this conversation and UI state, suggest 3 natural follow-up questions the user might want to ask next:
             
@@ -413,8 +413,15 @@ const createLinkableContent = (message: string) => {
             Generate 3 brief, conversational follow-up questions (each under 70 characters) that would make sense as the next question.
             Return only the questions, one per line, with no numbering or explanation.
             `;
-
-            const response = await fetch('/api/chat', {
+        
+            // Set a timeout for API call
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error("API timeout")), 5000);
+            });
+            
+            // Make the API call with timeout
+            try {
+                const responsePromise = fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -422,20 +429,38 @@ const createLinkableContent = (message: string) => {
                     session_id: sessionId,
                     is_system_query: true
                 }),
-            });
+                });
+                
+                const result = await Promise.race([responsePromise, timeoutPromise]);
 
-            const data = await response.json();
-            
-            // Extract questions from response
-            const questions = data.response.split('\n')
+                if (!(result instanceof Response)) {
+                  throw new Error("API call did not return a valid response");
+                }
+                
+                const data = await result.json();
+                
+                
+                // Extract questions from response
+                const questions = data.response.split('\n')
                 .map((line: string) => line.trim())
                 .filter((line: string) => line && line.length > 0 && line.length < 70 && (line.endsWith('?') || line.includes('?')))
                 .slice(0, 3); // Take max 3 questions
-                
-            if (questions.length > 0) {
+                    
+                if (questions.length > 0) {
                 setDynamicQuestions(questions);
+                return;
+                }
+            } catch (error) {
+                console.error('API call for questions failed:', error);
+                // Continue to fallback
             }
-        } catch (error) {
+            
+            // If we get here, either API failed or didn't return valid questions
+            console.log('Using fallback question generation');
+            const fallbackQuestions = generateFallbackQuestions();
+            setDynamicQuestions(fallbackQuestions);
+            
+            } catch (error) {
             console.error('Failed to generate follow-up questions:', error);
             // Fallback to default questions if generation fails
             setDynamicQuestions([
@@ -443,8 +468,65 @@ const createLinkableContent = (message: string) => {
                 "What are property taxes like here?", 
                 "Are home prices rising or falling here?"
             ]);
-        }
-    };
+            }
+        };
+
+// Generate relevant default questions based on context without using the API
+const generateFallbackQuestions = () => {
+    const questions = [];
+    
+    // Add property-specific questions if we're viewing a property
+    if (selectedProperty || propertyDetails) {
+      // Get basic property info
+      const property = selectedProperty || (propertyDetails?.basic_info ? {
+        beds: propertyDetails.basic_info.bedrooms,
+        baths: propertyDetails.basic_info.bathrooms,
+        type: propertyDetails.basic_info.homeType,
+        price: propertyDetails.basic_info.price
+      } : null);
+      
+      if (property) {
+        // Add property-specific questions
+        questions.push(`What's the price history of this ${property.type?.toLowerCase() || 'property'}?`);
+        questions.push(`Are there good schools near this property?`);
+        questions.push(`How does this compare to similar ${property.type?.toLowerCase() || 'properties'}?`);
+      }
+    }
+    
+    // Add area-specific questions if we have a zip code
+    if (zipCode) {
+      questions.push(`What's the market trend in ${zipCode}?`);
+      questions.push(`Are there good restaurants in this area?`);
+      questions.push(`How's the transit access in ${zipCode}?`);
+    }
+    
+    // Add general questions
+    const generalQuestions = [
+      "What amenities are available in this neighborhood?",
+      "What's the average price per square foot here?",
+      "How is the real estate market performing currently?",
+      "Are there any new developments planned in this area?",
+      "What are property taxes like in this area?",
+      "What's the walkability score of this neighborhood?",
+      "How do the local schools rate?",
+      "Is this area prone to natural disasters?",
+      "What's the crime rate in this neighborhood?",
+      "Are home prices rising or falling in this area?",
+      "What's the commute time to downtown?",
+      "Are there any parks or green spaces nearby?"
+    ];
+    
+    // Fill remaining spots with general questions
+    while (questions.length < 3 && generalQuestions.length > 0) {
+      // Get a random question
+      const randomIndex = Math.floor(Math.random() * generalQuestions.length);
+      const question = generalQuestions.splice(randomIndex, 1)[0];
+      questions.push(question);
+    }
+    
+    // Take only the first 3 questions
+    return questions.slice(0, 3);
+  };
 
 // ChatContext.tsx - handleSendMessage function update
 const handleSendMessage = async (message: string, clearInput: (msg: string) => void) => {
