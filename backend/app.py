@@ -777,6 +777,7 @@ async def market_trends(data: MarketTrendsRequest):
         querystring = {"location": location}
 
         api_key = os.environ.get("ZILLOW_KEY")
+        print(api_key)
         if not api_key:
             logger.error("Zillow API key not found in environment variables")
             return JSONResponse(status_code=500, content={"error": "API key not found. Please set ZILLOW_RAPIDAPI_KEY in your .env file."})
