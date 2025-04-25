@@ -220,12 +220,14 @@ def format_response_with_links(response_text):
          f'<a href="#{SECTION_IDS["TRANSIT"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'),
         
         # Property market link (without section ID since it's a different view)
-        (r'\[\[property\s+market\]\]', 
-         '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>')
+        (r'\[\[property\s+market\]\]',
+     '<a href="#" class="text-teal-600 hover:text-teal-800 underline" '
+     'data-ui-link="propertyMarket">property market analysis</a>'),
+
 
                 # Property tab links - added for better property context support
-        (r'\[\[property\s+details\]\]', 
-         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
+        (r'\[\[property\s+details\]\]',
+     f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
         
         (r'\[\[price\s+history\]\]', 
          f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory">price history</a>'),
@@ -1272,6 +1274,8 @@ async def chat(data: ChatRequest):
                 # [existing fallback code]
         else:
             logger.warning("Skipping feature extraction - LLM not available")
+        
+        formatted_response = None 
 
         # Process chat message
         if LLM:
@@ -1299,8 +1303,12 @@ async def chat(data: ChatRequest):
                 logger.info("Received response from LLM")
 
                 # Format links in the response
-                formatted_response = format_response_with_links(response)
-                logger.info("Formatted response with links")
+                try:
+                    formatted_response = format_response_with_links(response)
+                    logger.info("Formatted response with links")
+                except Exception as e:
+                    logger.error(f"Link-formatting failed: {e}")
+                    formatted_response = response  # fall back to raw text
             except Exception as e:
                 response = f"I'm sorry, I encountered an error while processing your request: {str(e)}"
                 logger.error(f"Error calling LLM: {str(e)}")
