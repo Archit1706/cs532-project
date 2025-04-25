@@ -3,6 +3,7 @@ interface Message {
     id: number;
     type: 'user' | 'bot';
     content: string;
+    rawContent?: string; // Add this optional property
 }
 
 // Feature extraction interface

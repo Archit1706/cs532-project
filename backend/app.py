@@ -113,6 +113,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Define section IDs - these should match what's in your frontend
+SECTION_IDS = {
+    "PROPERTIES": "properties-section",
+    "MARKET": "market-trends-section",
+    "AMENITIES": "local-amenities-section",
+    "TRANSIT": "transit-section"
+}
+
+# Define property tab IDs - these should match what's in your frontend
+PROPERTY_TAB_IDS = {
+    "DETAILS": "property-details-tab",
+    "PRICE_HISTORY": "property-price-history-tab",
+    "SCHOOLS": "property-schools-tab",
+    "MARKET_ANALYSIS": "property-market-analysis-tab"
+}
+
 # Dictionary to cache tokenizers and models (to avoid reloading for each request)
 translation_models = {}
 
@@ -127,15 +143,109 @@ Standalone question:
 """)
 
 QA_PROMPT = PromptTemplate.from_template("""
-You are an expert real estate assistant named REbot. You help users search for properties, track market trends, set preferences, and answer legal questions related to real estate.
+You are REbot, a helpful and concise real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
 
-Use the following context to answer the question. If you don't know the answer, don't make up information - just say you don't know.
+IMPORTANT GUIDELINES:
+1. Be brief and conversational, limiting responses to 1-2 short paragraphs maximum
+2. Reference UI elements when relevant (e.g., "You can see property details in the right panel")
+3. Use natural, friendly language - avoid sounding like a formal report
+4. When data is loading or when asking for a zip code, let users know what's happening
+5. Mention trends and insights from available data rather than listing everything
+6. Never mention "API" or technical terms - keep the conversation natural and focused on real estate
+7. Directly reference the visual elements the user can see in the UI, not abstract data
 
+CURRENT UI STATE CONTEXT:
 {context}
+
+QUERY TYPE: {query_type}
 
 Question: {question}
 Answer:
 """)
+
+# Enhanced system prompt with UI linking instructions
+# Updated system prompt with section link instructions
+ENHANCED_SYSTEM_PROMPT = """
+You are REbot, a helpful real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
+
+CRITICAL - UI LINK INSTRUCTIONS:
+You MUST include specific section references in your responses using these exact link formats:
+
+1. When discussing a specific property's details: Use exactly "[[property details]]" in your response
+2. When discussing a property's price history: Use exactly "[[price history]]" in your response
+3. When discussing nearby schools: Use exactly "[[property schools]]" or "[[schools]]" in your response
+4. When discussing market analysis for a property: Use exactly "[[property market analysis]]" in your response
+5. When mentioning market data for the area: Use exactly "[[market trends]]" in your response
+6. When mentioning properties in the area: Use exactly "[[properties]]" in your response
+7. When mentioning restaurants or local amenities: Use exactly "[[restaurants]]" or "[[local amenities]]" in your response
+8. When mentioning transit options: Use exactly "[[transit]]" in your response
+
+For example, say: "You can see more information in the [[property details]] tab" or "Check out the [[price history]] for this property"
+
+When answering questions about a specific property, ALWAYS include at least one relevant property tab link.
+When answering questions about the local area, ALWAYS include at least one relevant section link.
+
+RESPONSE GUIDELINES:
+- Be conversational and concise (1-3 short paragraphs maximum)
+- When answering questions about specific properties, use property tab links (property details, price history, etc.)
+- If the user asks about price history, school information, or market analysis, direct them to the specific tab
+- For market data requests, always include "[[market trends]]" link
+- For neighborhood questions, include "[[restaurants]]" and "[[transit]]" links
+- Keep responses focused and avoid lengthy explanations
+
+CURRENT UI STATE:
+{ui_context}
+
+USER QUERY: {question}
+"""
+
+# Function to format response with proper HTML links
+def format_response_with_links(response_text):
+    """Replace link placeholders with actual HTML links."""
+    replacements = [
+        # Market trends link
+        (r'\[\[market(?:\s+trends)?\]\]', 
+         f'<a href="#{SECTION_IDS["MARKET"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>'),
+        
+        # Properties link
+        (r'\[\[properties\]\]', 
+         f'<a href="#{SECTION_IDS["PROPERTIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>'),
+        
+        # Restaurants/amenities link
+        (r'\[\[restaurants\]\]|\[\[local\s+amenities\]\]', 
+         f'<a href="#{SECTION_IDS["AMENITIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">local amenities</a>'),
+        
+        # Transit link
+        (r'\[\[transit\]\]', 
+         f'<a href="#{SECTION_IDS["TRANSIT"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'),
+        
+        # Property market link (without section ID since it's a different view)
+        (r'\[\[property\s+market\]\]', 
+         '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>')
+
+                # Property tab links - added for better property context support
+        (r'\[\[property\s+details\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
+        
+        (r'\[\[price\s+history\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory">price history</a>'),
+        
+        (r'\[\[property\s+schools\]\]|\[\[schools\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["SCHOOLS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertySchools">schools</a>'),
+        
+        (r'\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["MARKET_ANALYSIS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis">market analysis</a>')
+    
+    ]
+    
+    # Apply all replacements
+    import re
+    result = response_text
+    for pattern, replacement in replacements:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    
+    return result
+
 
 # Initialize Azure OpenAI
 def get_llm():
@@ -971,6 +1081,121 @@ async def market_trends(data: MarketTrendsRequest):
 
 #######################################################################################################################################
 
+# Correct the linkn s in chat
+def parse_ui_context(context_str):
+    """Parse the UI context string into a structured format with UI link information."""
+    try:
+        context = json.loads(context_str) if context_str else {}
+        ui_context = context.get('ui_context', {})
+        
+        # Create a human-readable context string
+        context_description = []
+        available_sections = []
+        property_tabs = []
+        
+        # First check if we're in a property view with tabs
+        if ui_context.get('propertyContext') or ui_context.get('currentProperty'):
+            # Add available property tab links
+            property_tabs = [
+                "[[property details]] - Shows details about this property",
+                "[[price history]] - Shows the property's price and tax history",
+                "[[property schools]] - Shows nearby schools",
+                "[[property market analysis]] - Shows market analysis for this property"
+            ]
+            
+            # Extract detailed property information from propertyContext if available
+            property_context = ui_context.get('propertyContext', {})
+            if property_context:
+                context_description.append(f"This is a {property_context.get('beds', '')}bd {property_context.get('baths', '')}ba {property_context.get('type', 'property')} at {property_context.get('address', '')}, priced at ${property_context.get('price', 0):,}.")
+                context_description.append(f"It was built in {property_context.get('yearBuilt', 'N/A')} and has {property_context.get('sqft', 0)} square feet.")
+                
+                # Add price history if available
+                if property_context.get('priceHistory'):
+                    price_history = property_context.get('priceHistory', [])
+                    if price_history:
+                        context_description.append(f"Price history includes {len(price_history)} events:")
+                        # Include up to 3 most recent price events
+                        for event in price_history[:3]:
+                            context_description.append(f"- {event.get('date')}: {event.get('event')} at ${event.get('price', 0):,}")
+                
+                # Add tax history if available
+                if property_context.get('taxHistory'):
+                    tax_history = property_context.get('taxHistory', [])
+                    if tax_history:
+                        most_recent_tax = tax_history[0]
+                        context_description.append(f"Most recent property tax (year {most_recent_tax.get('year')}): ${most_recent_tax.get('taxPaid', 0):,}")
+                        if most_recent_tax.get('value'):
+                            context_description.append(f"Assessed value: ${most_recent_tax.get('value', 0):,}")
+                
+                # Add school information if available
+                if property_context.get('schools'):
+                    schools = property_context.get('schools', [])
+                    context_description.append(f"The property is near {len(schools)} schools:")
+                    # Include up to 3 schools
+                    for school in schools[:3]:
+                        context_description.append(f"- {school.get('name')}: {school.get('type')}, rating {school.get('rating')}/10, {school.get('distance')} miles away")
+                
+                # Add feature summaries
+                if property_context.get('features'):
+                    features = property_context.get('features', {})
+                    if features.get('appliances'):
+                        context_description.append(f"Appliances: {', '.join(features.get('appliances', []))}")
+                    if features.get('heating'):
+                        context_description.append(f"Heating: {', '.join(features.get('heating', []))}")
+                    if features.get('cooling'):
+                        context_description.append(f"Cooling: {', '.join(features.get('cooling', []))}")
+            else:
+                # If no detailed context, use simpler info from currentProperty
+                current_property = ui_context.get('currentProperty', {})
+                if current_property:
+                    context_description.append(f"This is a {current_property.get('beds', '')}bd {current_property.get('baths', '')}ba {current_property.get('type', 'property')} at {current_property.get('address', '')}, priced at ${current_property.get('price', 0):,}.")
+        
+        # Add standard UI sections if available
+        if ui_context.get('hasMarketData', False) or ui_context.get('zipCode'):
+            available_sections.append("[[market trends]] - Shows market data for the area")
+            
+        if ui_context.get('propertiesCount', 0) > 0 or ui_context.get('zipCode'):
+            available_sections.append("[[properties]] - Shows properties in the area")
+            context_description.append(f"There are {ui_context.get('propertiesCount', 0)} properties displayed in the UI.")
+        
+        if ui_context.get('hasRestaurants', False) or ui_context.get('zipCode'):
+            available_sections.append("[[restaurants]] or [[local amenities]] - Shows dining and amenities in the area")
+            context_description.append(f"There are {ui_context.get('restaurantCount', 0)} restaurants shown in the UI.")
+        
+        if ui_context.get('hasTransit', False) or ui_context.get('zipCode'):
+            available_sections.append("[[transit]] - Shows transit options in the area")
+            context_description.append(f"There are {ui_context.get('transitCount', 0)} transit options shown in the UI.")
+            
+        # Add zip code context
+        if ui_context.get('zipCode'):
+            context_description.append(f"The user is looking at data for ZIP code {ui_context.get('zipCode')}.")
+        
+        # Add reminder about section links
+        link_reminder = """
+IMPORTANT REMINDER:
+- ALWAYS include at least one section link in your response
+- When talking about the property, use the property tab links (e.g., [[property details]], [[price history]])
+- When talking about the area, use the section links (e.g., [[market trends]], [[restaurants]])
+- Use the EXACT syntax shown above for links
+"""
+        
+        # Combine all sections based on context
+        result = ""
+        if property_tabs:
+            result += "PROPERTY TAB LINKS (USE THESE EXACT FORMATS):\n" + "\n".join(property_tabs) + "\n\n"
+        
+        if available_sections:
+            result += "AREA SECTION LINKS (USE THESE EXACT FORMATS):\n" + "\n".join(available_sections) + "\n\n"
+            
+        result += "UI CONTEXT:\n" + "\n".join(context_description) + "\n\n" + link_reminder
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error parsing UI context: {e}")
+        return "UI context not available. Include general links to [[properties]], [[market trends]], [[restaurants]], and [[transit]] in your response."
+
+
+# Update the createLinkableContent function in ChatContext.tsx to include property market link
 # On the backend, add a function to classify queries with the LLM
 def classify_query(query):
     try:
@@ -1006,6 +1231,7 @@ def classify_query(query):
         500: {"model": ChatErrorResponse, "description": "Internal Server Error"}
     }
 )
+
 async def chat(data: ChatRequest):
     try:
         logger.info(f"Received chat request: {data}")
@@ -1023,60 +1249,38 @@ async def chat(data: ChatRequest):
 
         # Handle system queries
         if is_system_query:
-            logger.info("Processing system query")
-            try:
-                if not LLM:
-                    return JSONResponse(status_code=500, content={
-                        "error": "LLM not initialized",
-                        "session_id": session_id,
-                        "response": "Error: LLM service is not available"
-                    })
-                
-                messages = [
-                    {"role": "system", "content": "You are a system processing component for real estate queries."},
-                    {"role": "user", "content": message}
-                ]
-                logger.info("Sending system query to LLM")
-                response_obj = LLM.invoke(messages)
-                response = response_obj.content
-                logger.info("Received system response from LLM")
-                return {"session_id": session_id, "response": response}
-            except Exception as e:
-                logger.error(f"Error in system query: {str(e)}")
-                return JSONResponse(status_code=500, content={
-                    "error": str(e),
-                    "session_id": session_id,
-                    "response": f"Error: {str(e)}"
-                })
+            # [existing system query handler code]
+            pass
 
-        # Extract features - with better error handling
+        # Extract features and UI context
         extracted_features = {}
-        query_type = "general"  # Default fallback
+        query_type = "general"
+        ui_context = ""
         
         if LLM:  # Only try to extract features if LLM is available
             try:
                 extracted_features = extract_query_features(message)
                 logger.info(f"Extracted features: {extracted_features}")
                 query_type = extracted_features.get('queryType', 'general')
+                
+                # Parse UI context
+                ui_context = parse_ui_context(feature_context)
+                logger.info(f"Parsed UI context: {ui_context}")
+                
             except Exception as e:
-                logger.error(f"Feature extraction failed: {str(e)}")
-                # Fallback to simple classification if we have LLM
-                try:
-                    query_type = classify_query(message)
-                    logger.info(f"Query classified as: {query_type}")
-                except Exception as classify_err:
-                    logger.error(f"Classification also failed: {str(classify_err)}")
+                logger.error(f"Feature extraction or UI context parsing failed: {str(e)}")
+                # [existing fallback code]
         else:
             logger.warning("Skipping feature extraction - LLM not available")
 
         # Process chat message
         if LLM:
             try:
-                system_content = f"You are an expert real estate assistant named REbot. You are handling a {query_type} question."
-                if feature_context:
-                    system_content += f"\n\nExtracted features: {feature_context}"
-                if location_context:
-                    system_content += f"\n\nLocation context: {location_context}"
+                # Create prompt with UI context
+                system_content = ENHANCED_SYSTEM_PROMPT.format(
+                    ui_context=ui_context,
+                    question=message
+                )
                 
                 messages = [
                     {"role": "system", "content": system_content},
@@ -1088,10 +1292,15 @@ async def chat(data: ChatRequest):
                     messages.append({"role": "assistant", "content": bot_msg})
                 
                 messages.append({"role": "user", "content": message})
-                logger.info(f"Sending {len(messages)} messages to LLM")
+                logger.info(f"Sending {len(messages)} messages to LLM with enhanced UI context")
                 response_obj = LLM.invoke(messages)
+                
                 response = response_obj.content
                 logger.info("Received response from LLM")
+
+                # Format links in the response
+                formatted_response = format_response_with_links(response)
+                logger.info("Formatted response with links")
             except Exception as e:
                 response = f"I'm sorry, I encountered an error while processing your request: {str(e)}"
                 logger.error(f"Error calling LLM: {str(e)}")
@@ -1103,7 +1312,7 @@ async def chat(data: ChatRequest):
         chat_histories[session_id].append((message, response))
         result = {
             "session_id": session_id,
-            "response": response,
+            "response": formatted_response,
             "extracted_features": extracted_features
         }
         logger.info(f"Returning response for session {session_id}")
@@ -1117,7 +1326,8 @@ async def chat(data: ChatRequest):
             "session_id": session_id if 'session_id' in locals() else None,
             "response": "I'm sorry, something went wrong. Please try again later."
         })
-    
+
+
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "llm_initialized": LLM is not None}

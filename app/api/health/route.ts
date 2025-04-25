@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Check if the Flask backend is reachable
-    const response = await fetch('https://cs532-project.onrender.com/api/health', {
+    const response = await fetch('https://cs532-project-dubl.onrender.com/api/health', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
