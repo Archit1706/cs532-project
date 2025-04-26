@@ -207,8 +207,37 @@ CURRENT UI STATE:
 USER QUERY: {question}
 """
 
+
+import re
+
+
+
 # Function to format response with proper HTML links
 def format_response_with_links(response_text):
+
+
+
+    """Replace markdown (**bold**, *italic*, # headings) and link placeholders with HTML."""
+    text = response_text
+
+    # — 1) Convert headings (#, ##, ###, etc.) to <h1>…<h6>
+    heading_patterns = {
+        r'^###### (.+)$': r'<h6>\1</h6>',
+        r'^##### (.+)$': r'<h5>\1</h5>',
+        r'^#### (.+)$':  r'<h4>\1</h4>',
+        r'^### (.+)$':   r'<h3>\1</h3>',
+        r'^## (.+)$':    r'<h2>\1</h2>',
+        r'^# (.+)$':     r'<h1>\1</h1>',
+    }
+    for pattern, repl in heading_patterns.items():
+        text = re.sub(pattern, repl, text, flags=re.MULTILINE)
+
+    # — 2) Convert **bold** and *italic*
+    #    First bold (two stars), then italic (single stars)
+    text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
+
+    # — 3) Convert your [[…]] placeholders into HTML links
     """Replace link placeholders with actual HTML links."""
     replacements = [
         # Market trends link
@@ -248,11 +277,8 @@ def format_response_with_links(response_text):
     
     ]
     
-    # Apply all replacements
-    import re
-    result = response_text
     for pattern, replacement in replacements:
-        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+        result = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
     
     return result
 
