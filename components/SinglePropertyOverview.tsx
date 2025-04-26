@@ -1,5 +1,4 @@
-// SinglePropertyOverview.tsx with improved tab linking
-
+// SinglePropertyOverview.tsx with improved layout
 import React, { useState, useEffect } from "react";
 import { useChatContext } from "context/ChatContext";
 import PropertyRoutesMap from "./PropertyRoutesMap";
@@ -20,7 +19,11 @@ import {
     MdHistory,
     MdAttachFile,
     MdLink,
+    MdPayment,
+    MdChat,
+    MdClose
 } from "react-icons/md";
+import Link from "next/link";
 import { TbAirConditioning } from "react-icons/tb";
 import { FaRoute, FaMoneyBill, FaChartLine } from "react-icons/fa";
 import { IoIosPricetag } from "react-icons/io";
@@ -57,6 +60,7 @@ const Section = ({
 const SinglePropertyOverview = () => {
     const { propertyDetails, setPropertyContext } = useChatContext();
     const [activeTab, setActiveTab] = useState('details');
+    const [showChatInfo, setShowChatInfo] = useState(true);
 
     // Handle URL hash for direct tab linking
     useEffect(() => {
@@ -162,7 +166,14 @@ const SinglePropertyOverview = () => {
     const info = propertyDetails.basic_info;
     const features = propertyDetails.features || {};
     const address = info.address?.full || `${info.address?.streetAddress}, ${info.address?.city}, ${info.address?.state} ${info.address?.zipcode}`;
-    const image = propertyDetails?.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
+    
+    // Use the first property image from the array, or fall back to a default
+    const image = propertyDetails.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
+    
+    // Extract HOA fee if available
+    const hoaFee = features?.atAGlanceFacts?.find((fact: any) => 
+        fact.factLabel?.toLowerCase().includes('hoa') || fact.factLabel?.toLowerCase().includes('association fee')
+    )?.factValue || 'N/A';
 
     const renderFacts = () =>
         features.atAGlanceFacts?.map((fact: any, i: number) => (
@@ -269,52 +280,73 @@ const SinglePropertyOverview = () => {
 
     return (
         <div className="max-w-5xl mx-auto bg-slate-50 p-4 rounded-2xl">
-            {/* Property Header */}
+            {/* Improved Property Header */}
             <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+                {/* Banner with property address */}
+                <div className="bg-gradient-to-r from-teal-700 to-teal-600 p-4 text-white">
+                    <div className="flex items-center">
+                        <MdLocationOn className="text-3xl mr-2" />
+                        <h1 className="text-2xl font-bold">{address}</h1>
+                    </div>
+                </div>
+                
                 <div className="md:flex">
-                    <div className="md:flex-shrink-0">
+                    {/* Property Image */}
+                    <div className="md:flex-shrink-0 relative">
                         <img
                             className="h-72 w-full object-cover md:w-96"
                             src={image || undefined}
                             alt={address}
                         />
+                        {/* Price tag overlay at top right of image */}
+                        <div className="absolute top-4 right-4 bg-emerald-600 text-white py-2 px-4 rounded-lg shadow-lg">
+                            <span className="text-xl font-bold">${info.price?.toLocaleString()}</span>
+                        </div>
                     </div>
+                    
+                    {/* Property Details with HOA fee - Reorganized */}
                     <div className="p-6 w-full">
-                        <div className="flex items-center mb-2">
-                            <MdLocationOn className="mr-2 text-teal-600 text-5xl" />
-                            <h2 className="text-2xl font-bold text-slate-800">{address}</h2>
-                        </div>
-                        <p className="text-slate-600 mb-4 capitalize flex items-center">
-                            <MdHome className="mr-2 text-slate-500 text-xl" />
-                            {info.homeType?.replaceAll("_", " ").toLowerCase()}
-                        </p>
-
-                        {/* Property Highlights */}
-                        <div className="grid grid-cols-3 gap-4 text-center bg-slate-100 rounded-lg p-4 justify-items-center">
-                            <div className="flex flex-col items-center justify-center">
-                                <MdKingBed className="text-teal-600 mb-1 text-2xl" />
-                                <div className="text-sm text-slate-500">Beds</div>
-                                <div className="text-lg font-semibold text-gray-500 h-6">{info.bedrooms}</div>
-                            </div>
-                            <div className="flex flex-col items-center justify-center">
-                                <MdBathtub className="text-teal-600 mb-1 text-2xl" />
-                                <div className="text-sm text-slate-500">Baths</div>
-                                <div className="text-lg font-semibold text-gray-500 h-6">{info.bathrooms}</div>
-                            </div>
-                            <div className="flex flex-col items-center justify-center">
-                                <MdRuleFolder className="text-teal-600 mb-1 text-2xl" />
-                                <div className="text-sm text-slate-500">Year Built</div>
-                                <div className="text-lg font-semibold text-gray-500 h-6">{info.yearBuilt}</div>
-                            </div>
-                        </div>
-
-
-                        {/* Price */}
-                        <div className="mt-4 flex items-center">
-                            <IoIosPricetag className="mr-2 text-emerald-600 text-2xl" />
-                            <p className="text-2xl font-bold text-emerald-600">
-                                ${info.price?.toLocaleString()}
+                        {/* Property type */}
+                        <div className="flex items-center mb-4">
+                            <MdHome className="mr-2 text-teal-600 text-xl" />
+                            <p className="text-slate-600 capitalize text-lg font-medium">
+                                {info.homeType?.replaceAll("_", " ").toLowerCase()}
                             </p>
+                        </div>
+
+                        {/* Two-row grid layout for details */}
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            {/* Row 1: Beds & Baths */}
+                            <div className="bg-slate-50 p-3 rounded-lg flex items-center">
+                                <MdKingBed className="text-teal-600 mr-3 text-xl" />
+                                <div>
+                                    <div className="text-sm text-slate-500">Beds</div>
+                                    <div className="text-lg font-semibold text-gray-800">{info.bedrooms}</div>
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-lg flex items-center">
+                                <MdBathtub className="text-teal-600 mr-3 text-xl" />
+                                <div>
+                                    <div className="text-sm text-slate-500">Baths</div>
+                                    <div className="text-lg font-semibold text-gray-800">{info.bathrooms}</div>
+                                </div>
+                            </div>
+                            
+                            {/* Row 2: Year Built & HOA Fee */}
+                            <div className="bg-slate-50 p-3 rounded-lg flex items-center">
+                                <MdRuleFolder className="text-teal-600 mr-3 text-xl" />
+                                <div>
+                                    <div className="text-sm text-slate-500">Year Built</div>
+                                    <div className="text-lg font-semibold text-gray-800">{info.yearBuilt}</div>
+                                </div>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-lg flex items-center">
+                                <MdPayment className="text-teal-600 mr-3 text-xl" />
+                                <div>
+                                    <div className="text-sm text-slate-500">HOA Fee</div>
+                                    <div className="text-lg font-semibold text-gray-800">{hoaFee}</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -438,7 +470,7 @@ const SinglePropertyOverview = () => {
                                         </Section>
                                     )}
 
-                                    {(features.heating?.length > 0 || features.cooling?.length > 0) && (
+{(features.heating?.length > 0 || features.cooling?.length > 0) && (
                                         <Section title="Climate Control" icon={TbAirConditioning}>
                                             {features.heating?.length > 0 && (
                                                 <div className="mb-2">
@@ -455,12 +487,9 @@ const SinglePropertyOverview = () => {
                                         </Section>
                                     )}
                                 </div>
-
-
                             </div>
                         </div>
                     )}
-
 
                     {activeTab === 'price history' && (
                         <div id={PROPERTY_TAB_IDS.PRICE_HISTORY}>
@@ -486,7 +515,8 @@ const SinglePropertyOverview = () => {
                 </div>
             </div>
 
-            <Section title="Navigations" icon={FaRoute}>
+            {/* Improved section headers for navigations */}
+            <Section title="Navigation & Transit Options" icon={FaRoute}>
                 <PropertyRoutesMap
                     property={{
                         id: info.zpid,

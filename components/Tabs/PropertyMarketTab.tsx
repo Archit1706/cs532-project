@@ -1,4 +1,4 @@
-// components/Tabs/PropertyMarketTab.tsx
+// components/Tabs/PropertyMarketTab.tsx with improved table styling and chart labels
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -75,17 +75,23 @@ const PropertyMarketTab = () => {
                 }
             };
             
-            // Similar properties data
-            const similarProperties = propertyDetails?.nearbyHomes?.map((home: { address: { streetAddress: any; }; price: number; bedrooms: any; bathrooms: any; livingArea: number; yearBuilt: any; distance: any; }) => ({
-                address: home.address?.streetAddress || 'N/A',
-                price: home.price || 0,
-                beds: home.bedrooms || 0,
-                baths: home.bathrooms || 0,
-                sqft: home.livingArea || 0,
-                pricePerSqFt: home.price / home.livingArea,
-                yearBuilt: home.yearBuilt || 'N/A',
-                distance: home.distance || 0
-            })) || [];
+            // Similar properties data with improved formatting
+            const similarProperties = propertyDetails?.nearbyHomes?.map((home: { address: { streetAddress: any; }; price: number; bedrooms: any; bathrooms: any; livingArea: number; yearBuilt: any; distance: any; hoaFee?: number; }) => {
+                // Calculate price per square foot
+                const pricePerSqFt = home.livingArea > 0 ? home.price / home.livingArea : 0;
+                
+                return {
+                    address: home.address?.streetAddress || 'N/A',
+                    price: home.price || 0,
+                    beds: home.bedrooms || 0,
+                    baths: home.bathrooms || 0,
+                    sqft: home.livingArea || 0,
+                    pricePerSqFt: pricePerSqFt,
+                    yearBuilt: home.yearBuilt || 'N/A',
+                    distance: home.distance || 0,
+                    hoaFee: home.hoaFee || 0
+                };
+            }) || [];
             
             // Price history data for the property
             const priceHistory = propertyDetails?.priceHistory?.map((item: { date: any; price: any; event: any; }) => ({
@@ -131,14 +137,14 @@ const PropertyMarketTab = () => {
         return '$' + amount.toLocaleString();
     };
 
-    // Custom Tooltip for charts
+    // Custom Tooltip for charts - improved contrast and readability
     const CustomTooltip = ({ active, payload, label }: any) => {
         if (active && payload && payload.length) {
             return (
                 <div className="bg-white p-3 shadow-lg rounded-lg border border-slate-200">
-                    <p className="font-semibold">{label}</p>
+                    <p className="font-semibold text-slate-800">{label}</p>
                     {payload.map((entry: any, index: number) => (
-                        <p key={index} style={{ color: entry.color }}>
+                        <p key={index} style={{ color: entry.color }} className="font-medium">
                             {entry.name}: {typeof entry.value === 'number' ? formatDollar(entry.value) : entry.value}
                         </p>
                     ))}
@@ -307,13 +313,14 @@ const PropertyMarketTab = () => {
                 <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
                     <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Property Price History</h3>
                     <div className="w-full h-64 mb-4">
+                        {/* Improved chart with better label placement */}
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart 
                                 data={propertyMarketData.priceHistory
                                     .filter((item: any) => item.event === 'Listed for sale' || item.event === 'Sold' || item.event === 'Price change')
                                     .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime())
                                 }
-                                margin={{ top: 10, right: 30, left: 20, bottom: 40 }}
+                                margin={{ top: 25, right: 30, left: 20, bottom: 40 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
                                 <XAxis 
@@ -326,8 +333,14 @@ const PropertyMarketTab = () => {
                                     tickFormatter={(value) => `$${(value/1000)}k`}
                                     tick={{ fontSize: 12 }}
                                 />
+                                {/* Improved tooltip with better contrast */}
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend />
+                                {/* Legend moved to top-right */}
+                                <Legend 
+                                    verticalAlign="top" 
+                                    align="right"
+                                    wrapperStyle={{ paddingBottom: 10 }}
+                                />
                                 <Bar 
                                     dataKey="price" 
                                     fill="#3B82F6" 
@@ -346,48 +359,66 @@ const PropertyMarketTab = () => {
                 </div>
             )}
 
-            {/* Similar Properties Comparison */}
-            {propertyMarketData.similarProperties && propertyMarketData.similarProperties.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
-                    <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Similar Properties</h3>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                            <thead className="bg-slate-50">
-                                <tr>
-                                    <th className="px-4 py-2 text-left">Address</th>
-                                    <th className="px-4 py-2 text-right">Price</th>
-                                    <th className="px-4 py-2 text-right">Beds</th>
-                                    <th className="px-4 py-2 text-right">Baths</th>
-                                    <th className="px-4 py-2 text-right">Sq Ft</th>
-                                    <th className="px-4 py-2 text-right">$/Sq Ft</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                                {/* Current property row */}
-                                <tr className="bg-blue-50">
-                                    <td className="px-4 py-2 font-medium">This Property</td>
-                                    <td className="px-4 py-2 text-right font-medium">{formatDollar(selectedProperty.price)}</td>
-                                    <td className="px-4 py-2 text-right">{selectedProperty.beds}</td>
-                                    <td className="px-4 py-2 text-right">{selectedProperty.baths}</td>
-                                    <td className="px-4 py-2 text-right">{selectedProperty.sqft.toLocaleString()}</td>
-                                    <td className="px-4 py-2 text-right">{formatDollar(selectedProperty.price / selectedProperty.sqft)}</td>
-                                </tr>
-                                {propertyMarketData.similarProperties.slice(0, 5).map((property: any, index: number) => (
-                                    <tr key={index} className="hover:bg-slate-50">
-                                        <td className="px-4 py-2">{property.address}</td>
-                                        <td className="px-4 py-2 text-right">{formatDollar(property.price)}</td>
-                                        <td className="px-4 py-2 text-right">{property.beds}</td>
-                                        <td className="px-4 py-2 text-right">{property.baths}</td>
-                                        <td className="px-4 py-2 text-right">{property.sqft.toLocaleString()}</td>
-                                        <td className="px-4 py-2 text-right">{formatDollar(property.pricePerSqFt)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
+            {/* Similar Properties Comparison - Improved table with better contrast */}
+            {propertyMarketData.similarProperties && propertyMarketData.similarProperties.length > 0 && selectedProperty && (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+        <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Nearby Properties</h3>
+        <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+                <thead className="bg-slate-100">
+                    <tr>
+                        <th className="px-4 py-2 text-left font-semibold text-slate-700">Address</th>
+                        <th className="px-4 py-2 text-right font-semibold text-slate-700">Price</th>
+                        <th className="px-4 py-2 text-right font-semibold text-slate-700">HOA Fee</th>
+                        <th className="px-4 py-2 text-right font-semibold text-slate-700">Sq Ft</th>
+                        <th className="px-4 py-2 text-right font-semibold text-slate-700">$/Sq Ft</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                    {/* Current property row with highlight */}
+                    <tr className="bg-blue-50">
+                        <td className="px-4 py-2 font-medium text-slate-900">This Property</td>
+                        <td className="px-4 py-2 text-right font-medium text-slate-900">
+                            {typeof selectedProperty.price === 'number' 
+                                ? formatDollar(selectedProperty.price) 
+                                : selectedProperty.price}
+                        </td>
+                        <td className="px-4 py-2 text-right text-slate-800">
+                            {propertyDetails?.features?.hoaFee || 'N/A'}
+                        </td>
+                        <td className="px-4 py-2 text-right text-slate-800">
+                            {typeof selectedProperty.sqft === 'number' 
+                                ? selectedProperty.sqft.toLocaleString() 
+                                : selectedProperty.sqft}
+                        </td>
+                        <td className="px-4 py-2 text-right text-slate-800">
+                            {typeof selectedProperty.price === 'number' && typeof selectedProperty.sqft === 'number'
+                                ? formatDollar(selectedProperty.price / selectedProperty.sqft)
+                                : 'N/A'}
+                        </td>
+                    </tr>
+                    {propertyMarketData.similarProperties.slice(0, 5).map((property: any, index: number) => (
+                        <tr key={index} className="hover:bg-slate-50">
+                            <td className="px-4 py-2 text-slate-800">{property.address}</td>
+                            <td className="px-4 py-2 text-right text-slate-800">{formatDollar(property.price)}</td>
+                            <td className="px-4 py-2 text-right text-slate-800">
+                                {property.hoaFee ? formatDollar(property.hoaFee) : 'N/A'}
+                            </td>
+                            <td className="px-4 py-2 text-right text-slate-800">
+                                {property.sqft ? property.sqft.toLocaleString() : 'N/A'}
+                            </td>
+                            <td className="px-4 py-2 text-right text-slate-800">
+                                {property.sqft && property.sqft > 0 
+                                    ? formatDollar(property.pricePerSqFt) 
+                                    : 'N/A'}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    </div>
+)}
             {/* Area Market Trends */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Area Market Trends</h3>
@@ -421,7 +452,7 @@ const PropertyMarketTab = () => {
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart 
                                 data={propertyMarketData.historicalTrends.current_year}
-                                margin={{ top: 10, right: 30, left: 20, bottom: 10 }}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
                                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
@@ -430,14 +461,19 @@ const PropertyMarketTab = () => {
                                     tick={{ fontSize: 12 }}
                                 />
                                 <Tooltip content={<CustomTooltip />} />
-                                <Legend />
+                                {/* Legend moved to top-right */}
+                                <Legend 
+                                    verticalAlign="top" 
+                                    align="right"
+                                    wrapperStyle={{ paddingBottom: 10 }}
+                                />
                                 <ReferenceLine 
                                     y={selectedProperty.price} 
                                     stroke="#EA4335" 
                                     strokeDasharray="3 3"
                                     label={{ 
                                         value: 'This Property', 
-                                        position: 'insideBottomRight',
+                                        position: 'insideTopRight',
                                         fill: '#EA4335', 
                                         fontSize: 11 
                                     }}

@@ -1,4 +1,4 @@
-// components/PropertyRoutesMap.tsx
+// components/PropertyRoutesMap.tsx - Fixed arrow positioning
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -483,19 +483,23 @@ const PropertyRoutesMap: React.FC<PropertyRoutesMapProps> = ({ property }) => {
             </div>
           </div>
 
-          {/* Scroll controls */}
-          <button
-            className="absolute left-0 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
-            onClick={() => handleScroll(-1)}
-          >
-            <FaChevronLeft className="text-slate-500" />
-          </button>
-          <button
-            className="absolute right-0 top-1/2 transform -translate-y-1/2 bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
-            onClick={() => handleScroll(1)}
-          >
-            <FaChevronRight className="text-slate-500" />
-          </button>
+          {/* Improved scroll controls - positioned outside the overflow area */}
+          <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10">
+            <button
+              className="bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
+              onClick={() => handleScroll(-1)}
+            >
+              <FaChevronLeft className="text-slate-500" />
+            </button>
+          </div>
+          <div className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10">
+            <button
+              className="bg-white rounded-full p-2 shadow-md border border-slate-200 hover:bg-slate-50"
+              onClick={() => handleScroll(1)}
+            >
+              <FaChevronRight className="text-slate-500" />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center p-4 mb-4 bg-teal-50 border border-teal-200 rounded-lg text-teal-700">

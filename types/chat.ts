@@ -76,6 +76,8 @@ interface Property {
     type: string;
     zpid: string;
     id?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 

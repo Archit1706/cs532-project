@@ -1,7 +1,7 @@
 // components/layout/InfoPanel.tsx
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useChatContext } from 'context/ChatContext';
 import PropertyDetailCard from '../PropertyDetailCard';
 import SinglePropertyOverview from '../SinglePropertyOverview';
@@ -34,33 +34,46 @@ const InfoPanel = () => {
     } = useChatContext();
 
     const renderTabContent = () => {
+        // Use state to track if component is mounted (client-side only)
+        const [isMounted, setIsMounted] = useState(false);
+        
+        // Only execute on client side
+        useEffect(() => {
+            setIsMounted(true);
+        }, []);
+        
+        // Return null during server-side rendering to prevent hydration mismatch
+        if (!isMounted) {
+            return null;
+        }
+    
         if (activeTab === 'explore') {
             if (isPropertyChat && propertyDetails) {
                 return (
                     <div className="space-y-6 m-6">
                         <h2 className="text-xl font-semibold text-slate-700">Property Overview</h2>
                         <SinglePropertyOverview />
-
+    
                         <h2 className="text-lg font-semibold text-slate-700">Transit</h2>
                         <TransitTab />
-
+    
                         <h2 className="text-lg font-semibold text-slate-700">Local Amenities</h2>
                         <RestaurantTab />
-
+    
                         <h2 className="text-lg font-semibold text-slate-700">Similar Properties</h2>
                         <PropertyTab source="nearby" />
                     </div>
                 );
             }
-
+    
             // Only show this if we're not in a dedicated property chat
             if (selectedProperty) {
                 return <PropertyDetailCard property={selectedProperty} onClose={() => setSelectedProperty(null)} />;
             }
-
+    
             if (!locationData || !zipCode)
                 return <WelcomeCard />;
-
+    
             return (
                 <div className="space-y-6 m-6 pb-12 overflow-y-auto">
                     {/* Properties Section with Improved Header */}
@@ -153,18 +166,17 @@ const InfoPanel = () => {
                 </div>
             );
         }
-
+    
         if (activeTab === 'saved') {
             return <div className="text-slate-600 space-y-6 m-6">No saved items yet.</div>;
         }
-
+    
         if (activeTab === 'updates') {
             return <div className="text-slate-600 space-y-6 m-6">No updates yet.</div>;
         }
-
+    
         return null;
     };
-
 
     return (
         <div className="w-1/2 h-full flex flex-col rounded-2xl shadow-gray-500 shadow-lg bg-radial-[at_50%_65%] from-teal-400 via-teal-500 to-teal-700 to-90%">

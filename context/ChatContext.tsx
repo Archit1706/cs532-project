@@ -92,6 +92,9 @@ const buildUIContext = () => {
 };
 
 // Update the handleUILink function to handle section links
+// Updated handleUILink function for ChatContext.tsx
+
+// Update the handleUILink function to handle section links
 const handleUILink = (link: UIComponentLink) => {
     console.log('UI link clicked:', link);
     
@@ -153,6 +156,9 @@ const handleUILink = (link: UIComponentLink) => {
         return;
     }
     
+    // FIX: First ensure we're in 'explore' tab when handling other link types
+    setActiveTab('explore');
+    
     // Handle other link types (market, restaurants, etc.)
     switch(link.type) {
         case 'market':
@@ -161,33 +167,61 @@ const handleUILink = (link: UIComponentLink) => {
             if (!marketTrends && zipCode) {
                 fetchMarketTrends(undefined, zipCode);
             }
-            // Then switch to the correct tab
-            setActiveTab('market');
+            
+            // Scroll to the market section after a short delay to ensure UI is updated
+            setTimeout(() => {
+                const marketSection = document.getElementById(SECTION_IDS.MARKET);
+                if (marketSection) {
+                    marketSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
             break;
             
         case 'property':
             console.log('Activating properties tab');
-            setActiveTab('properties');
+            
             // If data includes a specific property, select it
             if (link.data && typeof link.data === 'object') {
                 setSelectedProperty(link.data);
             }
+            
+            // Scroll to the properties section
+            setTimeout(() => {
+                const propertiesSection = document.getElementById(SECTION_IDS.PROPERTIES);
+                if (propertiesSection) {
+                    propertiesSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
             break;
             
         case 'restaurants':
             console.log('Activating restaurants tab');
-            setActiveTab('restaurants');
             if (locationData?.restaurants?.length === 0 && zipCode) {
                 fetchLocationData(zipCode);
             }
+            
+            // Scroll to the restaurants section
+            setTimeout(() => {
+                const amenitiesSection = document.getElementById(SECTION_IDS.AMENITIES);
+                if (amenitiesSection) {
+                    amenitiesSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
             break;
             
         case 'transit':
             console.log('Activating transit tab');
-            setActiveTab('transit');
             if (locationData?.transit?.length === 0 && zipCode) {
                 fetchLocationData(zipCode);
             }
+            
+            // Scroll to the transit section
+            setTimeout(() => {
+                const transitSection = document.getElementById(SECTION_IDS.TRANSIT);
+                if (transitSection) {
+                    transitSection.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, 100);
             break;
             
         case 'propertyMarket':
@@ -212,7 +246,6 @@ const handleUILink = (link: UIComponentLink) => {
             console.warn('Unknown UI link type:', link.type);
     }
 };
-
 // Update the createLinkableContent function
 const createLinkableContent = (message: string) => {
     // Define patterns to detect UI link mentions
