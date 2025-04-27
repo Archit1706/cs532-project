@@ -54,25 +54,101 @@ const AIWorkflowTab = () => {
     }
   }, [messages]);
 
+// Extract the last user message when messages change
+useEffect(() => {
+    const userMessages = messages.filter((msg: { type: string; }) => msg.type === 'user');
+    if (userMessages.length > 0) {
+      const lastUserMessage = userMessages[userMessages.length - 1].content;
+      if (lastUserMessage !== lastQuery) {
+        setLastQuery(lastUserMessage);
+        analyzeQuery(lastUserMessage);
+      }
+    }
+  }, [messages]);
+
+  // Initialize workflow state if not already done
+  useEffect(() => {
+    if (workflowState === 'idle' && lastQuery) {
+      analyzeQuery(lastQuery);
+    }
+  }, []);
+
+
   // Analyze the query and determine the workflow
-  const analyzeQuery = async (query: string) => {
+// Analyze the query and determine the workflow
+const analyzeQuery = async (query: string) => {
     setIsLoading(true);
     try {
       // Use the debug feature extractor to get the features
       const features = await debugFeatureExtraction(query);
       setExtractedFeatures(features);
       
+      console.log("Analyzing query:", query);
+      console.log("Extracted features:", features);
+      
       // Determine the workflow based on the query type and action requested
-      if (features.queryType === 'property_search' || features.actionRequested === 'show_listings') {
-        setWorkflowState('property-search');
-        // Apply filters to properties
-        filterProperties(features);
-      } else if (features.queryType === 'market_info' || features.actionRequested === 'analyze_market') {
+      const isPropertyQuery = features.queryType === 'property_search' || 
+                             features.actionRequested === 'show_listings';
+                             
+      const isMarketQuery = features.queryType === 'market_info' || 
+                           features.actionRequested === 'analyze_market' ||
+                           query.toLowerCase().includes('market') ||
+                           query.toLowerCase().includes('trend') ||
+                           query.toLowerCase().includes('off-market') ||
+                           query.toLowerCase().includes('tax history');
+      
+      // More specific pattern matching for market-related queries
+      if (isMarketQuery || 
+          query.toLowerCase().includes('off-market') || 
+          query.toLowerCase().includes('tax') || 
+          query.toLowerCase().includes('trend')) {
+        console.log("Setting workflow to market-analysis");
         setWorkflowState('market-analysis');
         // Fetch additional market data
         fetchAdditionalMarketData(features);
+      } else if (isPropertyQuery) {
+        console.log("Setting workflow to property-search");
+        setWorkflowState('property-search');
+        
+        // Create property filters
+        let filters: PropertyFilter = {};
+    
+        // Extract bedroom filters
+        if (features.propertyFeatures.bedrooms) {
+          filters.bedrooms = features.propertyFeatures.bedrooms;
+        }
+        
+        // Extract bathroom filters
+        if (features.propertyFeatures.bathrooms) {
+          filters.bathrooms = features.propertyFeatures.bathrooms;
+        }
+        
+        // Extract price range filters
+        if (features.filters.priceRange) {
+          filters.priceRange = features.filters.priceRange;
+        } else if (features.filters.maxPrice) {
+          filters.priceRange = [0, features.filters.maxPrice];
+        } else if (features.filters.minPrice) {
+          filters.priceRange = [features.filters.minPrice, Number.MAX_SAFE_INTEGER];
+        }
+        
+        // Extract property type filters
+        if (features.propertyFeatures.propertyType) {
+          filters.propertyType = features.propertyFeatures.propertyType;
+        }
+        
+        // Extract amenity filters
+        if (features.filters.mustHave && features.filters.mustHave.length > 0) {
+          filters.amenities = features.filters.mustHave;
+        }
+        
+        setPropertyFilters(filters);
+        
+        // Apply filters to properties
+        filterProperties(features);
       } else {
         // Default to property search if we can't determine
+        console.log("Defaulting to property-search");
         setWorkflowState('property-search');
         filterProperties(features);
       }

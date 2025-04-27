@@ -1,12 +1,31 @@
 // components/Tabs/AIWorkflow/PropertySearchResults.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Property, FeatureExtraction } from 'types/chat';
-import { FaFilter, FaFilePdf, FaFileDownload, FaSearch, FaSlidersH, FaTimes, FaSort, FaSortAmountDown, FaSortAmountUp, FaExclamationTriangle } from 'react-icons/fa';
-import { FaChartLine, FaBed, FaBath, FaRulerCombined, FaHouseUser } from 'react-icons/fa';
+import { 
+  FaFilter, 
+  FaFilePdf, 
+  FaFileDownload, 
+  FaSearch, 
+  FaTimes, 
+  FaSort, 
+  FaSortAmountDown, 
+  FaSortAmountUp, 
+  FaExclamationTriangle,
+  FaChartLine, 
+  FaBed, 
+  FaBath, 
+  FaRulerCombined, 
+  FaHouseUser,
+  FaDollarSign,
+  FaArrowUp,
+  FaArrowDown,
+  FaTrash
+} from 'react-icons/fa';
 import { MdFilterAlt, MdFilterAltOff, MdOutlineFilterAlt } from 'react-icons/md';
 import { useChatContext } from 'context/ChatContext';
+import PropertyDetailModal from './PropertyDetailModal';
 
 interface PropertyFilter {
   bedrooms?: number | [number, number];
@@ -27,17 +46,106 @@ interface PropertySearchResultsProps {
 
 const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
   properties,
-  filters,
+  filters: initialFilters,
   features,
   zipCode,
   query,
   onExport
 }) => {
+  // Context and state
   const { setSelectedProperty } = useChatContext();
   const [showFilters, setShowFilters] = useState(false);
   const [sortOrder, setSortOrder] = useState<'price_asc' | 'price_desc' | null>(
     features?.sortBy as 'price_asc' | 'price_desc' | null
   );
+  const [selectedPropertyDetail, setSelectedPropertyDetail] = useState<Property | null>(null);
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
+  const [propertyFilters, setPropertyFilters] = useState<PropertyFilter>(initialFilters);
+  const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Initialize filtered properties on component mount
+  useEffect(() => {
+    if (!isInitialized && properties.length > 0) {
+      const initialFiltered = applyFilters(properties, propertyFilters, sortOrder);
+      setFilteredProperties(initialFiltered);
+      
+      // Initialize price ranges if they exist in filters
+      if (initialFilters.priceRange) {
+        setMinPrice(initialFilters.priceRange[0].toString());
+        setMaxPrice(initialFilters.priceRange[1].toString());
+      }
+      
+      setIsInitialized(true);
+    }
+  }, [properties, propertyFilters, sortOrder, isInitialized, initialFilters]);
+
+  // Memoized filter application function
+  const applyFilters = useCallback((props: Property[], filters: PropertyFilter, sort: 'price_asc' | 'price_desc' | null) => {
+    console.log("Applying filters:", filters);
+    let filtered = [...props];
+    
+    // Apply bedroom filter
+    if (filters.bedrooms) {
+      filtered = filtered.filter(property => {
+        if (Array.isArray(filters.bedrooms)) {
+          const [min, max] = filters.bedrooms;
+          return property.beds >= min && property.beds <= max;
+        } else {
+          return property.beds >= (filters.bedrooms ?? 0);
+        }
+      });
+    }
+    
+    // Apply bathroom filter
+    if (filters.bathrooms) {
+      filtered = filtered.filter(property => {
+        if (Array.isArray(filters.bathrooms)) {
+          const [min, max] = filters.bathrooms;
+          return property.baths >= min && property.baths <= max;
+        } else {
+          return property.baths >= (filters.bathrooms ?? 0);
+        }
+      });
+    }
+    
+    // Apply price range filter
+    if (filters.priceRange) {
+      filtered = filtered.filter(property => {
+        const propertyPrice = typeof property.price === 'string' 
+          ? parseInt(property.price.replace(/[^0-9]/g, ''))
+          : property.price;
+        return propertyPrice >= filters.priceRange![0] && propertyPrice <= filters.priceRange![1];
+      });
+    }
+    
+    // Apply property type filter
+    if (filters.propertyType) {
+      filtered = filtered.filter(property => 
+        property.type.toLowerCase().includes(filters.propertyType!.toLowerCase())
+      );
+    }
+    
+    // Apply sort order
+    if (sort) {
+      filtered.sort((a, b) => {
+        const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
+        const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
+        return sort === 'price_asc' ? priceA - priceB : priceB - priceA;
+      });
+    }
+    
+    return filtered;
+  }, []);
+
+  // Handle applying multiple filters at once
+  const updateFilters = useCallback((newFilters: PropertyFilter, newSortOrder: 'price_asc' | 'price_desc' | null = sortOrder) => {
+    setPropertyFilters(newFilters);
+    const filtered = applyFilters(properties, newFilters, newSortOrder);
+    setFilteredProperties(filtered);
+  }, [properties, applyFilters, sortOrder]);
 
   // Format price display
   const formatPrice = (price: number | string): string => {
@@ -87,22 +195,56 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
   // Handle sorting
   const handleSort = (order: 'price_asc' | 'price_desc') => {
     setSortOrder(order);
+    const filtered = applyFilters(properties, propertyFilters, order);
+    setFilteredProperties(filtered);
   };
 
-  // Get sorted properties
-  const getSortedProperties = () => {
-    if (!sortOrder) return properties;
+  // Handle property selection
+  const handlePropertySelect = (property: Property) => {
+    setSelectedPropertyDetail(property);
+    setShowPropertyModal(true);
     
-    return [...properties].sort((a, b) => {
-      const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
-      const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
-      
-      return sortOrder === 'price_asc' ? priceA - priceB : priceB - priceA;
-    });
+    // Also set the property in the global context (but don't switch tabs)
+    setSelectedProperty(property);
   };
 
-  const displayProperties = getSortedProperties();
-  const filterDisplay = formatFilterDisplay(filters);
+  // Handle price range filter submission
+  const handlePriceRangeSubmit = () => {
+    const min = parseInt(minPrice);
+    const max = parseInt(maxPrice);
+    
+    if (!isNaN(min) && !isNaN(max) && min <= max) {
+      const newFilters = {...propertyFilters, priceRange: [min, max]};
+      if (newFilters.priceRange && newFilters.priceRange.length === 2) {
+        updateFilters(newFilters as PropertyFilter);
+      }
+    }
+  };
+
+  // Handle filter clear
+  const handleClearFilters = () => {
+    setPropertyFilters({});
+    setMinPrice('');
+    setMaxPrice('');
+    setSortOrder(null);
+    setFilteredProperties([...properties]);
+  };
+
+  // Apply a single filter type
+  const applyFilter = (filterType: keyof PropertyFilter, value: any) => {
+    const newFilters = {...propertyFilters, [filterType]: value};
+    updateFilters(newFilters);
+  };
+
+  // Remove a single filter type
+  const removeFilter = (filterType: keyof PropertyFilter) => {
+    const newFilters = {...propertyFilters};
+    delete newFilters[filterType];
+    updateFilters(newFilters);
+  };
+
+  const displayProperties = filteredProperties.length > 0 ? filteredProperties : properties;
+  const filterDisplay = formatFilterDisplay(propertyFilters);
 
   return (
     <div className="p-6 bg-gradient-to-b from-blue-50 to-white rounded-xl shadow-sm animate-fadeIn">
@@ -153,6 +295,13 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                   {filter}
                 </span>
               ))}
+              
+              <button 
+                onClick={handleClearFilters}
+                className="px-2 py-1 bg-slate-100 text-slate-700 rounded-md text-sm hover:bg-slate-200 flex items-center"
+              >
+                <FaTrash className="mr-1 text-xs" /> Clear Filters
+              </button>
             </div>
           )}
         </div>
@@ -182,7 +331,7 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  <FaSortAmountUp className="mr-1" /> Low to High
+                  <FaArrowUp className="mr-1" /> Low to High
                 </button>
                 <button
                   onClick={() => handleSort('price_desc')}
@@ -192,7 +341,7 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                   }`}
                 >
-                  <FaSortAmountDown className="mr-1" /> High to Low
+                  <FaArrowDown className="mr-1" /> High to Low
                 </button>
               </div>
             </div>
@@ -203,9 +352,10 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                 {[1, 2, 3, 4].map(beds => (
                   <button
                     key={beds}
+                    onClick={() => applyFilter('bedrooms', beds)}
                     className={`flex-1 py-2 rounded-md text-sm font-medium ${
-                      filters.bedrooms === beds || 
-                      (Array.isArray(filters.bedrooms) && filters.bedrooms[0] <= beds && filters.bedrooms[1] >= beds)
+                      propertyFilters.bedrooms === beds || 
+                      (Array.isArray(propertyFilters.bedrooms) && propertyFilters.bedrooms[0] <= beds && propertyFilters.bedrooms[1] >= beds)
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
@@ -222,9 +372,10 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                 {[1, 1.5, 2, 3].map(baths => (
                   <button
                     key={baths}
+                    onClick={() => applyFilter('bathrooms', baths)}
                     className={`flex-1 py-2 rounded-md text-sm font-medium ${
-                      filters.bathrooms === baths || 
-                      (Array.isArray(filters.bathrooms) && filters.bathrooms[0] <= baths && filters.bathrooms[1] >= baths)
+                      propertyFilters.bathrooms === baths || 
+                      (Array.isArray(propertyFilters.bathrooms) && propertyFilters.bathrooms[0] <= baths && propertyFilters.bathrooms[1] >= baths)
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
@@ -236,15 +387,16 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Property Type</label>
               <div className="flex gap-2">
                 {['House', 'Condo', 'Townhouse', 'Apartment'].map(type => (
                   <button
                     key={type}
+                    onClick={() => applyFilter('propertyType', type)}
                     className={`flex-1 py-2 rounded-md text-sm font-medium ${
-                      filters.propertyType?.toLowerCase() === type.toLowerCase()
+                      propertyFilters.propertyType?.toLowerCase() === type.toLowerCase()
                         ? 'bg-blue-600 text-white' 
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
@@ -264,8 +416,8 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                     type="text"
                     className="w-full pl-7 pr-3 py-1.5 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Min"
-                    defaultValue={filters.priceRange ? filters.priceRange[0].toLocaleString() : ''}
-                    readOnly
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value.replace(/\D/g, ''))}
                   />
                 </div>
                 <span className="text-slate-500">to</span>
@@ -275,12 +427,65 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                     type="text"
                     className="w-full pl-7 pr-3 py-1.5 border border-slate-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Max"
-                    defaultValue={filters.priceRange ? filters.priceRange[1].toLocaleString() : ''}
-                    readOnly
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value.replace(/\D/g, ''))}
                   />
                 </div>
+                <button
+                  onClick={handlePriceRangeSubmit}
+                  className="px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Apply
+                </button>
               </div>
             </div>
+          </div>
+          
+          <div className="flex justify-between mt-3">
+            <div className="flex gap-2">
+              {propertyFilters.bedrooms && (
+                <button
+                  onClick={() => removeFilter('bedrooms')}
+                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs flex items-center"
+                >
+                  Bedrooms <FaTimes className="ml-1" />
+                </button>
+              )}
+              
+              {propertyFilters.bathrooms && (
+                <button
+                  onClick={() => removeFilter('bathrooms')}
+                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs flex items-center"
+                >
+                  Bathrooms <FaTimes className="ml-1" />
+                </button>
+              )}
+              
+              {propertyFilters.priceRange && (
+                <button
+                  onClick={() => removeFilter('priceRange')}
+                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs flex items-center"
+                >
+                  Price Range <FaTimes className="ml-1" />
+                </button>
+              )}
+              
+              {propertyFilters.propertyType && (
+                <button
+                  onClick={() => removeFilter('propertyType')}
+                  className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs flex items-center"
+                >
+                  Property Type <FaTimes className="ml-1" />
+                </button>
+              )}
+            </div>
+            
+            <button
+              onClick={handleClearFilters}
+              className="px-4 py-2 text-sm font-medium bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md flex items-center"
+            >
+              <FaTimes className="mr-1" /> Clear All Filters
+            </button>
           </div>
         </div>
       )}
@@ -316,7 +521,7 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
               {displayProperties.map((property, index) => (
                 <div
                   key={index}
-                  onClick={() => setSelectedProperty(property)}
+                  onClick={() => handlePropertySelect(property)}
                   className="bg-white rounded-lg border border-slate-200 overflow-hidden cursor-pointer transition-all hover:shadow-md hover:-translate-y-1"
                 >
                   <div className="h-48 overflow-hidden">
@@ -361,14 +566,24 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
               No properties match your search criteria. Try adjusting your filters for more results.
             </p>
             <div className="inline-flex items-center justify-center">
-              <FaChartLine className="text-blue-600 mr-2" />
-              <span className="text-blue-600">
-                Try checking market trends for this area instead
-              </span>
+              <button
+                onClick={handleClearFilters}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+              >
+                <FaTimes className="mr-2" /> Clear All Filters
+              </button>
             </div>
           </div>
         )}
       </div>
+      
+      {/* Property Detail Modal */}
+      {showPropertyModal && selectedPropertyDetail && (
+        <PropertyDetailModal 
+          property={selectedPropertyDetail}
+          onClose={() => setShowPropertyModal(false)}
+        />
+      )}
     </div>
   );
 };

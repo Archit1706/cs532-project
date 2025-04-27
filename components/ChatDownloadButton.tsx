@@ -79,7 +79,7 @@ const ChatDownloadButton: React.FC<ChatDownloadButtonProps> = ({ messages }) => 
       </button>
       
       {showDropdown && (
-        <div className="absolute bottom-full right-0 mb-2 bg-white rounded-lg shadow-lg border border-slate-200 w-48 z-50">
+        <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 w-48 z-50">
           <div className="p-2 border-b border-slate-200">
             <h3 className="text-sm font-medium text-slate-700">Export Conversation</h3>
           </div>
@@ -108,6 +108,9 @@ const ChatDownloadButton: React.FC<ChatDownloadButtonProps> = ({ messages }) => 
           </div>
         </div>
       )}
+
+
+
     </div>
   );
 };
