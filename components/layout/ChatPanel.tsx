@@ -7,6 +7,7 @@ import MessageInput from '../MessageInput';
 import QuickQuestions from '../QuickQuestions';
 import UIContextDebugger from '../UIContextDebugger';
 import { useChatContext } from 'context/ChatContext';
+import ChatDownloadButton from '../ChatDownloadButton';
 
 const ChatPanel = () => {
     const {
@@ -30,6 +31,11 @@ const ChatPanel = () => {
         <div className="w-1/2 flex flex-col h-full bg-white rounded-2xl shadow-emerald-900 shadow-xl relative">
             {/* Add the UI Context Debugger */}
             <UIContextDebugger />
+
+            <div className="flex items-center justify-between p-4 border-b border-slate-200">
+                <h2 className="text-xl font-semibold text-slate-800">RealEstateAI Assistant</h2>
+                <ChatDownloadButton messages={messages} />
+            </div>
             
             <div className="flex-1 overflow-y-auto p-6 space-y-4 rounded-2xl" id="chat-container">
                 {isPropertyChat && propertyDetails?.basic_info?.address?.full && (

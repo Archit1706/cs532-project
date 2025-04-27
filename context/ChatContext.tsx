@@ -40,7 +40,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [locationData, setLocationData] = useState<LocationData | null>(null);
     const [marketTrends, setMarketTrends] = useState<any>(null);
     const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-    const [activeTab, setActiveTab] = useState<'explore' | 'saved' | 'updates' | 'market' | 'properties' | 'restaurants' | 'transit'>('explore');
+    const [activeTab, setActiveTab] = useState<'explore' | 'saved' | 'updates' | 'market' | 'properties' | 'restaurants' | 'transit' | 'ai'>('explore');
     const [selectedLanguage, setSelectedLanguage] = useState('en');
     const [isTranslating, setIsTranslating] = useState(false);
     const [isLoadingProperties, setIsLoadingProperties] = useState(false);
@@ -602,6 +602,15 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
                          features?.actionRequested === 'analyze_market' ||
                          features?.actionRequested === 'show_restaurants' ||
                          features?.actionRequested === 'show_transit';
+
+        // If it's a property search or market analysis, activate the AI Workflow tab
+        if (features && (features.queryType === 'property_search' || features.queryType === 'market_info' || 
+            features.actionRequested === 'show_listings' || features.actionRequested === 'analyze_market')) 
+        {
+            setTimeout(() => {
+            setActiveTab('ai');
+            }, 500);
+        }
 
     // If zip code not set, any new question is likely a data request
     const needsZipCode = !zipCode && (message.toLowerCase().includes('property') || 

@@ -6,12 +6,13 @@ import { useChatContext } from 'context/ChatContext';
 import PropertyDetailCard from '../PropertyDetailCard';
 import SinglePropertyOverview from '../SinglePropertyOverview';
 import WelcomeCard from '../WelcomeCard';
-import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats } from 'react-icons/md';
+import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats, MdAutoAwesome } from 'react-icons/md';
 import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
 import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
+import AIWorkflowTab from '../Tabs/AIWorkflowTab';
 
 // Create unique IDs for each section that can be used as anchors
 const SECTION_IDS = {
@@ -166,6 +167,10 @@ const InfoPanel = () => {
                 </div>
             );
         }
+
+        if (activeTab === 'ai') {
+            return <AIWorkflowTab />;
+        }
     
         if (activeTab === 'saved') {
             return <div className="text-slate-600 space-y-6 m-6">No saved items yet.</div>;
@@ -192,6 +197,16 @@ const InfoPanel = () => {
                         </div>
                         <h1 className='text-purple-100 font-semibold'>Explore</h1>
                     </div>
+                    <div
+                        className='flex flex-col justify-center items-center cursor-pointer rounded-xl m-2 p-2'
+                        onClick={() => setActiveTab('ai')}
+                    >
+                        <div className={`rounded-full ${activeTab === 'ai' ? 'bg-purple-200 text-gray-700' : 'bg-transparent'}`}>
+                            <MdAutoAwesome className='h-6 w-6 mx-4 my-1' />
+                        </div>
+                        <h1 className='text-purple-100 font-semibold'>AI Workflow</h1>
+                    </div>
+
                     <div
                         className='flex flex-col justify-center items-center cursor-pointer rounded-xl m-2 p-2'
                         onClick={() => setActiveTab('saved')}
