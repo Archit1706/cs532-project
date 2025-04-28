@@ -529,6 +529,45 @@ def get_property_details(zpid):
             "nearbyHomes": property_data.get("nearbyHomes", []),
             "priceHistory": property_data.get("priceHistory", [])
         }
+
+        # Fetch property photos
+        url = "https://zillow56.p.rapidapi.com/photos"
+        querystring = {"zpid": zpid}
+        headers = {
+            "x-rapidapi-key": os.environ.get('ZILLOW_KEY'),
+            "x-rapidapi-host": "zillow56.p.rapidapi.com"
+        }
+        response = requests.get(url, headers=headers, params=querystring)
+
+        # Extract the first image URL (jpeg, jpg, or png) from each photo's mixedSources
+        photos = response.json().get('photos', [])
+        image_urls = []
+        for photo in photos:
+            if 'mixedSources' in photo:
+                for key in ['jpeg', 'jpg', 'png']:
+                    if key in photo['mixedSources']:
+                        image_urls.append(photo['mixedSources'][key][0]['url'])
+                        break
+
+        # Add the list of images to the property details
+        property_details["images"] = image_urls
+
+        # Rent estimate
+        url = "https://zillow56.p.rapidapi.com/rent_estimate"
+        querystring = {"address": property_details["basic_info"]["address"]["streetAddress"]}
+
+        response = requests.get(url, headers=headers, params=querystring)
+        rent_estimate = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimate"]
+        rent_estimate_range_high = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeHigh"]
+        rent_estimate_range_low = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeLow"]
+
+        property_details["rent_estimate"] = {
+            "rent_estimate": rent_estimate,
+            "rent_estimate_range_high": rent_estimate_range_high,
+            "rent_estimate_range_low": rent_estimate_range_low
+        }
+
+
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
     except Exception as e:
