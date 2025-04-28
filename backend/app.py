@@ -552,6 +552,22 @@ def get_property_details(zpid):
         # Add the list of images to the property details
         property_details["images"] = image_urls
 
+        # Rent estimate
+        url = "https://zillow56.p.rapidapi.com/rent_estimate"
+        querystring = {"address": property_details["basic_info"]["address"]["streetAddress"]}
+
+        response = requests.get(url, headers=headers, params=querystring)
+        rent_estimate = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimate"]
+        rent_estimate_range_high = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeHigh"]
+        rent_estimate_range_low = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeLow"]
+
+        property_details["rent_estimate"] = {
+            "rent_estimate": rent_estimate,
+            "rent_estimate_range_high": rent_estimate_range_high,
+            "rent_estimate_range_low": rent_estimate_range_low
+        }
+
+
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
     except Exception as e:
