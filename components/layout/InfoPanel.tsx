@@ -1,7 +1,7 @@
 // components/layout/InfoPanel.tsx
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useChatContext } from 'context/ChatContext';
 import PropertyDetailCard from '../PropertyDetailCard';
 import SinglePropertyOverview from '../SinglePropertyOverview';
@@ -36,43 +36,30 @@ const InfoPanel = () => {
       zipCode
     } = useChatContext();
 
-        // Use state to track if component is mounted (client-side only)
-        const [isMounted, setIsMounted] = useState(false);
-    
-        // For keeping workflow state between tab switches
-        const [lastAIState, setLastAIState] = useState<any>(null);
-
-            // Only execute on client side
+    const [isMounted, setIsMounted] = useState(false);
+    const prevTabRef = useRef(activeTab);
+  
+    // Run only on client
     useEffect(() => {
-        setIsMounted(true);
-        
-        // Event listener for tab changes
-        const handleTabChange = (oldTab: string, newTab: string) => {
-            console.log(`Tab changed from ${oldTab} to ${newTab}`);
-            // Save AI workflow state when leaving the AI tab
-            if (oldTab === 'ai') {
-                // Store any necessary state
-                setLastAIState({
-                    timestamp: Date.now()
-                });
-            }
-        };
-        
-        // Create an event function to monitor tab changes
-        const originalSetActiveTab = setActiveTab;
-        const wrappedSetActiveTab = (newTab: any) => {
-            const oldTab = activeTab;
-            handleTabChange(oldTab, newTab);
-            originalSetActiveTab(newTab);
-        };
-
-              // @ts-ignore - we know what we're doing
-              setActiveTab = wrappedSetActiveTab;
-
-        return () => {
-            // Cleanup logic if necessary
-        };
+      setIsMounted(true);
     }, []);
+  
+    // Watch for tab changes and handle them
+    useEffect(() => {
+      if (!isMounted) return;
+  
+      const oldTab = prevTabRef.current;
+      const newTab = activeTab;
+      console.log(`Tab changed from ${oldTab} to ${newTab}`);
+  
+      // Your tab‐leave logic
+      if (oldTab === 'ai') {
+        // e.g. save AI workflow state
+        // setLastAIState({ timestamp: Date.now() });
+      }
+  
+      prevTabRef.current = newTab;
+    }, [activeTab, isMounted /*, any handler functions*/]);
 
     const renderTabContent = () => {
         // Use state to track if component is mounted (client-side only)
