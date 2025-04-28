@@ -567,6 +567,17 @@ def get_property_details(zpid):
             "rent_estimate_range_low": rent_estimate_range_low
         }
 
+        # Walkability, transit, and bike scores
+        url = "https://zillow56.p.rapidapi.com/walk_transit_bike_score"
+        querystring = {"zpid": zpid}
+        response = requests.get(url, headers=headers, params=querystring)
+        walkability = response.json()["data"]["property"]["walkScore"]
+        transit = response.json()["data"]["property"]["transitScore"]
+        bike = response.json()["data"]["property"]["bikeScore"]
+
+        property_details["walkability"] = walkability
+        property_details["transit"] = transit
+        property_details["bike"] = bike
 
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
