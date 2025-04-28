@@ -52,6 +52,11 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [propertyContext, setPropertyContext] = useState<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Add new state variables
+const [workflowState, setWorkflowState] = useState<string | null>(null);
+const [previousWorkflows, setPreviousWorkflows] = useState<Array<{query: string, zipCode: string, timestamp: number}>>([]);
+
+
 // Update handleUILink function in ChatContext.tsx
 
 // Add to the UI context for backend
@@ -90,6 +95,39 @@ const buildUIContext = () => {
         }
     };
 };
+
+// Add new functions to manage workflow persistence
+const persistWorkflow = (query: string) => {
+    if (zipCode) {
+      // Store current workflow in history if we're changing workflows
+      if (workflowState && workflowState !== query) {
+        setPreviousWorkflows(prev => [
+          {query: workflowState, zipCode, timestamp: Date.now()},
+          ...prev.slice(0, 4) // Keep last 5 workflows
+        ]);
+      }
+      setWorkflowState(query);
+    }
+  };
+  
+  const restorePreviousWorkflow = (index: number) => {
+    if (previousWorkflows[index]) {
+      const { query, zipCode: prevZipCode } = previousWorkflows[index];
+      
+      // Only change zip code if different
+      if (prevZipCode !== zipCode) {
+        setZipCode(prevZipCode);
+      }
+      
+      // Set the workflow state and update the UI
+      setWorkflowState(query);
+      setPreviousWorkflows(prev => prev.filter((_, i) => i !== index));
+      setActiveTab('ai'); // Ensure we're on the AI tab
+      
+      return true;
+    }
+    return false;
+  };
 
 // Update the handleUILink function to handle section links
 // Updated handleUILink function for ChatContext.tsx
@@ -657,6 +695,17 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
         }, 50);
     }
 
+    // Add this after the feature extraction
+if (features && (features.queryType === 'property_search' || features.queryType === 'market_info' || 
+    features.actionRequested === 'show_listings' || features.actionRequested === 'analyze_market')) 
+{
+    setTimeout(() => {
+        setActiveTab('ai');
+        // Persist this workflow
+        persistWorkflow(message);
+    }, 500);
+}
+
     try {
         // Create a detailed UI context object
         const uiContext = {
@@ -853,6 +902,11 @@ const handleSendMessage = async (message: string, clearInput: (msg: string) => v
                 generateFollowUpQuestions,
                 debugFeatureExtraction, // Expose for debugging
                 propertyContext, setPropertyContext,
+                workflowState,
+                setWorkflowState,
+                previousWorkflows,
+                persistWorkflow,
+                restorePreviousWorkflow
             }}
         >
             {children}

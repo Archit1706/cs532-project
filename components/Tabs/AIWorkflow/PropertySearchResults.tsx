@@ -83,63 +83,67 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
   }, [properties, propertyFilters, sortOrder, isInitialized, initialFilters]);
 
   // Memoized filter application function
-  const applyFilters = useCallback((props: Property[], filters: PropertyFilter, sort: 'price_asc' | 'price_desc' | null) => {
+// In components/Tabs/AIWorkflow/PropertySearchResults.tsx
+// Modify the applyFilters function to better handle price filtering
+
+const applyFilters = useCallback((props: Property[], filters: PropertyFilter, sort: 'price_asc' | 'price_desc' | null) => {
     console.log("Applying filters:", filters);
     let filtered = [...props];
     
     // Apply bedroom filter
     if (filters.bedrooms) {
-      filtered = filtered.filter(property => {
-        if (Array.isArray(filters.bedrooms)) {
-          const [min, max] = filters.bedrooms;
-          return property.beds >= min && property.beds <= max;
-        } else {
-          return property.beds >= (filters.bedrooms ?? 0);
-        }
-      });
+        filtered = filtered.filter(property => {
+            if (Array.isArray(filters.bedrooms)) {
+                const [min, max] = filters.bedrooms;
+                return property.beds >= min && property.beds <= max;
+            } else {
+                return property.beds >= (filters.bedrooms ?? 0);
+            }
+        });
     }
     
     // Apply bathroom filter
     if (filters.bathrooms) {
-      filtered = filtered.filter(property => {
-        if (Array.isArray(filters.bathrooms)) {
-          const [min, max] = filters.bathrooms;
-          return property.baths >= min && property.baths <= max;
-        } else {
-          return property.baths >= (filters.bathrooms ?? 0);
-        }
-      });
+        filtered = filtered.filter(property => {
+            if (Array.isArray(filters.bathrooms)) {
+                const [min, max] = filters.bathrooms;
+                return property.baths >= min && property.baths <= max;
+            } else {
+                return property.baths >= (filters.bathrooms ?? 0);
+            }
+        });
     }
     
-    // Apply price range filter
+    // Apply price range filter - improve handling of string price values
     if (filters.priceRange) {
-      filtered = filtered.filter(property => {
-        const propertyPrice = typeof property.price === 'string' 
-          ? parseInt(property.price.replace(/[^0-9]/g, ''))
-          : property.price;
-        return propertyPrice >= filters.priceRange![0] && propertyPrice <= filters.priceRange![1];
-      });
+        filtered = filtered.filter(property => {
+            // Handle string price values like "$450,000" or numeric values
+            const propertyPrice = typeof property.price === 'string' 
+                ? parseInt(property.price.replace(/[^0-9]/g, ''))
+                : property.price;
+                
+            return propertyPrice >= filters.priceRange![0] && propertyPrice <= filters.priceRange![1];
+        });
     }
     
     // Apply property type filter
     if (filters.propertyType) {
-      filtered = filtered.filter(property => 
-        property.type.toLowerCase().includes(filters.propertyType!.toLowerCase())
-      );
+        filtered = filtered.filter(property => 
+            property.type.toLowerCase().includes(filters.propertyType!.toLowerCase())
+        );
     }
     
     // Apply sort order
     if (sort) {
-      filtered.sort((a, b) => {
-        const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
-        const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
-        return sort === 'price_asc' ? priceA - priceB : priceB - priceA;
-      });
+        filtered.sort((a, b) => {
+            const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
+            const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
+            return sort === 'price_asc' ? priceA - priceB : priceB - priceA;
+        });
     }
     
     return filtered;
-  }, []);
-
+}, []);
   // Handle applying multiple filters at once
   const updateFilters = useCallback((newFilters: PropertyFilter, newSortOrder: 'price_asc' | 'price_desc' | null = sortOrder) => {
     setPropertyFilters(newFilters);
@@ -245,6 +249,11 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
 
   const displayProperties = filteredProperties.length > 0 ? filteredProperties : properties;
   const filterDisplay = formatFilterDisplay(propertyFilters);
+
+
+  // Separate properties into filtered and non-filtered
+const eligibleProperties = filteredProperties.length > 0 ? filteredProperties : properties;
+const nonEligibleProperties = properties.filter(p => !eligibleProperties.includes(p));
 
   return (
     <div className="p-6 bg-gradient-to-b from-blue-50 to-white rounded-xl shadow-sm animate-fadeIn">
@@ -494,10 +503,11 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
       <div className="space-y-4">
         {displayProperties.length > 0 ? (
           <>
-            <div className="bg-white p-3 border-b border-slate-200 rounded-t-lg shadow-sm flex justify-between items-center">
-              <span className="font-medium text-slate-700">
-                Found {displayProperties.length} properties matching your criteria
-              </span>
+    {/* Eligible Properties */}
+    <div className="bg-white p-3 border-b border-slate-200 rounded-t-lg shadow-sm flex justify-between items-center">
+      <span className="font-medium text-slate-700">
+        Found {eligibleProperties.length} properties matching your criteria
+      </span>
               <div className="flex items-center text-sm text-slate-500">
                 <FaSort className="mr-1" />
                 Sort: 
@@ -518,11 +528,11 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
             </div>
           
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {displayProperties.map((property, index) => (
+      {eligibleProperties.map((property, index) => (
                 <div
-                  key={index}
-                  onClick={() => handlePropertySelect(property)}
-                  className="bg-white rounded-lg border border-slate-200 overflow-hidden cursor-pointer transition-all hover:shadow-md hover:-translate-y-1"
+                key={`eligible-${index}`}
+                onClick={() => handlePropertySelect(property)}
+                className="bg-white rounded-lg border border-slate-200 overflow-hidden cursor-pointer transition-all hover:shadow-md hover:-translate-y-1"
                 >
                   <div className="h-48 overflow-hidden">
                     <img
@@ -554,9 +564,15 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
                       </span>
                     </div>
                   </div>
+
+
+                  
                 </div>
               ))}
             </div>
+
+
+            
           </>
         ) : (
           <div className="bg-white p-6 border border-slate-200 rounded-lg shadow-sm text-center">

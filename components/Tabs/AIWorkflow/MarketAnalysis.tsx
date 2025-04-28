@@ -1,7 +1,7 @@
 // components/Tabs/AIWorkflow/MarketAnalysis.tsx
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Property, FeatureExtraction } from 'types/chat';
 import { 
   FaFileDownload, 
@@ -49,6 +49,68 @@ interface MarketAnalysisProps {
   onExport: (format: 'json' | 'pdf') => void;
 }
 
+// Formatters
+const formatDollar = (amt: number | null | undefined) =>
+  amt == null ? 'N/A' : `$${amt.toLocaleString()}`;
+
+// Add this function at the top
+const getMarketAnalysisFromLLM = async (
+    zipCode: string,
+    cityName: string,
+    marketData: any,
+    query: string
+  ) => {
+    try {
+      // Prepare context for the LLM
+      const contextData = {
+        zipCode,
+        cityName,
+        marketTemperature: marketData?.trends?.market_status?.temperature || 'N/A',
+        medianPrice: marketData?.trends?.price_distribution?.median_price || 'N/A',
+        yearlyChange: marketData?.trends?.summary_metrics?.yearly_change_percent || 'N/A',
+        nearbyAreas: marketData?.trends?.nearby_areas?.map((area: any) => 
+          `${area.name}: ${formatDollar(area.median_rent)} (${area.difference_percent.toFixed(1)}%)`
+        ).join(', ') || 'N/A',
+        quarterlyTrends: marketData?.trends?.historical_trends?.quarterly_averages
+      };
+      
+      // Create prompt for the LLM
+      const prompt = `
+        You are a real estate market analyst. Analyze this market data and answer the following query:
+        "${query}"
+        
+        Market data context:
+        - ZIP code: ${contextData.zipCode}
+        - City: ${contextData.cityName}
+        - Market temperature: ${contextData.marketTemperature}
+        - Median price: ${contextData.medianPrice}
+        - Year-over-year change: ${contextData.yearlyChange}%
+        - Nearby areas comparison: ${contextData.nearbyAreas}
+        
+        Provide a concise, data-supported analysis addressing the query directly.
+      `;
+      
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: prompt,
+          is_system_query: true
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return data.response;
+      }
+      
+      return "Unable to generate market analysis at this time.";
+    } catch (error) {
+      console.error('Error getting market analysis:', error);
+      return "Error generating market analysis.";
+    }
+  };
+
 const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   marketTrends,
   taxHistory,
@@ -61,23 +123,36 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'tax-history' | 'off-market'>('overview');
   
-  // Format dollar amounts
-  const formatDollar = (amount: number | undefined | null) => {
-    if (amount === undefined || amount === null) return 'N/A';
-    return `$${amount.toLocaleString()}`;
-  };
 
-  // Format percentage
-  const formatPercent = (value: number | undefined | null) => {
-    if (value === undefined || value === null) return 'N/A';
-    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
-  };
-
-  // Get color based on value (green for positive, red for negative)
-  const getChangeColor = (value: number | undefined | null) => {
-    if (value === undefined || value === null) return '#6B7280'; // Gray
-    return value >= 0 ? '#10B981' : '#EF4444'; // Green : Red
-  };
+    // --- LLM Analysis Section state ---
+    const [marketAnalysis, setMarketAnalysis] = useState<string | null>(null);
+    const [analysisQuery, setAnalysisQuery] = useState<string>(query);
+  
+    // Fetch LLM analysis when trends update
+    useEffect(() => {
+      if (marketTrends?.trends) {
+        const cityName = marketTrends.location?.split(',')[0] || 'this area';
+        getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, analysisQuery)
+          .then(setMarketAnalysis);
+      }
+    }, [marketTrends, zipCode, analysisQuery]);
+  
+    // Formatters
+    const formatDollar = (amt: number | null | undefined) =>
+      amt == null ? 'N/A' : `$${amt.toLocaleString()}`;
+    const formatPercent = (val: number | null | undefined) =>
+      val == null ? 'N/A' : `${val > 0 ? '+' : ''}${val.toFixed(1)}%`;
+    const getChangeColor = (val: number | null | undefined) =>
+      val == null ? '#6B7280' : val >= 0 ? '#10B981' : '#EF4444';
+    const getTempColor = (temp: string) => {
+      if (!temp) return '#6B7280';
+      const t = temp.toLowerCase();
+      if (t.includes('hot')) return '#EF4444';
+      if (t.includes('warm')) return '#F97316';
+      if (t.includes('cool')) return '#3B82F6';
+      if (t.includes('cold')) return '#06B6D4';
+      return '#6B7280';
+    };
 
   // Get temperature color for market status
   const getTemperatureColor = (temperature: string) => {
@@ -199,6 +274,42 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     }));
   };
 
+
+  // --- Render LLM section ---
+  const renderMarketAnalysisSection = () => (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow mb-6">
+      <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Market Analysis</h3>
+      <div className="mb-4">
+        <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="text-blue-800 prose" dangerouslySetInnerHTML={{ __html: marketAnalysis || 'Loading analysis...' }} />
+        </div>
+      </div>
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+          Ask a market analysis question:
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={analysisQuery}
+            onChange={e => setAnalysisQuery(e.target.value)}
+            className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
+            placeholder="Is this a good time to buy?"
+          />
+          <button
+            onClick={() => {
+              const cityName = marketTrends.location?.split(',')[0] || 'this area';
+              getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, analysisQuery)
+                .then(setMarketAnalysis);
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >Analyze</button>
+        </div>
+      </div>
+    </div>
+  );
+
+
   // Render loading state if data is not available
   if (!marketTrends) {
     return (
@@ -222,10 +333,15 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444'];
 
   return (
+    
     <div className="p-6 bg-gradient-to-b from-emerald-50 to-white rounded-xl shadow-sm animate-fadeIn">
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center">
+
+      {/* New LLM market analysis section */}
+      {marketAnalysis && renderMarketAnalysisSection()}
+
+      {/* Header & Export */}
+      <div className="mb-6 flex justify-between items-center">
+        <div className="flex items-center">
             <FaChartLine className="text-emerald-600 mr-3 text-xl" />
             <h2 className="text-xl font-semibold text-slate-800">Market Analysis</h2>
           </div>
@@ -247,21 +363,17 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           </div>
         </div>
         
-        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
-          <p className="text-slate-700 mb-1">
-            <span className="font-semibold">Query:</span> "{query}"
+      {/* Location & Selected Property info */}
+      <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm mb-6">
+        <p className="text-slate-700 mb-1"><span className="font-semibold">Query:</span> \"{query}\"</p>
+        <p className="flex items-center text-slate-700 mb-1">
+          <FaMapMarkerAlt className="mr-1 text-emerald-600" /> {marketTrends.location || zipCode}
+        </p>
+        {selectedProperty && (
+          <p className="flex items-center text-slate-700">
+            <FaHome className="mr-1 text-emerald-600" /> {selectedProperty.address}
           </p>
-          <p className="text-slate-700 mb-1 flex items-center">
-            <FaMapMarkerAlt className="mr-1 text-emerald-600" />
-            <span className="font-semibold">Location:</span> {marketTrends.location || zipCode}
-          </p>
-          {selectedProperty && (
-            <p className="text-slate-700 flex items-center">
-              <FaHome className="mr-1 text-emerald-600" />
-              <span className="font-semibold">Selected Property:</span> {selectedProperty.address}
-            </p>
-          )}
-        </div>
+        )}
       </div>
 
       {/* Tab navigation */}
@@ -687,3 +799,5 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 };
 
 export default MarketAnalysis;
+
+

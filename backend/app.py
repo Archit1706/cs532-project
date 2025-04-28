@@ -1,3 +1,4 @@
+import math
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -1286,6 +1287,44 @@ async def chat(data: ChatRequest):
             "response": "I'm sorry, something went wrong. Please try again later."
         })
 
+
+@app.post("/api/nearby_zips")
+async def nearby_zips(data: LocationRequest):
+    try:
+        zip_code = data.zipCode
+        if not zip_code:
+            return JSONResponse(status_code=400, content={"error": "Missing zip code"})
+            
+        # Get coordinates for the zip code
+        coords = get_lat_long(zip_code)
+        if not coords:
+            return JSONResponse(status_code=400, content={"error": "Could not find coordinates for zip code"})
+            
+        # Use Google Maps API to find nearby postal codes
+        nearby_zips = []
+        lat, lng = coords
+        
+        # Use geocoding to find nearby zip codes (simplified)
+        for i in range(1, 6):  # Find 5 nearby zip codes
+            # Calculate points in different directions
+            offset_lat = lat + (0.02 * math.cos(i * math.pi / 2.5))
+            offset_lng = lng + (0.02 * math.sin(i * math.pi / 2.5))
+            
+            geolocator = Nominatim(user_agent="geo_locator")
+            result = geolocator.reverse((offset_lat, offset_lng))
+            if result:
+                for address in result:
+                    if 'postal_code' in address.raw:
+                        nearby_zips.append(address.raw['postal_code'])
+                        break
+        
+        # Remove duplicates and the original zip
+        nearby_zips = list(set([z for z in nearby_zips if z != zip_code]))[:5]
+        
+        return JSONResponse(content={"nearby_zips": nearby_zips})
+    except Exception as e:
+        logger.error(f"Error finding nearby zip codes: {str(e)}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 @app.get("/api/health")
 async def health_check():

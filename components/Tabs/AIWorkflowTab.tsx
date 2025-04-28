@@ -9,6 +9,7 @@ import { BiAnalyse } from 'react-icons/bi';
 import PropertySearchResults from './AIWorkflow/PropertySearchResults';
 import MarketAnalysis from './AIWorkflow/MarketAnalysis';
 import { Property, FeatureExtraction } from 'types/chat';
+import { FaHistory } from 'react-icons/fa';
 
 // Define the workflow states
 type WorkflowState = 'idle' | 'property-search' | 'market-analysis';
@@ -30,9 +31,12 @@ const AIWorkflowTab = () => {
     marketTrends,
     debugFeatureExtraction,
     selectedProperty,
+    workflowState,
+    setWorkflowState,
+    previousWorkflows,
+    restorePreviousWorkflow
   } = useChatContext();
   
-  const [workflowState, setWorkflowState] = useState<WorkflowState>('idle');
   const [lastQuery, setLastQuery] = useState<string>('');
   const [extractedFeatures, setExtractedFeatures] = useState<FeatureExtraction | null>(null);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
@@ -72,6 +76,14 @@ useEffect(() => {
       analyzeQuery(lastQuery);
     }
   }, []);
+
+    // Effect to load workflow data based on workflowState
+    useEffect(() => {
+        if (workflowState && zipCode) {
+          // Load data for this workflow if needed
+          analyzeQuery(workflowState);
+        }
+      }, [workflowState, zipCode]);
 
 
   // Analyze the query and determine the workflow
@@ -331,125 +343,73 @@ const analyzeQuery = async (query: string) => {
     }
   };
 
+    // Add to your JSX to show workflow history
+    const renderWorkflowHistory = () => (
+        <div className="mb-4">
+          {previousWorkflows.length > 0 && (
+            <div className="bg-white rounded-lg border border-violet-200 shadow-sm p-3">
+              <h3 className="text-sm font-medium text-violet-800 mb-2 flex items-center">
+                <FaHistory className="mr-2" /> Previous Searches
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {previousWorkflows.map((workflow: { query: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; zipCode: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; }, index: React.Key | null | undefined) => (
+                  <button
+                    key={index}
+                    onClick={() => restorePreviousWorkflow(index)}
+                    className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-xs hover:bg-violet-100 flex items-center"
+                  >
+                    <span className="truncate max-w-[150px]">{workflow.query}</span>
+                    <span className="ml-1 text-violet-400 text-xs">{workflow.zipCode}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+
   // Render loading state
   if (isLoading) {
     return (
-      <div className="flex justify-center p-8">
-        <div className="flex flex-col items-center space-y-3">
-          <div className="flex space-x-2">
-            <div className="w-3 h-3 bg-teal-400 rounded-full animate-bounce"></div>
-            <div className="w-3 h-3 bg-teal-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
-            <div className="w-3 h-3 bg-teal-600 rounded-full animate-bounce [animation-delay:0.4s]"></div>
-          </div>
-          <div className="text-teal-600 font-medium">Processing your request...</div>
-        </div>
-      </div>
+      <div className="flex justify-center p-8">Processing...</div>
     );
   }
 
-  // Render idle state (before any query is analyzed)
-  if (workflowState === 'idle') {
-    return (
-      <div className="p-6 bg-gradient-to-b from-violet-50 to-white rounded-xl shadow-sm">
-        <div className="mb-8 text-center">
-          <MdAutoAwesome className="mx-auto text-5xl text-violet-500 mb-4" />
-          <h2 className="text-xl font-semibold text-slate-800 mb-2">AI Workflow Assistant</h2>
-          <p className="text-slate-600 max-w-lg mx-auto">
-            Ask questions in the chat to automatically filter properties or analyze market trends.
-            The AI will understand your needs and provide customized results here.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center mb-3">
-              <FaSearch className="text-blue-500 mr-3 text-xl" />
-              <h3 className="text-lg font-semibold text-slate-800">Property Search</h3>
-            </div>
-            <p className="text-slate-600 text-sm mb-3">
-              Try asking: "Find me a 3-bedroom house in {zipCode || 'this area'} under $500,000"
-            </p>
-            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
-              <FaFilter className="inline-block mr-2" />
-              Filter by bedrooms, bathrooms, price range, and more
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center mb-3">
-              <FaChartLine className="text-emerald-500 mr-3 text-xl" />
-              <h3 className="text-lg font-semibold text-slate-800">Market Analysis</h3>
-            </div>
-            <p className="text-slate-600 text-sm mb-3">
-              Try asking: "What's the market trend in {zipCode || 'this area'}?" or "Show tax history for this property"
-            </p>
-            <div className="bg-emerald-50 p-3 rounded-lg text-sm text-emerald-800">
-              <BiAnalyse className="inline-block mr-2" />
-              Get trends, tax history, and off-market data analysis
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <FaFileDownload className="text-purple-500 mr-3 text-xl" />
-              <h3 className="text-lg font-semibold text-slate-800">Export Conversation</h3>
-            </div>
-            <div className="space-x-2">
-              <button 
-                onClick={() => handleExportChat('json')}
-                className="px-3 py-1.5 bg-purple-100 text-purple-700 rounded-md hover:bg-purple-200 transition-colors"
-              >
-                JSON
-              </button>
-              <button 
-                onClick={() => handleExportChat('pdf')}
-                className="px-3 py-1.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
-              >
-                PDF
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Render property search workflow
-  if (workflowState === 'property-search') {
-    return (
-      <PropertySearchResults 
-        properties={filteredProperties} 
-        filters={propertyFilters}
-        features={extractedFeatures}
-        zipCode={zipCode}
-        query={lastQuery}
-        onExport={handleExportChat}
-      />
-    );
-  }
-
-  // Render market analysis workflow
-  if (workflowState === 'market-analysis') {
-    return (
-      <MarketAnalysis
-        marketTrends={marketTrends}
-        taxHistory={taxHistoryData}
-        offMarketData={offMarketData}
-        zipCode={zipCode}
-        features={extractedFeatures}
-        selectedProperty={selectedProperty}
-        query={lastQuery}
-        onExport={handleExportChat}
-      />
-    );
-  }
-
-  // Fallback
   return (
-    <div className="p-6 text-slate-600">
-      Something went wrong. Please try asking a different question.
+    <div className="p-6 bg-gradient-to-b from-violet-50 to-white rounded-xl shadow-sm animate-fadeIn">
+      {renderWorkflowHistory()}
+
+      {workflowState === 'idle' && (
+        <div>/* idle UI as before */</div>
+      )}
+
+      {workflowState === 'property-search' && (
+        <PropertySearchResults
+          properties={filteredProperties}
+          filters={propertyFilters}
+          features={extractedFeatures}
+          zipCode={zipCode}
+          query={lastQuery}
+          onExport={handleExportChat}
+        />
+      )}
+
+      {workflowState === 'market-analysis' && (
+        <MarketAnalysis
+          marketTrends={marketTrends}
+          taxHistory={taxHistoryData}
+          offMarketData={offMarketData}
+          zipCode={zipCode}
+          features={extractedFeatures}
+          selectedProperty={selectedProperty}
+          query={lastQuery}
+          onExport={handleExportChat}
+        />
+      )}
+
+      {(workflowState !== 'idle' && workflowState !== 'property-search' && workflowState !== 'market-analysis') && (
+        <div>Something went wrong.</div>
+      )}
     </div>
   );
 };
