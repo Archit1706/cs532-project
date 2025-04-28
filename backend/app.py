@@ -553,31 +553,47 @@ def get_property_details(zpid):
         property_details["images"] = image_urls
 
         # Rent estimate
-        url = "https://zillow56.p.rapidapi.com/rent_estimate"
-        querystring = {"address": property_details["basic_info"]["address"]["streetAddress"]}
+        try:
+            url = "https://zillow56.p.rapidapi.com/rent_estimate"
+            querystring = {"address": property_details["basic_info"]["address"]["streetAddress"]}
 
-        response = requests.get(url, headers=headers, params=querystring)
-        rent_estimate = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimate"]
-        rent_estimate_range_high = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeHigh"]
-        rent_estimate_range_low = response.json()["data"]["floorplans"][0]["zestimate"]["rentZestimateRangeLow"]
+            response = requests.get(url, headers=headers, params=querystring)
+            rent_data = response.json().get("data", {}).get("floorplans", [{}])[0].get("zestimate", {})
+            rent_estimate = rent_data.get("rentZestimate")
+            rent_estimate_range_high = rent_data.get("rentZestimateRangeHigh")
+            rent_estimate_range_low = rent_data.get("rentZestimateRangeLow")
 
-        property_details["rent_estimate"] = {
+            property_details["rent_estimate"] = {
             "rent_estimate": rent_estimate,
             "rent_estimate_range_high": rent_estimate_range_high,
             "rent_estimate_range_low": rent_estimate_range_low
-        }
+            }
+        except Exception as e:
+            logger.warning(f"Failed to fetch rent estimate: {str(e)}")
+            property_details["rent_estimate"] = {
+            "rent_estimate": None,
+            "rent_estimate_range_high": None,
+            "rent_estimate_range_low": None
+            }
 
         # Walkability, transit, and bike scores
-        url = "https://zillow56.p.rapidapi.com/walk_transit_bike_score"
-        querystring = {"zpid": zpid}
-        response = requests.get(url, headers=headers, params=querystring)
-        walkability = response.json()["data"]["property"]["walkScore"]
-        transit = response.json()["data"]["property"]["transitScore"]
-        bike = response.json()["data"]["property"]["bikeScore"]
+        try:
+            url = "https://zillow56.p.rapidapi.com/walk_transit_bike_score"
+            querystring = {"zpid": zpid}
+            response = requests.get(url, headers=headers, params=querystring)
+            scores_data = response.json().get("data", {}).get("property", {})
+            walkability = scores_data.get("walkScore")
+            transit = scores_data.get("transitScore")
+            bike = scores_data.get("bikeScore")
 
-        property_details["walkability"] = walkability
-        property_details["transit"] = transit
-        property_details["bike"] = bike
+            property_details["walkability"] = walkability
+            property_details["transit"] = transit
+            property_details["bike"] = bike
+        except Exception as e:
+            logger.warning(f"Failed to fetch walkability, transit, and bike scores: {str(e)}")
+            property_details["walkability"] = None
+            property_details["transit"] = None
+            property_details["bike"] = None
 
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
