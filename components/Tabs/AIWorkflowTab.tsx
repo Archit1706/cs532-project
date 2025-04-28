@@ -1,15 +1,14 @@
 // components/Tabs/AIWorkflowTab.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useChatContext } from 'context/ChatContext';
-import { MdAutoAwesome, MdSearch, MdFilterAlt, MdAnalytics, MdDownload } from 'react-icons/md';
-import { FaChartLine, FaFileDownload, FaFilter, FaPrint, FaRegLightbulb, FaSearch } from 'react-icons/fa';
+import { MdAutoAwesome, MdSearch, MdFilterAlt, MdAnalytics, MdDownload, MdHistory } from 'react-icons/md';
+import { FaChartLine, FaFileDownload, FaFilter, FaPrint, FaRegLightbulb, FaSearch, FaHistory, FaArrowLeft } from 'react-icons/fa';
 import { BiAnalyse } from 'react-icons/bi';
 import PropertySearchResults from './AIWorkflow/PropertySearchResults';
 import MarketAnalysis from './AIWorkflow/MarketAnalysis';
 import { Property, FeatureExtraction } from 'types/chat';
-import { FaHistory } from 'react-icons/fa';
 
 // Define the workflow states
 type WorkflowState = 'idle' | 'property-search' | 'market-analysis';
@@ -23,6 +22,15 @@ interface PropertyFilter {
   amenities?: string[];
 }
 
+// Previous workflows for history
+interface WorkflowHistory {
+  query: string;
+  zipCode: string;
+  timestamp: number;
+  type: WorkflowState;
+  features?: FeatureExtraction | null;
+}
+
 const AIWorkflowTab = () => {
   const {
     messages,
@@ -31,12 +39,10 @@ const AIWorkflowTab = () => {
     marketTrends,
     debugFeatureExtraction,
     selectedProperty,
-    workflowState,
-    setWorkflowState,
-    previousWorkflows,
-    restorePreviousWorkflow
+    activeTab
   } = useChatContext();
   
+  const [workflowState, setWorkflowState] = useState<WorkflowState>('idle');
   const [lastQuery, setLastQuery] = useState<string>('');
   const [extractedFeatures, setExtractedFeatures] = useState<FeatureExtraction | null>(null);
   const [filteredProperties, setFilteredProperties] = useState<Property[]>([]);
@@ -45,47 +51,83 @@ const AIWorkflowTab = () => {
   const [additionalMarketData, setAdditionalMarketData] = useState<any>(null);
   const [taxHistoryData, setTaxHistoryData] = useState<any>(null);
   const [offMarketData, setOffMarketData] = useState<any>(null);
+  
+  // Workflow history state
+  const [previousWorkflows, setPreviousWorkflows] = useState<WorkflowHistory[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  
+  // Maintain a reference to the current state for comparison
+  const prevQueryRef = useRef<string>('');
+  const prevZipCodeRef = useRef<string>('');
+  const workflowMounted = useRef<boolean>(false);
 
   // Extract the last user message when messages change
   useEffect(() => {
+    if (!workflowMounted.current) {
+      workflowMounted.current = true;
+      return;
+    }
+    
     const userMessages = messages.filter((msg: { type: string; }) => msg.type === 'user');
     if (userMessages.length > 0) {
-      const lastUserMessage = userMessages[userMessages.length - 1].content;
-      if (lastUserMessage !== lastQuery) {
-        setLastQuery(lastUserMessage);
-        analyzeQuery(lastUserMessage);
+      const lastMsg = userMessages[userMessages.length - 1].content;
+      if (lastMsg !== lastQuery) {
+        setLastQuery(lastMsg);
+        analyzeQuery(lastMsg);
       }
     }
   }, [messages]);
 
-// Extract the last user message when messages change
-useEffect(() => {
-    const userMessages = messages.filter((msg: { type: string; }) => msg.type === 'user');
-    if (userMessages.length > 0) {
-      const lastUserMessage = userMessages[userMessages.length - 1].content;
-      if (lastUserMessage !== lastQuery) {
-        setLastQuery(lastUserMessage);
-        analyzeQuery(lastUserMessage);
-      }
-    }
-  }, [messages]);
-
-  // Initialize workflow state if not already done
+  // Initialize workflow state if idle
   useEffect(() => {
     if (workflowState === 'idle' && lastQuery) {
       analyzeQuery(lastQuery);
     }
   }, []);
 
-    // Effect to load workflow data based on workflowState
-    useEffect(() => {
-        if (workflowState && zipCode) {
-          // Load data for this workflow if needed
-          analyzeQuery(workflowState);
-        }
-      }, [workflowState, zipCode]);
+  // Store previous workflow when zipCode changes
+  useEffect(() => {
+    if (prevZipCodeRef.current && zipCode && prevZipCodeRef.current !== zipCode) {
+      if (prevQueryRef.current) {
+        const newHist: WorkflowHistory = {
+          query: prevQueryRef.current,
+          zipCode: prevZipCodeRef.current,
+          timestamp: Date.now(),
+          type: workflowState,
+          features: extractedFeatures
+        };
+        setPreviousWorkflows(prev => {
+          if (prev[0]?.query === newHist.query && prev[0]?.zipCode === newHist.zipCode) return prev;
+          return [newHist, ...prev.slice(0,4)];
+        });
+      }
+    }
+    prevQueryRef.current = lastQuery;
+    prevZipCodeRef.current = zipCode;
+  }, [lastQuery, zipCode, workflowState]);
 
-
+  // Restore a previous workflow
+  const restorePreviousWorkflow = (index: number) => {
+    const hist = previousWorkflows[index];
+    if (!hist) return;
+    setLastQuery(hist.query);
+    setWorkflowState(hist.type);
+    if (hist.features) {
+      setExtractedFeatures(hist.features);
+      // reconstruct filters
+      const f: PropertyFilter = {};
+      if (hist.features.propertyFeatures.bedrooms) f.bedrooms = hist.features.propertyFeatures.bedrooms;
+      if (hist.features.propertyFeatures.bathrooms) f.bathrooms = hist.features.propertyFeatures.bathrooms;
+      if (hist.features.filters.priceRange) f.priceRange = hist.features.filters.priceRange;
+      if (hist.features.propertyFeatures.propertyType) f.propertyType = hist.features.propertyFeatures.propertyType as string;
+      setPropertyFilters(f);
+      // re-run workflow logic
+      if (hist.type === 'property-search') filterProperties(hist.features);
+      else if (hist.type === 'market-analysis') fetchAdditionalMarketData(hist.features);
+    } else {
+      analyzeQuery(hist.query);
+    }
+  };
   // Analyze the query and determine the workflow
 // Analyze the query and determine the workflow
 const analyzeQuery = async (query: string) => {
@@ -352,10 +394,10 @@ const analyzeQuery = async (query: string) => {
                 <FaHistory className="mr-2" /> Previous Searches
               </h3>
               <div className="flex flex-wrap gap-2">
-                {previousWorkflows.map((workflow: { query: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; zipCode: string | number | bigint | boolean | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | React.ReactPortal | Promise<string | number | bigint | boolean | React.ReactPortal | React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | Iterable<React.ReactNode> | null | undefined> | null | undefined; }, index: React.Key | null | undefined) => (
+                {previousWorkflows.map((workflow, index) => (
                   <button
                     key={index}
-                    onClick={() => restorePreviousWorkflow(index)}
+                    onClick={() => restorePreviousWorkflow(Number(index))}
                     className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-xs hover:bg-violet-100 flex items-center"
                   >
                     <span className="truncate max-w-[150px]">{workflow.query}</span>
@@ -368,21 +410,41 @@ const analyzeQuery = async (query: string) => {
         </div>
       );
 
-  // Render loading state
-  if (isLoading) {
-    return (
-      <div className="flex justify-center p-8">Processing...</div>
-    );
-  }
+   // Render
+   if (isLoading) return (
+    <div className="flex justify-center p-8">Processing...</div>
+  );
 
   return (
-    <div className="p-6 bg-gradient-to-b from-violet-50 to-white rounded-xl shadow-sm animate-fadeIn">
-      {renderWorkflowHistory()}
-
-      {workflowState === 'idle' && (
-        <div>/* idle UI as before */</div>
+    <div className="p-6 bg-gradient-to-b from-violet-50 to-white rounded-xl shadow-sm">
+      {/* History Toggle */}
+      <button
+        className="mb-4 flex items-center text-sm text-violet-700"
+        onClick={() => setShowHistory(s => !s)}
+      >
+        {showHistory ? <FaArrowLeft className="mr-2"/> : <FaHistory className="mr-2"/>}
+        {showHistory ? 'Back' : 'Previous Searches'}
+      </button>
+      {showHistory && (
+        <div className="bg-white rounded-lg border p-3 shadow-sm mb-6">
+          {previousWorkflows.map((h, i) => (
+            <button
+              key={i}
+              onClick={() => restorePreviousWorkflow(i)}
+              className="block w-full text-left px-3 py-2 hover:bg-violet-50"
+            >
+              <span className="font-medium">{h.query}</span> — {h.zipCode}
+            </button>
+          ))}
+        </div>
       )}
 
+      {/* Idle State */}
+      {workflowState === 'idle' && (
+        <div>Ask a question to begin AI Workflow.</div>
+      )}
+
+      {/* Property Search */}
       {workflowState === 'property-search' && (
         <PropertySearchResults
           properties={filteredProperties}
@@ -390,10 +452,11 @@ const analyzeQuery = async (query: string) => {
           features={extractedFeatures}
           zipCode={zipCode}
           query={lastQuery}
-          onExport={handleExportChat}
+          onExport={() => {}}
         />
       )}
 
+      {/* Market Analysis */}
       {workflowState === 'market-analysis' && (
         <MarketAnalysis
           marketTrends={marketTrends}
@@ -403,12 +466,8 @@ const analyzeQuery = async (query: string) => {
           features={extractedFeatures}
           selectedProperty={selectedProperty}
           query={lastQuery}
-          onExport={handleExportChat}
+          onExport={() => {}}
         />
-      )}
-
-      {(workflowState !== 'idle' && workflowState !== 'property-search' && workflowState !== 'market-analysis') && (
-        <div>Something went wrong.</div>
       )}
     </div>
   );

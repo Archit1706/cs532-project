@@ -1,26 +1,24 @@
 // components/Tabs/AIWorkflow/MarketAnalysis.tsx
-"use client";
-
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Property, FeatureExtraction } from 'types/chat';
+import ReactMarkdown from 'react-markdown';
 import { 
-  FaFileDownload, 
+  FaThermometerFull, 
+  FaThermometerHalf, 
+  FaThermometerEmpty, 
   FaFilePdf, 
-  FaChartLine, 
-  FaChartBar, 
-  FaChartPie, 
-  FaMoneyBillWave, 
-  FaHome, 
-  FaMapMarkerAlt,
+  FaFileDownload, 
+  FaSearch, 
   FaExclamationTriangle,
   FaInfoCircle,
-  FaTimes,
+  FaChartLine,
+  FaHome,
   FaHistory,
-  FaBuilding,
-  FaBook,
-  FaCalendarAlt
+  FaChartBar,
+  FaBuilding
 } from 'react-icons/fa';
-import { 
+import { BiTrendingUp, BiTrendingDown } from 'react-icons/bi';
+import {
   LineChart, 
   Line, 
   XAxis, 
@@ -28,15 +26,22 @@ import {
   CartesianGrid, 
   Tooltip, 
   Legend, 
-  ResponsiveContainer,
+  ResponsiveContainer, 
+  ReferenceLine, 
   BarChart,
   Bar,
-  PieChart,
-  Pie,
   Cell,
-  AreaChart,
-  Area
+  PieChart,
+  Pie
 } from 'recharts';
+
+// Define the section IDs for UI links
+const SECTION_IDS = {
+  PROPERTIES: 'properties-section',
+  MARKET: 'market-trends-section',
+  AMENITIES: 'local-amenities-section',
+  TRANSIT: 'transit-section'
+};
 
 interface MarketAnalysisProps {
   marketTrends: any;
@@ -49,17 +54,30 @@ interface MarketAnalysisProps {
   onExport: (format: 'json' | 'pdf') => void;
 }
 
-// Formatters
-const formatDollar = (amt: number | null | undefined) =>
-  amt == null ? 'N/A' : `$${amt.toLocaleString()}`;
+const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
+  marketTrends,
+  taxHistory,
+  offMarketData,
+  zipCode,
+  features,
+  selectedProperty,
+  query,
+  onExport
+}) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'tax-history' | 'off-market'>('overview');
+  const [marketAnalysis, setMarketAnalysis] = useState<string | null>(null);
+  const [analysisQuery, setAnalysisQuery] = useState<string>(query);
+  const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<boolean>(false);
 
-// Add this function at the top
-const getMarketAnalysisFromLLM = async (
+  // Get market analysis from LLM
+  const getMarketAnalysisFromLLM = async (
     zipCode: string,
     cityName: string,
     marketData: any,
-    query: string
+    userQuery: string
   ) => {
+    setIsLoadingAnalysis(true);
+    
     try {
       // Prepare context for the LLM
       const contextData = {
@@ -69,25 +87,31 @@ const getMarketAnalysisFromLLM = async (
         medianPrice: marketData?.trends?.price_distribution?.median_price || 'N/A',
         yearlyChange: marketData?.trends?.summary_metrics?.yearly_change_percent || 'N/A',
         nearbyAreas: marketData?.trends?.nearby_areas?.map((area: any) => 
-          `${area.name}: ${formatDollar(area.median_rent)} (${area.difference_percent.toFixed(1)}%)`
+          `${area.name}: $${(area.median_rent || 0).toLocaleString()} (${(area.difference_percent || 0).toFixed(1)}%)`
         ).join(', ') || 'N/A',
-        quarterlyTrends: marketData?.trends?.historical_trends?.quarterly_averages
+        quarterlyTrends: marketData?.trends?.historical_trends?.quarterly_averages || []
       };
       
       // Create prompt for the LLM
       const prompt = `
-        You are a real estate market analyst. Analyze this market data and answer the following query:
-        "${query}"
+        Analyze this market data and answer the following query about real estate in this area:
+        "${userQuery}"
         
         Market data context:
         - ZIP code: ${contextData.zipCode}
-        - City: ${contextData.cityName}
+        - City: ${cityName}
         - Market temperature: ${contextData.marketTemperature}
-        - Median price: ${contextData.medianPrice}
+        - Median price: $${typeof contextData.medianPrice === 'number' ? contextData.medianPrice.toLocaleString() : contextData.medianPrice}
         - Year-over-year change: ${contextData.yearlyChange}%
         - Nearby areas comparison: ${contextData.nearbyAreas}
         
-        Provide a concise, data-supported analysis addressing the query directly.
+        Provide a concise analysis addressing the query directly.
+        Use markdown formatting for better readability.
+        When mentioning UI elements, use these link formats:
+        - For properties section: [[properties]]
+        - For market trends section: [[market trends]]
+        - For local amenities section: [[restaurants]] or [[local amenities]]
+        - For transit options section: [[transit]]
       `;
       
       const response = await fetch('/api/chat', {
@@ -101,58 +125,68 @@ const getMarketAnalysisFromLLM = async (
       
       if (response.ok) {
         const data = await response.json();
-        return data.response;
+        // Process the response for UI links
+        const processedResponse = processUILinks(data.response);
+        return processedResponse;
       }
       
       return "Unable to generate market analysis at this time.";
     } catch (error) {
       console.error('Error getting market analysis:', error);
       return "Error generating market analysis.";
+    } finally {
+      setIsLoadingAnalysis(false);
     }
   };
 
-const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
-  marketTrends,
-  taxHistory,
-  offMarketData,
-  zipCode,
-  features,
-  selectedProperty,
-  query,
-  onExport
-}) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'tax-history' | 'off-market'>('overview');
-  
+  // Process UI section links in LLM responses
+  const processUILinks = (text: string) => {
+    const linkPatterns = [
+      { regex: /\[\[market(?:\s+trends)?\]\]/gi, id: SECTION_IDS.MARKET, label: 'market trends' },
+      { regex: /\[\[properties\]\]/gi, id: SECTION_IDS.PROPERTIES, label: 'properties' },
+      { regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi, id: SECTION_IDS.AMENITIES, label: 'local amenities' },
+      { regex: /\[\[transit\]\]/gi, id: SECTION_IDS.TRANSIT, label: 'transit options' }
+    ];
+    
+    let processedText = text;
+    
+    // Process each link pattern
+    linkPatterns.forEach(pattern => {
+      processedText = processedText.replace(
+        pattern.regex, 
+        `[${pattern.label}](#${pattern.id})`
+      );
+    });
+    
+    return processedText;
+  };
 
-    // --- LLM Analysis Section state ---
-    const [marketAnalysis, setMarketAnalysis] = useState<string | null>(null);
-    const [analysisQuery, setAnalysisQuery] = useState<string>(query);
-  
-    // Fetch LLM analysis when trends update
-    useEffect(() => {
-      if (marketTrends?.trends) {
-        const cityName = marketTrends.location?.split(',')[0] || 'this area';
-        getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, analysisQuery)
-          .then(setMarketAnalysis);
-      }
-    }, [marketTrends, zipCode, analysisQuery]);
-  
-    // Formatters
-    const formatDollar = (amt: number | null | undefined) =>
-      amt == null ? 'N/A' : `$${amt.toLocaleString()}`;
-    const formatPercent = (val: number | null | undefined) =>
-      val == null ? 'N/A' : `${val > 0 ? '+' : ''}${val.toFixed(1)}%`;
-    const getChangeColor = (val: number | null | undefined) =>
-      val == null ? '#6B7280' : val >= 0 ? '#10B981' : '#EF4444';
-    const getTempColor = (temp: string) => {
-      if (!temp) return '#6B7280';
-      const t = temp.toLowerCase();
-      if (t.includes('hot')) return '#EF4444';
-      if (t.includes('warm')) return '#F97316';
-      if (t.includes('cool')) return '#3B82F6';
-      if (t.includes('cold')) return '#06B6D4';
-      return '#6B7280';
-    };
+  // Generate market analysis when component mounts
+  useEffect(() => {
+    if (marketTrends?.trends) {
+      const cityName = marketTrends.location?.split(',')[0] || 'this area';
+      getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, query)
+        .then(analysis => setMarketAnalysis(analysis));
+    }
+  }, [marketTrends, zipCode, query]);
+
+  // Format dollar amounts
+  const formatDollar = (amount: number | undefined | null) => {
+    if (amount === undefined || amount === null) return 'N/A';
+    return `$${amount.toLocaleString()}`;
+  };
+
+  // Format percentage
+  const formatPercent = (value: number | undefined | null) => {
+    if (value === undefined || value === null) return 'N/A';
+    return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`;
+  };
+
+  // Get color based on value (green for positive, red for negative)
+  const getChangeColor = (value: number | undefined | null) => {
+    if (value === undefined || value === null) return '#6B7280'; // Gray
+    return value >= 0 ? '#10B981' : '#EF4444'; // Green : Red
+  };
 
   // Get temperature color for market status
   const getTemperatureColor = (temperature: string) => {
@@ -182,52 +216,143 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     return null;
   };
 
-  // Generate chart data for tax history
-  const generateTaxHistoryChartData = () => {
-    if (!taxHistory || !taxHistory.priceHistory) return [];
+  // Render market analysis section with markdown
+  const renderMarketAnalysisSection = () => (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow mb-6">
+      <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Market Analysis</h3>
+      
+      <div className="mb-4">
+        <div className="bg-blue-50 p-4 rounded-lg">
+          {isLoadingAnalysis ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex space-x-2">
+                <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce"></div>
+                <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                <div className="w-3 h-3 bg-blue-600 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+              </div>
+            </div>
+          ) : marketAnalysis ? (
+            <div className="prose prose-sm max-w-none text-slate-800">
+              <ReactMarkdown
+                components={{
+                a: ({href, children}) => (
+                  <a 
+                    href={href} 
+                    className="text-blue-600 hover:text-blue-800 underline"
+                    onClick={(e) => {
+                      // Handle UI section links
+                      if (href && href.startsWith('#')) {
+                        e.preventDefault();
+                        const sectionId = href.substring(1);
+                        const section = document.getElementById(sectionId);
+                        if (section) {
+                          section.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }
+                    }}
+                  >
+                    {children}
+                  </a>
+                ),
+                p: ({children}) => <p className="mb-2">{children}</p>,
+                h1: ({children}) => <h1 className="text-xl font-bold my-3">{children}</h1>,
+                h2: ({children}) => <h2 className="text-lg font-bold my-2">{children}</h2>,
+                h3: ({children}) => <h3 className="text-md font-bold my-2">{children}</h3>,
+                ul: ({children}) => <ul className="list-disc ml-5 my-2">{children}</ul>,
+                ol: ({children}) => <ol className="list-decimal ml-5 my-2">{children}</ol>,
+                li: ({children}) => <li className="my-1">{children}</li>,
+                code: ({children}) => <code className="bg-blue-100 px-1 py-0.5 rounded">{children}</code>,
+                blockquote: ({children}) => <blockquote className="border-l-4 border-blue-300 pl-3 italic">{children}</blockquote>,
+              }}
+              >
+                {marketAnalysis}
+              </ReactMarkdown>
+            </div>
+          ) : (
+            <p>Loading analysis...</p>
+          )}
+        </div>
+      </div>
+      
+      <div className="mt-3">
+        <label className="block text-sm font-medium text-slate-800 mb-1">
+          Ask a market analysis question:
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={analysisQuery}
+            onChange={(e) => setAnalysisQuery(e.target.value)}
+            className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-800"
+            placeholder="Is this a good time to buy? Which areas are trending?"
+          />
+          <button
+            onClick={() => {
+              const cityName = marketTrends.location?.split(',')[0] || 'this area';
+              getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, analysisQuery)
+                .then(analysis => setMarketAnalysis(analysis));
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            disabled={isLoadingAnalysis}
+          >
+            Analyze
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
-    return taxHistory.priceHistory
-      .filter((item: any) => item.event === 'Tax assessment')
-      .map((item: any) => ({
-        date: new Date(item.time).getFullYear(),
-        value: item.price,
-      }))
-      .sort((a: any, b: any) => a.date - b.date);
-  };
+  // Render loading state if data is not available
+  if (!marketTrends) {
+    return (
+      <div className="flex justify-center p-8">
+        <div className="flex flex-col items-center space-y-3">
+          <FaExclamationTriangle className="text-amber-500 text-4xl mb-2" />
+          <div className="text-slate-700 font-medium">Market data not available</div>
+          <p className="text-slate-600 text-center max-w-md">
+            We couldn't find market data for this area. Please try a different ZIP code or ask another question.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-  // Extract chart data from market trends
-  const getHistoricalTrendsData = () => {
-    if (!marketTrends || !marketTrends.trends || !marketTrends.trends.historical_trends) return [];
-    
-    const { current_year, previous_year } = marketTrends.trends.historical_trends;
-    
-    if (!current_year || !previous_year) return [];
-    
-    // Combine current and previous year data
-    const monthNames = [
+  // Get various data for charts
+  const priceMetrics = marketTrends?.trends?.price_distribution;
+  const summary = marketTrends?.trends?.summary_metrics;
+  const national = marketTrends?.trends?.national_comparison;
+  const marketStatus = marketTrends?.trends?.market_status;
+  const nearbyAreas = marketTrends?.trends?.nearby_areas || [];
+  const historical = marketTrends?.trends?.historical_trends;
+
+  // Historical trends chart data
+  const combinedHistoricalData = (() => {
+    if (!historical?.previous_year && !historical?.current_year) return [];
+
+    const months = [
       "Jan", "Feb", "Mar", "Apr", "May", "Jun",
       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
     ];
-    
-    const combinedData = monthNames.map(month => {
-      const currentYearData = current_year.find((item: any) => item.month === month);
-      const previousYearData = previous_year.find((item: any) => item.month === month);
-      
-      return {
-        month,
-        "Current Year": currentYearData ? currentYearData.price : null,
-        "Previous Year": previousYearData ? previousYearData.price : null
-      };
-    });
-    
-    return combinedData;
-  };
 
-  // Get distribution data for pie chart
+    const previous = (historical.previous_year || []).reduce((acc: any, item: any) => {
+      acc[item.month] = { month: item.month, "Previous Year": item.price };
+      return acc;
+    }, {});
+
+    const current = (historical.current_year || []).reduce((acc: any, item: any) => {
+      if (!acc[item.month]) acc[item.month] = { month: item.month };
+      acc[item.month]["Current Year"] = item.price;
+      return acc;
+    }, previous);
+
+    return months.map(month => current[month] || { month });
+  })();
+
+  // Price distribution data for pie chart
   const getPriceDistributionData = () => {
-    if (!marketTrends || !marketTrends.trends || !marketTrends.trends.price_distribution) return [];
+    if (!priceMetrics || !priceMetrics.histogram) return [];
     
-    const { histogram } = marketTrends.trends.price_distribution;
+    const { histogram } = priceMetrics;
     
     if (!histogram || !histogram.priceAndCount) return [];
     
@@ -257,91 +382,15 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     }));
   };
 
-  // Format off-market data
-  const formatOffMarketData = () => {
-    if (!offMarketData || !offMarketData.data) return [];
-    
-    // Take just the first 10 items for display
-    return offMarketData.data.slice(0, 10).map((item: any) => ({
-      address: item.streetAddress + (item.unit ? ` ${item.unit}` : ''),
-      price: item.price,
-      beds: item.bedrooms,
-      baths: item.bathrooms,
-      sqft: item.livingArea,
-      type: item.homeType,
-      lastSold: new Date(item.timeOnZillow).toLocaleDateString(),
-      zipcode: item.zipcode
-    }));
-  };
-
-
-  // --- Render LLM section ---
-  const renderMarketAnalysisSection = () => (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow mb-6">
-      <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Market Analysis</h3>
-      <div className="mb-4">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-blue-800 prose" dangerouslySetInnerHTML={{ __html: marketAnalysis || 'Loading analysis...' }} />
-        </div>
-      </div>
-      <div className="mt-3">
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Ask a market analysis question:
-        </label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={analysisQuery}
-            onChange={e => setAnalysisQuery(e.target.value)}
-            className="flex-1 px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-blue-500"
-            placeholder="Is this a good time to buy?"
-          />
-          <button
-            onClick={() => {
-              const cityName = marketTrends.location?.split(',')[0] || 'this area';
-              getMarketAnalysisFromLLM(zipCode, cityName, marketTrends, analysisQuery)
-                .then(setMarketAnalysis);
-            }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >Analyze</button>
-        </div>
-      </div>
-    </div>
-  );
-
-
-  // Render loading state if data is not available
-  if (!marketTrends) {
-    return (
-      <div className="flex justify-center p-8">
-        <div className="flex flex-col items-center space-y-3">
-          <FaExclamationTriangle className="text-amber-500 text-4xl mb-2" />
-          <div className="text-slate-700 font-medium">Market data not available</div>
-          <p className="text-slate-600 text-center max-w-md">
-            We couldn't find market data for this area. Please try a different ZIP code or ask another question.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const taxHistoryData = generateTaxHistoryChartData();
-  const historicalTrendsData = getHistoricalTrendsData();
+  // Get chart data
   const priceDistributionData = getPriceDistributionData();
-  const offMarketItems = formatOffMarketData();
-  
   const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#EF4444'];
 
   return (
-    
     <div className="p-6 bg-gradient-to-b from-emerald-50 to-white rounded-xl shadow-sm animate-fadeIn">
-
-      {/* New LLM market analysis section */}
-      {marketAnalysis && renderMarketAnalysisSection()}
-
-      {/* Header & Export */}
-      <div className="mb-6 flex justify-between items-center">
-        <div className="flex items-center">
+      <div className="mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center">
             <FaChartLine className="text-emerald-600 mr-3 text-xl" />
             <h2 className="text-xl font-semibold text-slate-800">Market Analysis</h2>
           </div>
@@ -363,25 +412,32 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           </div>
         </div>
         
-      {/* Location & Selected Property info */}
-      <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm mb-6">
-        <p className="text-slate-700 mb-1"><span className="font-semibold">Query:</span> \"{query}\"</p>
-        <p className="flex items-center text-slate-700 mb-1">
-          <FaMapMarkerAlt className="mr-1 text-emerald-600" /> {marketTrends.location || zipCode}
-        </p>
-        {selectedProperty && (
-          <p className="flex items-center text-slate-700">
-            <FaHome className="mr-1 text-emerald-600" /> {selectedProperty.address}
+        <div className="bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+          <p className="text-slate-800 mb-1">
+            <span className="font-semibold">Query:</span> "{query}"
           </p>
-        )}
+          <p className="text-slate-800 mb-1 flex items-center">
+            <FaSearch className="mr-1 text-emerald-600" />
+            <span className="font-semibold">Location:</span> {marketTrends.location || zipCode}
+          </p>
+          {selectedProperty && (
+            <p className="text-slate-800 flex items-center">
+              <FaHome className="mr-1 text-emerald-600" />
+              <span className="font-semibold">Selected Property:</span> {selectedProperty.address}
+            </p>
+          )}
+        </div>
       </div>
+
+      {/* Render Market Analysis LLM Section */}
+      {renderMarketAnalysisSection()}
 
       {/* Tab navigation */}
       <div className="mb-6">
         <div className="flex border-b border-slate-200">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-4 py-2 font-medium ${
+            className={`px-4 py-2 font-medium text-slate-800 ${
               activeTab === 'overview' 
                 ? 'text-emerald-600 border-b-2 border-emerald-600' 
                 : 'text-slate-600 hover:text-slate-800'
@@ -392,7 +448,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           {taxHistory && (
             <button
               onClick={() => setActiveTab('tax-history')}
-              className={`px-4 py-2 font-medium ${
+              className={`px-4 py-2 font-medium text-slate-800 ${
                 activeTab === 'tax-history' 
                   ? 'text-emerald-600 border-b-2 border-emerald-600' 
                   : 'text-slate-600 hover:text-slate-800'
@@ -404,7 +460,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
           {offMarketData && (
             <button
               onClick={() => setActiveTab('off-market')}
-              className={`px-4 py-2 font-medium ${
+              className={`px-4 py-2 font-medium text-slate-800 ${
                 activeTab === 'off-market' 
                   ? 'text-emerald-600 border-b-2 border-emerald-600' 
                   : 'text-slate-600 hover:text-slate-800'
@@ -424,18 +480,18 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             {/* Market summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                <h3 className="text-slate-700 font-medium mb-2">Median Price</h3>
+                <h3 className="text-slate-800 font-medium mb-2">Median Price</h3>
                 <div className="text-2xl font-bold text-slate-800">
-                  {formatDollar(marketTrends.trends?.price_distribution?.median_price)}
+                  {formatDollar(priceMetrics?.median_price)}
                 </div>
                 <div className="flex items-center text-sm mt-1">
                   <span 
                     style={{ 
-                      color: getChangeColor(marketTrends.trends?.summary_metrics?.yearly_change_percent) 
+                      color: getChangeColor(summary?.yearly_change_percent) 
                     }}
                     className="font-medium flex items-center"
                   >
-                    {formatPercent(marketTrends.trends?.summary_metrics?.yearly_change_percent)} year over year
+                    {formatPercent(summary?.yearly_change_percent)} year over year
                   </span>
                 </div>
               </div>
@@ -443,34 +499,34 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
               <div 
                 className="bg-white p-4 rounded-lg border shadow-sm"
                 style={{ 
-                  borderColor: getTemperatureColor(marketTrends.trends?.market_status?.temperature),
+                  borderColor: getTemperatureColor(marketStatus?.temperature),
                 }}
               >
-                <h3 className="text-slate-700 font-medium mb-2">Market Temperature</h3>
+                <h3 className="text-slate-800 font-medium mb-2">Market Temperature</h3>
                 <div 
                   className="text-2xl font-bold" 
-                  style={{ color: getTemperatureColor(marketTrends.trends?.market_status?.temperature) }}
+                  style={{ color: getTemperatureColor(marketStatus?.temperature) }}
                 >
-                  {marketTrends.trends?.market_status?.temperature || 'N/A'}
+                  {marketStatus?.temperature || 'N/A'}
                 </div>
-                <div className="text-sm text-slate-600 mt-1">
-                  {marketTrends.trends?.market_status?.interpretation || 'Market temperature indicates the balance between buyers and sellers.'}
+                <div className="text-sm text-slate-800 mt-1">
+                  {marketStatus?.interpretation || 'Market temperature indicates the balance between buyers and sellers.'}
                 </div>
               </div>
               
               <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                <h3 className="text-slate-700 font-medium mb-2">Compared to National</h3>
+                <h3 className="text-slate-800 font-medium mb-2">Compared to National</h3>
                 <div className="text-2xl font-bold text-slate-800">
-                  {marketTrends.trends?.national_comparison?.is_above_national ? 'Above Average' : 'Below Average'}
+                  {national?.is_above_national ? 'Above Average' : 'Below Average'}
                 </div>
                 <div className="flex items-center text-sm mt-1">
                   <span 
                     style={{ 
-                      color: getChangeColor(marketTrends.trends?.national_comparison?.difference_percent) 
+                      color: getChangeColor(national?.difference_percent) 
                     }}
                     className="font-medium"
                   >
-                    {formatPercent(marketTrends.trends?.national_comparison?.difference_percent)} difference from national median
+                    {formatPercent(national?.difference_percent)} difference from national median
                   </span>
                 </div>
               </div>
@@ -478,16 +534,16 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             
             {/* Historical Trends Chart */}
             <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <h3 className="text-slate-700 font-medium mb-4">Historical Rental Trends</h3>
+              <h3 className="text-slate-800 font-medium mb-4">Historical Rental Trends</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={historicalTrendsData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
+                  <LineChart data={combinedHistoricalData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                     <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
                     <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                     <YAxis
                       domain={['auto', 'auto']}
                       tick={{ fontSize: 12 }}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => `${value}`}
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ paddingTop: 10 }} />
@@ -515,7 +571,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             {/* Price Distribution */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                <h3 className="text-slate-700 font-medium mb-4">Price Distribution</h3>
+                <h3 className="text-slate-800 font-medium mb-4">Price Distribution</h3>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
@@ -542,21 +598,21 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
               
               {/* Nearby Areas Comparison */}
               <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                <h3 className="text-slate-700 font-medium mb-4">Nearby Areas</h3>
+                <h3 className="text-slate-800 font-medium mb-4">Nearby Areas</h3>
                 <div className="h-64 overflow-y-auto">
                   <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50">
                       <tr>
-                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-600">Area</th>
-                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-600">Median Price</th>
-                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-600">Difference</th>
+                        <th className="px-3 py-2 text-left text-sm font-medium text-slate-800">Area</th>
+                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-800">Median Price</th>
+                        <th className="px-3 py-2 text-right text-sm font-medium text-slate-800">Difference</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
-                      {marketTrends.trends?.nearby_areas?.map((area: any, index: number) => (
+                      {nearbyAreas.map((area: any, index: number) => (
                         <tr key={index} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 text-sm text-slate-700">{area.name}</td>
-                          <td className="px-3 py-2 text-sm text-slate-700 text-right">{formatDollar(area.median_rent)}</td>
+                          <td className="px-3 py-2 text-sm text-slate-800">{area.name}</td>
+                          <td className="px-3 py-2 text-sm text-slate-800 text-right">{formatDollar(area.median_rent)}</td>
                           <td className="px-3 py-2 text-sm text-right">
                             <span style={{ color: getChangeColor(area.difference_percent) }}>
                               {formatPercent(area.difference_percent)}
@@ -578,12 +634,20 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             {selectedProperty ? (
               <>
                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                  <h3 className="text-slate-700 font-medium mb-4">Property Tax History</h3>
-                  {taxHistoryData.length > 0 ? (
+                  <h3 className="text-slate-800 font-medium mb-4">Property Tax History</h3>
+                  {taxHistory && taxHistory.priceHistory && taxHistory.priceHistory.length > 0 ? (
                     <div className="h-72">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={taxHistoryData}
+                          data={
+                            taxHistory.priceHistory
+                              .filter((item: any) => item.event === 'Tax assessment')
+                              .sort((a: any, b: any) => new Date(a.time).getTime() - new Date(b.time).getTime())
+                              .map((item: any) => ({
+                                date: new Date(item.time).getFullYear(),
+                                value: item.price
+                              }))
+                          }
                           margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
@@ -595,7 +659,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                           <YAxis
                             domain={['auto', 'auto']}
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => `$${(value/1000)}k`}
+                            tickFormatter={(value) => `${(value/1000)}k`}
                             label={{ value: 'Assessment Value', angle: -90, position: 'insideLeft' }}
                           />
                           <Tooltip content={<CustomTooltip />} />
@@ -606,7 +670,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                   ) : (
                     <div className="p-4 text-center">
                       <FaInfoCircle className="text-blue-500 text-2xl mb-2 mx-auto" />
-                      <p className="text-slate-600">
+                      <p className="text-slate-800">
                         No tax history data available for this property
                       </p>
                     </div>
@@ -614,15 +678,15 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                 </div>
                 
                 <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                  <h3 className="text-slate-700 font-medium mb-4">Tax History Details</h3>
+                  <h3 className="text-slate-800 font-medium mb-4">Tax History Details</h3>
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200">
                       <thead className="bg-slate-50">
                         <tr>
-                          <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Date</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Tax Amount</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Assessed Value</th>
-                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Tax Rate</th>
+                          <th className="px-4 py-2 text-left text-sm font-medium text-slate-800">Date</th>
+                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-800">Tax Amount</th>
+                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-800">Assessed Value</th>
+                          <th className="px-4 py-2 text-right text-sm font-medium text-slate-800">Tax Rate</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-200">
@@ -637,10 +701,10 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                             
                             return (
                               <tr key={index} className="hover:bg-slate-50">
-                                <td className="px-4 py-2 text-sm text-slate-700">{date}</td>
-                                <td className="px-4 py-2 text-sm text-slate-700 text-right">{formatDollar(taxAmount)}</td>
-                                <td className="px-4 py-2 text-sm text-slate-700 text-right">{formatDollar(assessedValue)}</td>
-                                <td className="px-4 py-2 text-sm text-slate-700 text-right">{taxRate}</td>
+                                <td className="px-4 py-2 text-sm text-slate-800">{date}</td>
+                                <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatDollar(taxAmount)}</td>
+                                <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatDollar(assessedValue)}</td>
+                                <td className="px-4 py-2 text-sm text-slate-800 text-right">{taxRate}</td>
                               </tr>
                             );
                           })}
@@ -653,7 +717,7 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
               <div className="bg-white p-6 border border-slate-200 rounded-lg shadow-sm text-center">
                 <FaInfoCircle className="text-blue-500 text-4xl mx-auto mb-3" />
                 <h3 className="text-lg font-semibold text-slate-800 mb-1">Select a property first</h3>
-                <p className="text-slate-600 mb-4">
+                <p className="text-slate-800 mb-4">
                   Please select a property to view its tax history information.
                 </p>
               </div>
@@ -665,34 +729,38 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         {activeTab === 'off-market' && (
           <div className="space-y-6">
             <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <h3 className="text-slate-700 font-medium mb-4">Off-Market Properties in {zipCode}</h3>
+              <h3 className="text-slate-800 font-medium mb-4">Off-Market Properties in {zipCode}</h3>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-sm font-medium text-slate-600">Address</th>
-                      <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Price</th>
-                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-600">Beds/Baths</th>
-                      <th className="px-4 py-2 text-right text-sm font-medium text-slate-600">Sq Ft</th>
-                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-600">Type</th>
-                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-600">Last Updated</th>
+                      <th className="px-4 py-2 text-left text-sm font-medium text-slate-800">Address</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-slate-800">Price</th>
+                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-800">Beds/Baths</th>
+                      <th className="px-4 py-2 text-right text-sm font-medium text-slate-800">Sq Ft</th>
+                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-800">Type</th>
+                      <th className="px-4 py-2 text-center text-sm font-medium text-slate-800">Last Updated</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {offMarketItems.length > 0 ? (
-                      offMarketItems.map((item: any, index: number) => (
+                    {offMarketData && offMarketData.data && offMarketData.data.length > 0 ? (
+                      offMarketData.data.slice(0, 10).map((item: any, index: number) => (
                         <tr key={index} className="hover:bg-slate-50">
-                          <td className="px-4 py-2 text-sm text-slate-700">{item.address}</td>
-                          <td className="px-4 py-2 text-sm text-slate-700 text-right">{formatDollar(item.price)}</td>
-                          <td className="px-4 py-2 text-sm text-slate-700 text-center">{item.beds}/{item.baths}</td>
-                          <td className="px-4 py-2 text-sm text-slate-700 text-right">{item.sqft ? item.sqft.toLocaleString() : 'N/A'}</td>
-                          <td className="px-4 py-2 text-sm text-slate-700 text-center">{item.type}</td>
-                          <td className="px-4 py-2 text-sm text-slate-700 text-center">{item.lastSold}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800">{item.streetAddress}{item.unit ? ` ${item.unit}` : ''}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatDollar(item.price)}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800 text-center">{item.bedrooms}/{item.bathrooms}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800 text-right">
+                            {item.livingArea ? item.livingArea.toLocaleString() : 'N/A'}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-slate-800 text-center">{item.homeType}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800 text-center">
+                            {new Date(item.timeOnZillow).toLocaleDateString()}
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-4 py-4 text-center text-slate-600">
+                        <td colSpan={6} className="px-4 py-4 text-center text-slate-800">
                           <FaInfoCircle className="inline-block mr-2 text-blue-500" />
                           No off-market data available for this area
                         </td>
@@ -702,95 +770,6 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
                 </table>
               </div>
             </div>
-            
-            <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-              <h3 className="text-slate-700 font-medium mb-4">Off-Market Property Statistics</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <h4 className="text-slate-600 text-sm mb-1">Average Price</h4>
-                  <div className="text-xl font-bold text-slate-800">
-                    {formatDollar(
-                      offMarketItems.length > 0
-                        ? offMarketItems.reduce((sum: number, item: any) => sum + (item.price || 0), 0) / 
-                          offMarketItems.length
-                        : 0
-                    )}
-                  </div>
-                </div>
-                
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <h4 className="text-slate-600 text-sm mb-1">Average Square Footage</h4>
-                  <div className="text-xl font-bold text-slate-800">
-                    {offMarketItems.length > 0
-                      ? Math.round(
-                          offMarketItems.reduce(
-                            (sum: number, item: any) => sum + (item.sqft || 0), 
-                            0
-                          ) / offMarketItems.filter((item: any) => item.sqft).length
-                        ).toLocaleString()
-                      : 'N/A'} sq ft
-                  </div>
-                </div>
-                
-                <div className="p-4 bg-slate-50 rounded-lg">
-                  <h4 className="text-slate-600 text-sm mb-1">Property Count</h4>
-                  <div className="text-xl font-bold text-slate-800">
-                    {offMarketItems.length} properties
-                  </div>
-                </div>
-              </div>
-              
-              {offMarketItems.length > 0 && (
-                <div className="mt-6 h-64">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={
-                        offMarketItems.reduce((acc: any[], item: any) => {
-                          const type = item.type || 'Unknown';
-                          const existing = acc.find(x => x.type === type);
-                          if (existing) {
-                            existing.count += 1;
-                          } else {
-                            acc.push({ type, count: 1 });
-                          }
-                          return acc;
-                        }, [])
-                      }
-                      margin={{ top: 10, right: 10, left: 10, bottom: 30 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.6} />
-                      <XAxis 
-                        dataKey="type" 
-                        tick={{ fontSize: 12 }}
-                        angle={-45}
-                        textAnchor="end" 
-                        interval={0}
-                        height={50}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12 }}
-                        label={{ value: 'Number of Properties', angle: -90, position: 'insideLeft' }}
-                      />
-                      <Tooltip />
-                      <Bar dataKey="count" name="Number of Properties" fill="#8884d8">
-                        {offMarketItems.reduce((acc: any[], item: any) => {
-                            const type = item.type || 'Unknown';
-                            const existing = acc.find(x => x.type === type);
-                            if (existing) {
-                              existing.count += 1;
-                            } else {
-                              acc.push({ type, count: 1 });
-                            }
-                            return acc;
-                          }, []).map((entry: any, index: number) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
           </div>
         )}
       </div>
@@ -799,5 +778,3 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
 };
 
 export default MarketAnalysis;
-
-
