@@ -10,7 +10,7 @@ import { IoSettingsOutline, IoChatbubbleOutline } from "react-icons/io5";
 
 
 const Sidebar = () => {
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(true);
 
     return (
         <aside className={`h-screen bg-gray-50 border-r border-gray-200 flex flex-col justify-between transition-all duration-300 ${collapsed ? 'w-20' : 'w-64'}`}>

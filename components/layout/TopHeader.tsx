@@ -30,7 +30,7 @@ const TopHeader = () => {
                 <SignedIn>
                     <UserButton />
                 </SignedIn>
-                <div className="flex items-center gap-3">
+                {/* <div className="flex items-center gap-3">
                     <Image
                         src="https://randomuser.me/api/portraits/men/32.jpg"
                         alt="Profile"
@@ -39,7 +39,7 @@ const TopHeader = () => {
                         className="rounded-full"
                     />
                     <span className="font-medium text-slate-800">Archit Rathod</span>
-                </div>
+                </div> */}
             </div>
 
         </div>

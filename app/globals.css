@@ -1,6 +1,11 @@
 @import "tailwindcss";
 /* @import "tailwindcss/preflight"; */
 
+/* smooth scroll behaviour */
+* {
+  scroll-behavior: smooth !important;
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: #cbd5e0 #edf2f7; /* Thumb and track colors */

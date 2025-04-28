@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { FaHome, FaSearch, FaChartLine, FaGlobe, FaComments, FaRobot, FaMapMarkedAlt, FaLanguage, FaUserFriends, FaBriefcase, FaRegBuilding, FaSubway, FaUtensils, FaRegListAlt } from 'react-icons/fa';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaHome, FaSearch, FaChartLine, FaGlobe, FaComments, FaRobot, FaMapMarkedAlt, FaLanguage, FaUserFriends, FaBriefcase, FaRegBuilding, FaSubway, FaUtensils, FaRegListAlt, FaLinkedin } from 'react-icons/fa';
 import { BsStars, BsChatDots, BsGraphUp, BsBuilding, BsFilter } from 'react-icons/bs';
 import { TbTransform } from 'react-icons/tb';
 import { IoMdArrowRoundForward } from 'react-icons/io';
-import { FaBars, FaTimes } from 'react-icons/fa';
+import { RiTwitterXLine } from "react-icons/ri";
+import { IoLogoInstagram } from "react-icons/io5";
+import { FaBars, FaTimes, FaSortUp } from 'react-icons/fa';
 import {
     ClerkProvider,
     SignInButton,
@@ -12,6 +14,7 @@ import {
     SignedOut,
     UserButton,
 } from '@clerk/nextjs'
+import Link from 'next/link';
 
 const Header = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -35,12 +38,12 @@ const Header = () => {
 
                     {/* Right: Auth buttons (hidden on mobile) */}
                     <div className="hidden md:flex space-x-4">
-                        <button className="px-4 py-2 text-emerald-700 font-semibold border border-emerald-600 rounded-md hover:bg-emerald-50 transition-colors">
+                        <Link href={"/sign-in"} className="px-4 py-2 text-emerald-700 font-semibold border border-emerald-600 rounded-md hover:bg-emerald-50 transition-colors">
                             Sign In
-                        </button>
-                        <button className="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-md hover:bg-emerald-700 transition-colors">
+                        </Link>
+                        <Link href={"/sign-up"} className="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-md hover:bg-emerald-700 transition-colors">
                             Sign Up
-                        </button>
+                        </Link>
                     </div>
 
                     {/* Mobile Menu Button */}
@@ -64,13 +67,13 @@ const Header = () => {
 
                         <SignedOut>
 
-                            <button className="w-full text-left px-4 py-2 text-emerald-700 border border-emerald-600 rounded-md hover:bg-emerald-50 transition-colors">
-                                <SignInButton />
+                            <Link href={"/sign-in"} className="w-full text-left px-4 py-2 text-emerald-700 border border-emerald-600 rounded-md hover:bg-emerald-50 transition-colors">
+                                Sign In
 
-                            </button>
-                            <button className="w-full text-left px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors">
-                                <SignUpButton />
-                            </button>
+                            </Link>
+                            <Link href={"/sign-up"} className="w-full text-left px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors">
+                                Sign Up
+                            </Link>
                         </SignedOut>
                         <SignedIn>
                             <UserButton />
@@ -83,69 +86,362 @@ const Header = () => {
     );
 };
 
+// const HeroSection = () => {
+//     // Chat conversation state
+//     const [chatMessages, setChatMessages] = useState([]);
+//     const [currentMessage, setCurrentMessage] = useState('');
+//     const [isTyping, setIsTyping] = useState(false);
+//     const [currentIndex, setCurrentIndex] = useState(0);
+//     const chatContainerRef = useRef(null);
 
-const HeroSection = () => (
-    <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 to-teal-800 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="pt-10 pb-8 md:pt-16 md:pb-20 lg:pt-24 lg:pb-28 flex flex-col md:flex-row items-center">
-                <div className="md:w-1/2 md:pr-8 mb-10 md:mb-0">
-                    <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-emerald-100">
-                        The Smartest Way to Find Your Next Home
-                    </h1>
-                    <p className="text-lg md:text-xl text-teal-100 mb-6">
-                        AI-powered conversation assistant for real estate inquiries, property searches, and market insights.
-                    </p>
-                    <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-                        <button className="px-6 py-3 bg-white text-emerald-900 font-semibold rounded-md shadow-lg hover:bg-emerald-50 transition-colors">
-                            Get Started
-                        </button>
-                        <button className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
-                            See Demo
-                        </button>
-                    </div>
-                </div>
+//     // Predefined conversation flow
+//     const conversationFlow = [
+//         { role: 'user', text: "Hi! I'm looking for a 2-bedroom apartment in Chicago." },
+//         { role: 'assistant', text: "I can help with that! What's your budget range?" },
+//         { role: 'user', text: "Around $2,000 per month, and I'd like to be close to public transit." },
+//         { role: 'assistant', text: "Great! I found 12 properties matching your criteria. Here are the top recommendations..." },
+//         { role: 'user', text: "Can you show me places with in-unit laundry?" },
+//         { role: 'assistant', text: "Absolutely! I've filtered the results. There are 7 properties with in-unit laundry within your budget in Chicago." }
+//     ];
 
-                {/* Chat UI */}
-                <div className="md:w-1/2 relative">
-                    <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-                        <div className="bg-emerald-600 text-white p-3 flex items-center space-x-2">
-                            <BsChatDots className="text-xl text-white" />
-                            <span className="font-medium text-white">Keya Assistant</span>
+//     // Typing animation effect
+//     useEffect(() => {
+//         if (currentIndex < conversationFlow.length) {
+//             const nextMessage = conversationFlow[currentIndex];
+//             let charIndex = 0;
+//             setIsTyping(true);
+
+//             // Simulate typing speed
+//             const typingInterval = setInterval(() => {
+//                 if (charIndex <= nextMessage.text.length) {
+//                     setCurrentMessage(nextMessage.text.substring(0, charIndex));
+//                     charIndex++;
+//                 } else {
+//                     clearInterval(typingInterval);
+//                     setIsTyping(false);
+//                     setChatMessages(prev => [...prev, nextMessage]);
+//                     setCurrentMessage('');
+
+//                     // Wait before starting the next message
+//                     setTimeout(() => {
+//                         setCurrentIndex(prevIndex => prevIndex + 1);
+//                     }, 1000);
+//                 }
+//             }, nextMessage.role === 'user' ? 50 : 30); // Users type slower than the assistant
+
+//             return () => clearInterval(typingInterval);
+//         }
+//     }, [currentIndex]);
+
+//     // Auto-scroll to the bottom of chat
+//     useEffect(() => {
+//         if (chatContainerRef.current) {
+//             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+//         }
+//     }, [chatMessages, currentMessage]);
+
+//     return (
+//         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 to-teal-800 text-white">
+//             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+//                 <div className="pt-10 pb-8 md:pt-16 md:pb-20 lg:pt-24 lg:pb-28 flex flex-col md:flex-row items-center">
+//                     <div className="md:w-1/2 md:pr-8 mb-10 md:mb-0">
+//                         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-emerald-100">
+//                             The Smartest Way to Find Your Next Home
+//                         </h1>
+//                         <p className="text-lg md:text-xl text-teal-100 mb-6">
+//                             AI-powered conversation assistant for real estate inquiries, property searches, and market insights.
+//                         </p>
+//                         <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+//                             <SignedIn>
+//                                 <Link href={"/chat"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
+//                                     Chat Now
+//                                 </Link>
+//                             </SignedIn>
+//                             <SignedOut>
+//                                 <Link href={"/sign-in"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
+//                                     Chat Now
+//                                 </Link>
+//                             </SignedOut>
+//                             {/* <Link href="/sign-in" className="px-6 py-3 bg-white text-emerald-900 font-semibold rounded-md shadow-lg hover:bg-emerald-50 transition-colors">
+//                                 Get Started 
+//                             </Link> */}
+//                             <Link href={"#demo"} className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
+//                                 See Demo
+//                             </Link>
+//                         </div>
+//                     </div>
+
+//                     {/* Chat UI */}
+//                     <div className="md:w-1/2 relative">
+//                         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+//                             <div className="bg-emerald-600 text-white p-3 flex items-center space-x-2">
+//                                 <BsChatDots className="text-xl text-white" />
+//                                 <span className="font-medium text-white">Keya Assistant</span>
+//                             </div>
+//                             <div className="p-4 bg-gray-50 space-y-3 h-64 overflow-y-auto" ref={chatContainerRef}>
+//                                 {/* Rendered chat messages */}
+//                                 {chatMessages.map((msg, index) => (
+//                                     <div key={index} className={`flex justify-${msg.role === 'assistant' ? 'end' : 'start'}`}>
+//                                         <div
+//                                             className={`${msg.role === 'assistant'
+//                                                 ? 'bg-emerald-600 text-white'
+//                                                 : 'bg-teal-100 text-emerald-900'
+//                                                 } rounded-lg p-3 max-w-xs animate-fadeIn`}
+//                                         >
+//                                             {msg.text}
+//                                         </div>
+//                                     </div>
+//                                 ))}
+
+//                                 {/* Currently typing message */}
+//                                 {isTyping && currentIndex < conversationFlow.length && (
+//                                     <div className={`flex justify-${conversationFlow[currentIndex].role === 'assistant' ? 'end' : 'start'}`}>
+//                                         <div
+//                                             className={`${conversationFlow[currentIndex].role === 'assistant'
+//                                                 ? 'bg-emerald-600 text-white'
+//                                                 : 'bg-teal-100 text-emerald-900'
+//                                                 } rounded-lg p-3 max-w-xs`}
+//                                         >
+//                                             {currentMessage}
+//                                             <span className="inline-block animate-pulse">|</span>
+//                                         </div>
+//                                     </div>
+//                                 )}
+//                             </div>
+
+//                             {/* Input Field */}
+//                             <div className="flex border rounded-full overflow-hidden bg-white mt-3 mx-4 mb-4">
+//                                 <input
+//                                     type="text"
+//                                     placeholder="Ask me anything about real estate..."
+//                                     className="flex-grow px-4 py-2 focus:outline-none text-emerald-900"
+//                                 />
+//                                 <button className="bg-emerald-600 text-white px-4 py-2">
+//                                     <IoMdArrowRoundForward className="text-xl text-white" />
+//                                 </button>
+//                             </div>
+//                         </div>
+//                     </div>
+//                 </div>
+//             </div>
+
+//             {/* Wave shape divider */}
+//             <div className="absolute bottom-0 left-0 right-0">
+//                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 100" className="w-full">
+//                     <path
+//                         fill="#ffffff"
+//                         fillOpacity="1"
+//                         d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,42.7C672,32,768,32,864,42.7C960,53,1056,75,1152,75C1248,75,1344,53,1392,42.7L1440,32L1440,100L1392,100C1344,100,1248,100,1152,100C1056,100,960,100,864,100C768,100,672,100,576,100C480,100,384,100,288,100C192,100,96,100,48,100L0,100Z"
+//                     ></path>
+//                 </svg>
+//             </div>
+//         </div>
+//     );
+// };
+
+const HeroSection = () => {
+    // Chat conversation state
+    const [chatMessages, setChatMessages] = useState([]);
+    const [currentMessage, setCurrentMessage] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const chatContainerRef = useRef(null);
+
+    // Predefined conversation flow with property listings
+    const conversationFlow = [
+        { role: 'user', text: "Hi! I'm looking for a 2-bedroom apartment in Chicago." },
+        { role: 'assistant', text: "I can help with that! What's your budget range?" },
+        { role: 'user', text: "Around $2,000 per month, and I'd like to be close to public transit." },
+        { role: 'assistant', text: "Great! I found 12 properties matching your criteria. Here are the top recommendations..." },
+        { role: 'user', text: "Can you show me places with in-unit laundry?" },
+        {
+            role: 'assistant',
+            text: "Absolutely! I've filtered the results. Here are the best properties with in-unit laundry within your budget:",
+            showProperties: true
+        }
+    ];
+
+    // Typing animation effect
+    useEffect(() => {
+        if (currentIndex < conversationFlow.length) {
+            const nextMessage = conversationFlow[currentIndex];
+            let charIndex = 0;
+            setIsTyping(true);
+
+            // Simulate typing speed
+            const typingInterval = setInterval(() => {
+                if (charIndex <= nextMessage.text.length) {
+                    setCurrentMessage(nextMessage.text.substring(0, charIndex));
+                    charIndex++;
+                } else {
+                    clearInterval(typingInterval);
+                    setIsTyping(false);
+                    setChatMessages(prev => [...prev, nextMessage]);
+                    setCurrentMessage('');
+
+                    // Wait before starting the next message
+                    setTimeout(() => {
+                        setCurrentIndex(prevIndex => prevIndex + 1);
+                    }, 1000);
+                }
+            }, nextMessage.role === 'user' ? 50 : 30); // Users type slower than the assistant
+
+            return () => clearInterval(typingInterval);
+        }
+    }, [currentIndex]);
+
+    // Auto-scroll to the bottom of chat
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [chatMessages, currentMessage]);
+
+    return (
+        <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 to-teal-800 text-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="pt-10 pb-8 md:pt-16 md:pb-20 lg:pt-24 lg:pb-28 flex flex-col md:flex-row items-center">
+                    <div className="md:w-1/2 md:pr-8 mb-10 md:mb-0">
+                        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-emerald-100">
+                            The Smartest Way to Find Your Next Home
+                        </h1>
+                        <p className="text-lg md:text-xl text-teal-100 mb-6">
+                            AI-powered conversation assistant for real estate inquiries, property searches, and market insights.
+                        </p>
+                        <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
+                            <SignedIn>
+                                <Link href={"/chat"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
+                                    Chat Now
+                                </Link>
+                            </SignedIn>
+                            <SignedOut>
+                                <Link href={"/sign-in"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
+                                    Chat Now
+                                </Link>
+                            </SignedOut>
+                            {/* <Link href="/sign-in" className="px-6 py-3 bg-white text-emerald-900 font-semibold rounded-md shadow-lg hover:bg-emerald-50 transition-colors">
+                                 Get Started 
+                             </Link> */}
+                            <Link href={"#demo"} className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
+                                See Demo                            </Link>
                         </div>
-                        <div className="p-4 bg-gray-50 space-y-3">
-                            {/* Assistant Message */}
-                            <div className="flex justify-start">
-                                <div className="bg-teal-100 text-emerald-900 rounded-lg p-3 max-w-xs">
-                                    Hi! I'm looking for a 2-bedroom apartment in Chicago.
-                                </div>
+                    </div>
+
+                    {/* Chat UI */}
+                    <div className="md:w-1/2 relative">
+                        <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+                            <div className="bg-emerald-600 text-white p-3 flex items-center space-x-2">
+                                <BsChatDots className="text-xl text-white" />
+                                <span className="font-medium text-white">Keya Assistant</span>
                             </div>
-                            {/* User Message */}
-                            <div className="flex justify-end">
-                                <div className="bg-emerald-600 text-white rounded-lg p-3 max-w-xs">
-                                    I can help with that! What's your budget range?
-                                </div>
-                            </div>
-                            {/* Assistant Message */}
-                            <div className="flex justify-start">
-                                <div className="bg-teal-100 text-emerald-900 rounded-lg p-3 max-w-xs">
-                                    Around $2,000 per month, and I'd like to be close to public transit.
-                                </div>
-                            </div>
-                            {/* User Message */}
-                            <div className="flex justify-end">
-                                <div className="bg-emerald-600 text-white rounded-lg p-3 max-w-xs">
-                                    Great! I found 12 properties matching your criteria. Here are the top recommendations...
-                                </div>
+                            <div className="p-4 bg-gray-50 space-y-3 h-64 overflow-y-auto" ref={chatContainerRef}>
+                                {/* Rendered chat messages */}
+                                {chatMessages.map((msg, index) => (
+                                    <div key={index} className="flex flex-col">
+                                        <div className={`flex justify-${msg.role === 'assistant' ? 'end' : 'start'}`}>
+                                            <div
+                                                className={`${msg.role === 'assistant'
+                                                    ? 'bg-emerald-600 text-white'
+                                                    : 'bg-teal-100 text-emerald-900'
+                                                    } rounded-lg p-3 max-w-xs animate-fadeIn`}
+                                            >
+                                                {msg.text}
+                                            </div>
+                                        </div>
+
+                                        {/* Property listings */}
+                                        {msg.showProperties && (
+                                            <div className="mt-2 mb-2 w-full">
+                                                <div className="flex overflow-x-auto space-x-2 pb-2 fscrollbar-hide">
+                                                    {/* Property 1 */}
+                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
+                                                        <div className="h-20 bg-gray-200 relative">
+                                                            <img src="/sample/prop1.jpg" alt="Property" className="w-full h-full object-cover" />
+                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$319,900</div>
+                                                        </div>
+                                                        <div className="p-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">2309 W 21st St</p>
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <span className="text-xs text-gray-500">2 bed</span>
+                                                                <span className="text-xs text-gray-500">2 bath</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Property 2 */}
+                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
+                                                        <div className="h-20 bg-gray-200 relative">
+                                                            <img src="/sample/prop2.jpg" alt="Property" className="w-full h-full object-cover" />
+                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$539,000</div>
+                                                        </div>
+                                                        <div className="p-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">2720 W Cermak Rd</p>
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <span className="text-xs text-gray-500">6 bed</span>
+                                                                <span className="text-xs text-gray-500">3 bath</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Property 3 */}
+                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
+                                                        <div className="h-20 bg-gray-200 relative">
+                                                            <img src="/sample/prop3.jpg" alt="Property" className="w-full h-full object-cover" />
+                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$415,000</div>
+                                                        </div>
+                                                        <div className="p-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">919 W 18th Pl</p>
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <span className="text-xs text-gray-500">3 bed</span>
+                                                                <span className="text-xs text-gray-500">2 bath</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Property 4 */}
+                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
+                                                        <div className="h-20 bg-gray-200 relative">
+                                                            <img src="/sample/prop4.webp" alt="Property" className="w-full h-full object-cover" />
+                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$287,000</div>
+                                                        </div>
+                                                        <div className="p-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">1125 W Washburne Ave</p>
+                                                            <div className="flex items-center justify-between mt-1">
+                                                                <span className="text-xs text-gray-500">4 bed</span>
+                                                                <span className="text-xs text-gray-500">2 bath</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+
+                                {/* Currently typing message */}
+                                {isTyping && currentIndex < conversationFlow.length && (
+                                    <div className={`flex justify-${conversationFlow[currentIndex].role === 'assistant' ? 'end' : 'start'}`}>
+                                        <div
+                                            className={`${conversationFlow[currentIndex].role === 'assistant'
+                                                ? 'bg-emerald-600 text-white'
+                                                : 'bg-teal-100 text-emerald-900'
+                                                } rounded-lg p-3 max-w-xs`}
+                                        >
+                                            {currentMessage}
+                                            <span className="inline-block animate-pulse">|</span>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Input Field */}
-                            <div className="flex border rounded-full overflow-hidden bg-white mt-3">
+                            <div className="flex border rounded-full overflow-hidden bg-white mt-3 mx-4 mb-4">
                                 <input
                                     type="text"
                                     placeholder="Ask me anything about real estate..."
                                     className="flex-grow px-4 py-2 focus:outline-none text-emerald-900"
                                 />
-                                <button className="bg-emerald-600 text-white px-4">
+                                <button className="bg-emerald-600 text-white px-4 py-2">
                                     <IoMdArrowRoundForward className="text-xl text-white" />
                                 </button>
                             </div>
@@ -153,21 +449,20 @@ const HeroSection = () => (
                     </div>
                 </div>
             </div>
-        </div>
 
-        {/* Wave shape divider */}
-        <div className="absolute bottom-0 left-0 right-0">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 100" className="w-full">
-                <path
-                    fill="#ffffff"
-                    fillOpacity="1"
-                    d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,42.7C672,32,768,32,864,42.7C960,53,1056,75,1152,75C1248,75,1344,53,1392,42.7L1440,32L1440,100L1392,100C1344,100,1248,100,1152,100C1056,100,960,100,864,100C768,100,672,100,576,100C480,100,384,100,288,100C192,100,96,100,48,100L0,100Z"
-                ></path>
-            </svg>
+            {/* Wave shape divider */}
+            <div className="absolute bottom-0 left-0 right-0">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 100" className="w-full">
+                    <path
+                        fill="#ffffff"
+                        fillOpacity="1"
+                        d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,42.7C672,32,768,32,864,42.7C960,53,1056,75,1152,75C1248,75,1344,53,1392,42.7L1440,32L1440,100L1392,100C1344,100,1248,100,1152,100C1056,100,960,100,864,100C768,100,672,100,576,100C480,100,384,100,288,100C192,100,96,100,48,100L0,100Z"
+                    ></path>
+                </svg>
+            </div>
         </div>
-    </div>
-);
-
+    );
+};
 
 const FeatureCard = ({ icon, title, description }: any) => (
     <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
@@ -180,7 +475,7 @@ const FeatureCard = ({ icon, title, description }: any) => (
 );
 
 const FeaturesSection = () => (
-    <div className="py-16 bg-gray-50">
+    <div id="features" className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold text-emerald-800 mb-4">
@@ -226,7 +521,6 @@ const FeaturesSection = () => (
         </div>
     </div>
 );
-
 
 const TabPanel = ({ children, activeTab, index }: any) => (
     <div className={activeTab === index ? "block" : "hidden"}>
@@ -367,7 +661,7 @@ const UseCaseSection = () => {
 };
 
 const HowItWorksSection = () => (
-    <div className="py-16 bg-gray-50">
+    <div id='how-it-works' className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
                 <h2 className="text-3xl font-bold text-emerald-800 mb-4">How Keya Works</h2>
@@ -502,7 +796,7 @@ const HowItWorksSection = () => (
 );
 
 const DemoSection = () => (
-    <div className="py-16 bg-gray-900 text-white">
+    <div id='demo' className="py-16 bg-gray-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div>
@@ -584,9 +878,16 @@ const CTASection = () => (
                 Join thousands of agents and home seekers who are already using Keya to make faster, smarter real estate decisions.
             </p>
             <div className="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-4">
-                <button className="px-8 py-4 bg-white text-emerald-600 font-semibold rounded-md shadow-lg hover:bg-teal-50 transition-colors text-lg">
-                    Start Free Trial
-                </button>
+                <SignedIn>
+                    <Link href={"/chat"} className="px-8 py-4 bg-white text-emerald-600 font-semibold rounded-md shadow-lg hover:bg-teal-50 transition-colors text-lg">
+                        Chat Now
+                    </Link>
+                </SignedIn>
+                <SignedOut>
+                    <Link href={"/sign-in"} className="px-8 py-4 bg-white text-emerald-600 font-semibold rounded-md shadow-lg hover:bg-teal-50 transition-colors text-lg">
+                        Chat Now
+                    </Link>
+                </SignedOut>
                 <button className="px-8 py-4 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors text-lg">
                     Schedule a Demo
                 </button>
@@ -612,23 +913,17 @@ const FooterSection = () => (
                         The smarter way to navigate real estate with AI-powered insights.
                     </p>
                     <div className="flex space-x-4">
-                        <a href="#" className="text-gray-400 hover:text-teal-300 transition-colors">
-                            {/* Twitter Icon */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724..." />
-                            </svg>
+                        {/* <a href="#" className="text-gray-400 hover:text-teal-300 transition-colors">
+                            <RiTwitterXLine className='h-6 w-6' />
                         </a>
                         <a href="#" className="text-gray-400 hover:text-teal-300 transition-colors">
-                            {/* Instagram Icon */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2.163c3.204 0 3.584.012 4.85.07..." />
-                            </svg>
+                            <IoLogoInstagram className='h-6 w-6' />
                         </a>
                         <a href="#" className="text-gray-400 hover:text-teal-300 transition-colors">
-                            {/* LinkedIn Icon */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761..." />
-                            </svg>
+                            <FaLinkedin className='h-6 w-6' />
+                        </a> */}
+                        <a href="#" className="text-gray-400 hover:text-teal-300 transition-colors">
+                            <FaSortUp className='h-6 w-6' />  <span>Scroll to Top</span>
                         </a>
                     </div>
                 </div>
