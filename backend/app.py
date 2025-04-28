@@ -529,6 +529,29 @@ def get_property_details(zpid):
             "nearbyHomes": property_data.get("nearbyHomes", []),
             "priceHistory": property_data.get("priceHistory", [])
         }
+
+        # Fetch property photos
+        url = "https://zillow56.p.rapidapi.com/photos"
+        querystring = {"zpid": zpid}
+        headers = {
+            "x-rapidapi-key": os.environ.get('ZILLOW_KEY'),
+            "x-rapidapi-host": "zillow56.p.rapidapi.com"
+        }
+        response = requests.get(url, headers=headers, params=querystring)
+
+        # Extract the first image URL (jpeg, jpg, or png) from each photo's mixedSources
+        photos = response.json().get('photos', [])
+        image_urls = []
+        for photo in photos:
+            if 'mixedSources' in photo:
+                for key in ['jpeg', 'jpg', 'png']:
+                    if key in photo['mixedSources']:
+                        image_urls.append(photo['mixedSources'][key][0]['url'])
+                        break
+
+        # Add the list of images to the property details
+        property_details["images"] = image_urls
+
         logger.info(f"Successfully retrieved property details for zpid: {zpid}")
         return {"results": property_details}
     except Exception as e:
