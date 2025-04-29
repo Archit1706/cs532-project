@@ -70,7 +70,8 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   const [isLoadingAnalysis, setIsLoadingAnalysis] = useState<boolean>(false);
 
   // Get market analysis from LLM
-  const getMarketAnalysisFromLLM = async (
+// Improved getMarketAnalysisFromLLM function
+const getMarketAnalysisFromLLM = async (
     zipCode: string,
     cityName: string,
     marketData: any,
@@ -106,13 +107,22 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
         - Nearby areas comparison: ${contextData.nearbyAreas}
         
         Provide a concise analysis addressing the query directly.
-        Use markdown formatting for better readability.
+        Use markdown formatting for better readability. 
+        
+        IMPORTANT: DO NOT use HTML tags like <h3>, <strong>, or <p>. 
+        Instead, use proper markdown:
+        - Use # for headings (e.g., "# Heading")
+        - Use ** for bold (e.g., "**bold text**")
+        - Use regular paragraphs separated by blank lines
+        
         When mentioning UI elements, use these link formats:
         - For properties section: [[properties]]
         - For market trends section: [[market trends]]
         - For local amenities section: [[restaurants]] or [[local amenities]]
         - For transit options section: [[transit]]
       `;
+      
+      console.log("Sending prompt to LLM:", prompt);
       
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -125,6 +135,8 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
       
       if (response.ok) {
         const data = await response.json();
+        console.log("Raw LLM response:", data.response);
+        
         // Process the response for UI links
         const processedResponse = processUILinks(data.response);
         return processedResponse;
@@ -139,25 +151,94 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
     }
   };
 
+const PROPERTY_TAB_IDS = {
+    "DETAILS": "property-details-tab",
+    "PRICE_HISTORY": "property-price-history-tab",
+    "SCHOOLS": "property-schools-tab",
+    "MARKET_ANALYSIS": "property-market-analysis-tab"
+}
+
   // Process UI section links in LLM responses
-  const processUILinks = (text: string) => {
+// Replace the processUILinks function with this improved version
+// Improved processUILinks function with debugging
+// Enhanced processUILinks function that properly handles the markdown
+const processUILinks = (text: string) => {
+    console.log("Processing UI links in text:", text);
+    
+    // Define patterns to detect UI link mentions
     const linkPatterns = [
-      { regex: /\[\[market(?:\s+trends)?\]\]/gi, id: SECTION_IDS.MARKET, label: 'market trends' },
-      { regex: /\[\[properties\]\]/gi, id: SECTION_IDS.PROPERTIES, label: 'properties' },
-      { regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi, id: SECTION_IDS.AMENITIES, label: 'local amenities' },
-      { regex: /\[\[transit\]\]/gi, id: SECTION_IDS.TRANSIT, label: 'transit options' }
+      {
+        regex: /\[\[market(?:\s+trends)?\]\]/gi,
+        id: SECTION_IDS.MARKET,
+        label: 'market trends'
+      },
+      {
+        regex: /\[\[properties\]\]/gi,
+        id: SECTION_IDS.PROPERTIES,
+        label: 'properties'
+      },
+      {
+        regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi,
+        id: SECTION_IDS.AMENITIES,
+        label: 'local amenities'
+      },
+      {
+        regex: /\[\[transit\]\]/gi,
+        id: SECTION_IDS.TRANSIT,
+        label: 'transit options'
+      },
+      {
+        regex: /\[\[property\s+market\]\]/gi,
+        replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
+      },
+      {
+        regex: /\[\[property\s+details\]\]/gi,
+        id: PROPERTY_TAB_IDS.DETAILS,
+        label: 'property details',
+        linkType: 'propertyDetails'
+      },
+      {
+        regex: /\[\[price\s+history\]\]/gi,
+        id: PROPERTY_TAB_IDS.PRICE_HISTORY,
+        label: 'price history',
+        linkType: 'propertyPriceHistory'
+      },
+      {
+        regex: /\[\[property\s+schools\]\]|\[\[schools\]\]/gi,
+        id: PROPERTY_TAB_IDS.SCHOOLS,
+        label: 'schools',
+        linkType: 'propertySchools'
+      },
+      {
+        regex: /\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]/gi,
+        id: PROPERTY_TAB_IDS.MARKET_ANALYSIS,
+        label: 'market analysis',
+        linkType: 'propertyMarketAnalysis'
+      }
     ];
     
+    // Process each pattern
     let processedText = text;
     
-    // Process each link pattern
     linkPatterns.forEach(pattern => {
-      processedText = processedText.replace(
-        pattern.regex, 
-        `[${pattern.label}](#${pattern.id})`
-      );
+      processedText = processedText.replace(pattern.regex, (match) => {
+        console.log(`Found link pattern: "${match}"`);
+        
+        // Handle property tab links differently than section links
+        if (pattern.linkType) {
+          return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.linkType}">${pattern.label}</a>`;
+        } else if (pattern.id) {
+          return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.label.includes('market') ? 'market' : pattern.label.includes('properties') ? 'property' : pattern.label.includes('amenities') ? 'restaurants' : 'transit'}">${pattern.label}</a>`;
+        } else if (pattern.replacement) {
+          // For patterns with direct replacement
+          return pattern.replacement;
+        }
+        // Default case: return the original match if no replacement is found
+        return match;
+      });
     });
     
+    console.log("Processed text:", processedText);
     return processedText;
   };
 
@@ -217,7 +298,8 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
   };
 
   // Render market analysis section with markdown
-  const renderMarketAnalysisSection = () => (
+// Render market analysis section with markdown
+const renderMarketAnalysisSection = () => (
     <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm hover:shadow-md transition-shadow mb-6">
       <h3 className="text-lg font-semibold text-slate-800 mb-3 border-b pb-2">Market Analysis</h3>
       
@@ -233,40 +315,55 @@ const MarketAnalysis: React.FC<MarketAnalysisProps> = ({
             </div>
           ) : marketAnalysis ? (
             <div className="prose prose-sm max-w-none text-slate-800">
-              <ReactMarkdown
-                components={{
-                a: ({href, children}) => (
-                  <a 
-                    href={href} 
-                    className="text-blue-600 hover:text-blue-800 underline"
-                    onClick={(e) => {
-                      // Handle UI section links
-                      if (href && href.startsWith('#')) {
-                        e.preventDefault();
-                        const sectionId = href.substring(1);
-                        const section = document.getElementById(sectionId);
-                        if (section) {
-                          section.scrollIntoView({ behavior: 'smooth' });
-                        }
-                      }
-                    }}
-                  >
-                    {children}
-                  </a>
-                ),
-                p: ({children}) => <p className="mb-2">{children}</p>,
-                h1: ({children}) => <h1 className="text-xl font-bold my-3">{children}</h1>,
-                h2: ({children}) => <h2 className="text-lg font-bold my-2">{children}</h2>,
-                h3: ({children}) => <h3 className="text-md font-bold my-2">{children}</h3>,
-                ul: ({children}) => <ul className="list-disc ml-5 my-2">{children}</ul>,
-                ol: ({children}) => <ol className="list-decimal ml-5 my-2">{children}</ol>,
-                li: ({children}) => <li className="my-1">{children}</li>,
-                code: ({children}) => <code className="bg-blue-100 px-1 py-0.5 rounded">{children}</code>,
-                blockquote: ({children}) => <blockquote className="border-l-4 border-blue-300 pl-3 italic">{children}</blockquote>,
-              }}
-              >
-                {marketAnalysis}
-              </ReactMarkdown>
+              {marketAnalysis && (
+                <div className="hidden">
+                  <pre>{JSON.stringify({
+                    rawMarkdown: marketAnalysis,
+                    markdownLength: marketAnalysis.length,
+                    containsHtmlTags: /<[a-z][\s\S]*>/i.test(marketAnalysis)
+                  }, null, 2)}</pre>
+                </div>
+              )}
+              
+              <div className="prose prose-sm max-w-none text-slate-800">
+                <ReactMarkdown
+                  components={{
+                    p: ({children}) => <p className="mb-2">{children}</p>,
+                    h1: ({children}) => <h1 className="text-xl font-bold my-3">{children}</h1>,
+                    h2: ({children}) => <h2 className="text-lg font-bold my-2">{children}</h2>,
+                    h3: ({children}) => <h3 className="text-md font-bold my-2">{children}</h3>,
+                    ul: ({children}) => <ul className="list-disc ml-5 my-2">{children}</ul>,
+                    ol: ({children}) => <ol className="list-decimal ml-5 my-2">{children}</ol>,
+                    li: ({children}) => <li className="my-1">{children}</li>,
+                    blockquote: ({children}) => <blockquote className="border-l-4 border-blue-300 pl-3 italic">{children}</blockquote>,
+                    strong: ({children}) => <strong className="font-bold text-emerald-700">{children}</strong>,
+                    em: ({children}) => <em className="italic text-slate-700">{children}</em>,
+                    pre: ({children}) => <pre className="bg-gray-100 p-2 rounded overflow-x-auto">{children}</pre>,
+                    code: ({children}) => <code className="bg-blue-100 px-1 py-0.5 rounded">{children}</code>,
+                    a: ({href, children}) => (
+                      <a 
+                        href={href} 
+                        className="text-blue-600 hover:text-blue-800 underline"
+                        onClick={(e) => {
+                          // Handle UI section links
+                          if (href && href.startsWith('#')) {
+                            e.preventDefault();
+                            const sectionId = href.substring(1);
+                            const section = document.getElementById(sectionId);
+                            if (section) {
+                              section.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }
+                        }}
+                      >
+                        {children}
+                      </a>
+                    )
+                  }}
+                >
+                  {marketAnalysis}
+                </ReactMarkdown>
+              </div>
             </div>
           ) : (
             <p>Loading analysis...</p>

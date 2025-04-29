@@ -285,47 +285,18 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
     // Update the createLinkableContent function
-    const createLinkableContent = (message: string) => {
-        // Define patterns to detect UI link mentions
-        const patterns = [
-            // Updated to include section links
-            {
-                regex: /\[\[market(?:\s+trends)?\]\]/gi,
-                replacement: `<a href="#${SECTION_IDS.MARKET}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>`
-            },
-            {
-                regex: /\[\[properties\]\]/gi,
-                replacement: `<a href="#${SECTION_IDS.PROPERTIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>`
-            },
-            {
-                regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi,
-                replacement: `<a href="#${SECTION_IDS.AMENITIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">local amenities</a>`
-            },
-            {
-                regex: /\[\[transit\]\]/gi,
-                replacement: `<a href="#${SECTION_IDS.TRANSIT}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>`
-            },
-            {
-                regex: /\[\[property\s+market\]\]/gi,
-                replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
-            }
-        ];
-
-        // Process each pattern
-        let processedContent = message;
-        patterns.forEach(pattern => {
-            processedContent = processedContent.replace(pattern.regex, pattern.replacement);
-        });
-
-        // Also create property links for specific properties being discussed
-        if (selectedProperty) {
-            const propertyPattern = new RegExp(`\\b(this|the current|the selected|your) (property|condo|home|house)\\b`, 'gi');
-            processedContent = processedContent.replace(propertyPattern,
-                `<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetail" data-zpid="${selectedProperty.zpid}">$1 $2</a>`);
-        }
-
-        return processedContent;
-    };
+// Enhanced createLinkableContent function
+const createLinkableContent = (message: string) => {
+    console.log("Creating linkable content from:", message);
+    
+    // First, check if we need to process the message
+    if (!message || typeof message !== 'string') {
+      return message;
+    }
+    
+    // Process the message with the processUILinks function
+    return processUILinks(message);
+  };
 
     const fetchMarketTrends = async (location?: string, zipCode?: string) => {
         console.log('Fetching market trends for:', location || zipCode);
@@ -913,3 +884,83 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         </ChatContext.Provider>
     );
 };
+
+const processUILinks = (text: string) => {
+    console.log("Processing UI links in text:", text);
+    
+    // Define patterns to detect UI link mentions
+    const linkPatterns = [
+      {
+        regex: /\[\[market(?:\s+trends)?\]\]/gi,
+        id: SECTION_IDS.MARKET,
+        label: 'market trends'
+      },
+      {
+        regex: /\[\[properties\]\]/gi,
+        id: SECTION_IDS.PROPERTIES,
+        label: 'properties'
+      },
+      {
+        regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi,
+        id: SECTION_IDS.AMENITIES,
+        label: 'local amenities'
+      },
+      {
+        regex: /\[\[transit\]\]/gi,
+        id: SECTION_IDS.TRANSIT,
+        label: 'transit options'
+      },
+      {
+        regex: /\[\[property\s+market\]\]/gi,
+        replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
+      },
+      {
+        regex: /\[\[property\s+details\]\]/gi,
+        id: PROPERTY_TAB_IDS.DETAILS,
+        label: 'property details',
+        linkType: 'propertyDetails'
+      },
+      {
+        regex: /\[\[price\s+history\]\]/gi,
+        id: PROPERTY_TAB_IDS.PRICE_HISTORY,
+        label: 'price history',
+        linkType: 'propertyPriceHistory'
+      },
+      {
+        regex: /\[\[property\s+schools\]\]|\[\[schools\]\]/gi,
+        id: PROPERTY_TAB_IDS.SCHOOLS,
+        label: 'schools',
+        linkType: 'propertySchools'
+      },
+      {
+        regex: /\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]/gi,
+        id: PROPERTY_TAB_IDS.MARKET_ANALYSIS,
+        label: 'market analysis',
+        linkType: 'propertyMarketAnalysis'
+      }
+    ];
+    
+    // Process each pattern
+    let processedText = text;
+    
+    linkPatterns.forEach(pattern => {
+      processedText = processedText.replace(pattern.regex, (match) => {
+        console.log(`Found link pattern: "${match}"`);
+        
+        // Handle property tab links differently than section links
+        if (pattern.linkType) {
+          return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.linkType}">${pattern.label}</a>`;
+        } else if (pattern.id) {
+          return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.label.includes('market') ? 'market' : pattern.label.includes('properties') ? 'property' : pattern.label.includes('amenities') ? 'restaurants' : 'transit'}">${pattern.label}</a>`;
+        } else if (pattern.replacement) {
+          // For patterns with direct replacement
+          return pattern.replacement;
+        }
+        // Default case: return the original match if no replacement is found
+        return match;
+      });
+    });
+    
+    console.log("Processed text:", processedText);
+    return processedText;
+  };

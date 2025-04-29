@@ -227,13 +227,15 @@ import re
 
 
 # Function to format response with proper HTML links
+# In app.py, replace the format_response_with_links function with this improved version
+
 def format_response_with_links(response_text):
-
-
-
     """Replace markdown (**bold**, *italic*, # headings) and link placeholders with HTML."""
     text = response_text
-
+    
+    # Log the input for debugging
+    logging.info(f"Formatting response with links. Input: {text[:100]}...")
+    
     # — 1) Convert headings (#, ##, ###, etc.) to <h1>…<h6>
     heading_patterns = {
         r'^###### (.+)$': r'<h6>\1</h6>',
@@ -245,14 +247,18 @@ def format_response_with_links(response_text):
     }
     for pattern, repl in heading_patterns.items():
         text = re.sub(pattern, repl, text, flags=re.MULTILINE)
-
+    
     # — 2) Convert **bold** and *italic*
     #    First bold (two stars), then italic (single stars)
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
-
+    
     # — 3) Convert your [[…]] placeholders into HTML links
-    """Replace link placeholders with actual HTML links."""
+    # Log found link patterns for debugging
+    all_link_patterns = re.findall(r'\[\[.+?\]\]', text)
+    if all_link_patterns:
+        logging.info(f"Found link patterns: {all_link_patterns}")
+    
     replacements = [
         # Market trends link
         (r'\[\[market(?:\s+trends)?\]\]', 
@@ -272,13 +278,11 @@ def format_response_with_links(response_text):
         
         # Property market link (without section ID since it's a different view)
         (r'\[\[property\s+market\]\]',
-     '<a href="#" class="text-teal-600 hover:text-teal-800 underline" '
-     'data-ui-link="propertyMarket">property market analysis</a>'),
-
-
-                # Property tab links - added for better property context support
+         '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'),
+        
+        # Property tab links - added for better property context support
         (r'\[\[property\s+details\]\]',
-     f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
+         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
         
         (r'\[\[price\s+history\]\]', 
          f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory">price history</a>'),
@@ -288,14 +292,25 @@ def format_response_with_links(response_text):
         
         (r'\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]', 
          f'<a href="#{PROPERTY_TAB_IDS["MARKET_ANALYSIS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis">market analysis</a>')
-    
     ]
     
+    # Apply each replacement pattern
     for pattern, replacement in replacements:
-        result = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        before_count = text.count("[[")
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+        after_count = text.count("[[")
+        if before_count > after_count:
+            logging.info(f"Replaced pattern {pattern} - found {before_count - after_count} occurrences")
     
-    return result
-
+    # Check if any link patterns remain (which would indicate a missed pattern)
+    remaining_links = re.findall(r'\[\[.+?\]\]', text)
+    if remaining_links:
+        logging.warning(f"Remaining unprocessed link patterns: {remaining_links}")
+    
+    # Log the output for debugging
+    logging.info(f"Formatted output: {text[:100]}...")
+    
+    return text
 
 # Initialize Azure OpenAI
 def get_llm():
