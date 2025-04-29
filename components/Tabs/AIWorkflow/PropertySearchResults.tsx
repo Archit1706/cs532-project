@@ -98,7 +98,7 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
           const [min, max] = filters.bedrooms;
           return property.beds >= min && (max === null || property.beds <= max);
         } else {
-          return property.beds >= filters.bedrooms;
+          return filters.bedrooms !== undefined && property.beds >= filters.bedrooms;
         }
       });
     }
@@ -110,7 +110,7 @@ const PropertySearchResults: React.FC<PropertySearchResultsProps> = ({
           const [min, max] = filters.bathrooms;
           return property.baths >= min && (max === null || property.baths <= max);
         } else {
-          return property.baths >= filters.bathrooms;
+          return filters.bathrooms !== undefined && property.baths >= filters.bathrooms;
         }
       });
     }
