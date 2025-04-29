@@ -22,9 +22,6 @@ const Header = () => {
                         <Link href="/about" className="text-gray-600 hover:text-emerald-600 text-sm font-medium">
                             About
                         </Link>
-                        {/* <Link href="/pricing" className="text-gray-600 hover:text-emerald-600 text-sm font-medium">
-              Pricing
-            </Link> */}
                         <Link href="/sign-up" className="px-4 py-2 bg-emerald-600 text-white text-sm font-semibold rounded-md hover:bg-emerald-700 transition-colors">
                             Sign Up
                         </Link>
