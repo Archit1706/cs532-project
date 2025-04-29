@@ -108,6 +108,14 @@ class TranslateResponse(BaseModel):
     text: str      # final text in the user’s language
     language: str  # same as request.language
 
+class AgentSearchRequest(BaseModel):
+    location: str = Field(..., example="houston, tx")
+    specialty: Optional[str] = Field("Any", example="Residential")
+    language: Optional[str] = Field("English", example="English")
+
+class AgentSearchResponse(BaseModel):
+    agents: List[Dict[str, Any]]
+
 # Set up logging
 logging.basicConfig(level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -1410,3 +1418,35 @@ async def nearby_zips(data: LocationRequest):
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "llm_initialized": LLM is not None}
+
+@app.post(
+    "/api/search_agents",
+    response_model=AgentSearchResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+)
+async def search_agents(data: AgentSearchRequest):
+    try:
+        logger.info(f"Received agent search request: {data}")
+        url = "https://zillow56.p.rapidapi.com/search_agents"
+        querystring = {
+            "location": data.location,
+            "specialty": data.specialty,
+            "language": data.language
+        }
+        headers = {
+            "x-rapidapi-key": os.environ.get("ZILLOW_KEY"),
+            "x-rapidapi-host": "zillow56.p.rapidapi.com"
+        }
+
+        response = requests.get(url, headers=headers, params=querystring)
+        if not response.ok:
+            logger.error(f"Zillow API error: {response.status_code} - {response.text}")
+            return JSONResponse(status_code=500, content={"error": "Failed to fetch agents from Zillow API"})
+
+        agents = response.json()
+        logger.info(f"Found {len(agents)} agents for location: {data.location}")
+        return {"agents": agents}
+    except Exception as e:
+        error_message = f"Unexpected error in agent search endpoint: {str(e)}"
+        logger.error(error_message)
+        return JSONResponse(status_code=500, content={"error": error_message})
