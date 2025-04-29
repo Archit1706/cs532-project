@@ -16,6 +16,22 @@ import {
 } from '@clerk/nextjs'
 import Link from 'next/link';
 
+// Define interfaces for type safety
+interface ChatMessage {
+    role: 'user' | 'assistant';
+    text: string;
+    showProperties?: boolean;
+}
+
+interface PropertyListing {
+    id: string;
+    address: string;
+    price: number;
+    bedrooms: number;
+    bathrooms: number;
+    image: string;
+}
+
 const Header = () => {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -86,169 +102,16 @@ const Header = () => {
     );
 };
 
-// const HeroSection = () => {
-//     // Chat conversation state
-//     const [chatMessages, setChatMessages] = useState([]);
-//     const [currentMessage, setCurrentMessage] = useState('');
-//     const [isTyping, setIsTyping] = useState(false);
-//     const [currentIndex, setCurrentIndex] = useState(0);
-//     const chatContainerRef = useRef(null);
-
-//     // Predefined conversation flow
-//     const conversationFlow = [
-//         { role: 'user', text: "Hi! I'm looking for a 2-bedroom apartment in Chicago." },
-//         { role: 'assistant', text: "I can help with that! What's your budget range?" },
-//         { role: 'user', text: "Around $2,000 per month, and I'd like to be close to public transit." },
-//         { role: 'assistant', text: "Great! I found 12 properties matching your criteria. Here are the top recommendations..." },
-//         { role: 'user', text: "Can you show me places with in-unit laundry?" },
-//         { role: 'assistant', text: "Absolutely! I've filtered the results. There are 7 properties with in-unit laundry within your budget in Chicago." }
-//     ];
-
-//     // Typing animation effect
-//     useEffect(() => {
-//         if (currentIndex < conversationFlow.length) {
-//             const nextMessage = conversationFlow[currentIndex];
-//             let charIndex = 0;
-//             setIsTyping(true);
-
-//             // Simulate typing speed
-//             const typingInterval = setInterval(() => {
-//                 if (charIndex <= nextMessage.text.length) {
-//                     setCurrentMessage(nextMessage.text.substring(0, charIndex));
-//                     charIndex++;
-//                 } else {
-//                     clearInterval(typingInterval);
-//                     setIsTyping(false);
-//                     setChatMessages(prev => [...prev, nextMessage]);
-//                     setCurrentMessage('');
-
-//                     // Wait before starting the next message
-//                     setTimeout(() => {
-//                         setCurrentIndex(prevIndex => prevIndex + 1);
-//                     }, 1000);
-//                 }
-//             }, nextMessage.role === 'user' ? 50 : 30); // Users type slower than the assistant
-
-//             return () => clearInterval(typingInterval);
-//         }
-//     }, [currentIndex]);
-
-//     // Auto-scroll to the bottom of chat
-//     useEffect(() => {
-//         if (chatContainerRef.current) {
-//             chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-//         }
-//     }, [chatMessages, currentMessage]);
-
-//     return (
-//         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 to-teal-800 text-white">
-//             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-//                 <div className="pt-10 pb-8 md:pt-16 md:pb-20 lg:pt-24 lg:pb-28 flex flex-col md:flex-row items-center">
-//                     <div className="md:w-1/2 md:pr-8 mb-10 md:mb-0">
-//                         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4 text-emerald-100">
-//                             The Smartest Way to Find Your Next Home
-//                         </h1>
-//                         <p className="text-lg md:text-xl text-teal-100 mb-6">
-//                             AI-powered conversation assistant for real estate inquiries, property searches, and market insights.
-//                         </p>
-//                         <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4">
-//                             <SignedIn>
-//                                 <Link href={"/chat"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
-//                                     Chat Now
-//                                 </Link>
-//                             </SignedIn>
-//                             <SignedOut>
-//                                 <Link href={"/sign-in"} className="px-6 py-3 bg-emerald-600 text-white font-semibold rounded-md shadow-lg hover:bg-emerald-700 transition-colors">
-//                                     Chat Now
-//                                 </Link>
-//                             </SignedOut>
-//                             {/* <Link href="/sign-in" className="px-6 py-3 bg-white text-emerald-900 font-semibold rounded-md shadow-lg hover:bg-emerald-50 transition-colors">
-//                                 Get Started 
-//                             </Link> */}
-//                             <Link href={"#demo"} className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
-//                                 See Demo
-//                             </Link>
-//                         </div>
-//                     </div>
-
-//                     {/* Chat UI */}
-//                     <div className="md:w-1/2 relative">
-//                         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-//                             <div className="bg-emerald-600 text-white p-3 flex items-center space-x-2">
-//                                 <BsChatDots className="text-xl text-white" />
-//                                 <span className="font-medium text-white">Keya Assistant</span>
-//                             </div>
-//                             <div className="p-4 bg-gray-50 space-y-3 h-64 overflow-y-auto" ref={chatContainerRef}>
-//                                 {/* Rendered chat messages */}
-//                                 {chatMessages.map((msg, index) => (
-//                                     <div key={index} className={`flex justify-${msg.role === 'assistant' ? 'end' : 'start'}`}>
-//                                         <div
-//                                             className={`${msg.role === 'assistant'
-//                                                 ? 'bg-emerald-600 text-white'
-//                                                 : 'bg-teal-100 text-emerald-900'
-//                                                 } rounded-lg p-3 max-w-xs animate-fadeIn`}
-//                                         >
-//                                             {msg.text}
-//                                         </div>
-//                                     </div>
-//                                 ))}
-
-//                                 {/* Currently typing message */}
-//                                 {isTyping && currentIndex < conversationFlow.length && (
-//                                     <div className={`flex justify-${conversationFlow[currentIndex].role === 'assistant' ? 'end' : 'start'}`}>
-//                                         <div
-//                                             className={`${conversationFlow[currentIndex].role === 'assistant'
-//                                                 ? 'bg-emerald-600 text-white'
-//                                                 : 'bg-teal-100 text-emerald-900'
-//                                                 } rounded-lg p-3 max-w-xs`}
-//                                         >
-//                                             {currentMessage}
-//                                             <span className="inline-block animate-pulse">|</span>
-//                                         </div>
-//                                     </div>
-//                                 )}
-//                             </div>
-
-//                             {/* Input Field */}
-//                             <div className="flex border rounded-full overflow-hidden bg-white mt-3 mx-4 mb-4">
-//                                 <input
-//                                     type="text"
-//                                     placeholder="Ask me anything about real estate..."
-//                                     className="flex-grow px-4 py-2 focus:outline-none text-emerald-900"
-//                                 />
-//                                 <button className="bg-emerald-600 text-white px-4 py-2">
-//                                     <IoMdArrowRoundForward className="text-xl text-white" />
-//                                 </button>
-//                             </div>
-//                         </div>
-//                     </div>
-//                 </div>
-//             </div>
-
-//             {/* Wave shape divider */}
-//             <div className="absolute bottom-0 left-0 right-0">
-//                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 100" className="w-full">
-//                     <path
-//                         fill="#ffffff"
-//                         fillOpacity="1"
-//                         d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,42.7C672,32,768,32,864,42.7C960,53,1056,75,1152,75C1248,75,1344,53,1392,42.7L1440,32L1440,100L1392,100C1344,100,1248,100,1152,100C1056,100,960,100,864,100C768,100,672,100,576,100C480,100,384,100,288,100C192,100,96,100,48,100L0,100Z"
-//                     ></path>
-//                 </svg>
-//             </div>
-//         </div>
-//     );
-// };
-
-const HeroSection = () => {
-    // Chat conversation state
-    const [chatMessages, setChatMessages] = useState([]);
-    const [currentMessage, setCurrentMessage] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [currentIndex, setCurrentIndex] = useState(0);
-    const chatContainerRef = useRef(null);
+const HeroSection: React.FC = () => {
+    // Chat conversation state with proper typing
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [currentMessage, setCurrentMessage] = useState<string>('');
+    const [isTyping, setIsTyping] = useState<boolean>(false);
+    const [currentIndex, setCurrentIndex] = useState<number>(0);
+    const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
     // Predefined conversation flow with property listings
-    const conversationFlow = [
+    const conversationFlow: ChatMessage[] = [
         { role: 'user', text: "Hi! I'm looking for a 2-bedroom apartment in Chicago." },
         { role: 'assistant', text: "I can help with that! What's your budget range?" },
         { role: 'user', text: "Around $2,000 per month, and I'd like to be close to public transit." },
@@ -258,6 +121,42 @@ const HeroSection = () => {
             role: 'assistant',
             text: "Absolutely! I've filtered the results. Here are the best properties with in-unit laundry within your budget:",
             showProperties: true
+        }
+    ];
+
+    // Sample property listings
+    const propertyListings: PropertyListing[] = [
+        {
+            id: '1',
+            address: '2309 W 21st St',
+            price: 319900,
+            bedrooms: 2,
+            bathrooms: 2,
+            image: '/sample/prop1.jpg'
+        },
+        {
+            id: '2',
+            address: '2720 W Cermak Rd',
+            price: 539000,
+            bedrooms: 6,
+            bathrooms: 3,
+            image: '/sample/prop2.jpg'
+        },
+        {
+            id: '3',
+            address: '919 W 18th Pl',
+            price: 415000,
+            bedrooms: 3,
+            bathrooms: 2,
+            image: '/sample/prop3.jpg'
+        },
+        {
+            id: '4',
+            address: '1125 W Washburne Ave',
+            price: 287000,
+            bedrooms: 4,
+            bathrooms: 2,
+            image: '/sample/prop4.webp'
         }
     ];
 
@@ -297,6 +196,25 @@ const HeroSection = () => {
         }
     }, [chatMessages, currentMessage]);
 
+    // Property card component for better organization
+    const PropertyCard: React.FC<{ property: PropertyListing }> = ({ property }) => (
+        <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
+            <div className="h-20 bg-gray-200 relative">
+                <img src={property.image} alt={`Property at ${property.address}`} className="w-full h-full object-cover" />
+                <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">
+                    ${property.price.toLocaleString()}
+                </div>
+            </div>
+            <div className="p-1">
+                <p className="text-xs font-medium text-gray-900 truncate">{property.address}</p>
+                <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-gray-500">{property.bedrooms} bed</span>
+                    <span className="text-xs text-gray-500">{property.bathrooms} bath</span>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
         <div className="relative overflow-hidden bg-gradient-to-r from-emerald-900 to-teal-800 text-white">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -319,11 +237,9 @@ const HeroSection = () => {
                                     Chat Now
                                 </Link>
                             </SignedOut>
-                            {/* <Link href="/sign-in" className="px-6 py-3 bg-white text-emerald-900 font-semibold rounded-md shadow-lg hover:bg-emerald-50 transition-colors">
-                                 Get Started 
-                             </Link> */}
-                            <Link href={"#demo"} className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
-                                See Demo                            </Link>
+                            <Link href="#demo" className="px-6 py-3 border-2 border-white text-white font-semibold rounded-md hover:bg-white/10 transition-colors">
+                                See Demo
+                            </Link>
                         </div>
                     </div>
 
@@ -352,66 +268,10 @@ const HeroSection = () => {
                                         {/* Property listings */}
                                         {msg.showProperties && (
                                             <div className="mt-2 mb-2 w-full">
-                                                <div className="flex overflow-x-auto space-x-2 pb-2 fscrollbar-hide">
-                                                    {/* Property 1 */}
-                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
-                                                        <div className="h-20 bg-gray-200 relative">
-                                                            <img src="/sample/prop1.jpg" alt="Property" className="w-full h-full object-cover" />
-                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$319,900</div>
-                                                        </div>
-                                                        <div className="p-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">2309 W 21st St</p>
-                                                            <div className="flex items-center justify-between mt-1">
-                                                                <span className="text-xs text-gray-500">2 bed</span>
-                                                                <span className="text-xs text-gray-500">2 bath</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Property 2 */}
-                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
-                                                        <div className="h-20 bg-gray-200 relative">
-                                                            <img src="/sample/prop2.jpg" alt="Property" className="w-full h-full object-cover" />
-                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$539,000</div>
-                                                        </div>
-                                                        <div className="p-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">2720 W Cermak Rd</p>
-                                                            <div className="flex items-center justify-between mt-1">
-                                                                <span className="text-xs text-gray-500">6 bed</span>
-                                                                <span className="text-xs text-gray-500">3 bath</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Property 3 */}
-                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
-                                                        <div className="h-20 bg-gray-200 relative">
-                                                            <img src="/sample/prop3.jpg" alt="Property" className="w-full h-full object-cover" />
-                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$415,000</div>
-                                                        </div>
-                                                        <div className="p-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">919 W 18th Pl</p>
-                                                            <div className="flex items-center justify-between mt-1">
-                                                                <span className="text-xs text-gray-500">3 bed</span>
-                                                                <span className="text-xs text-gray-500">2 bath</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Property 4 */}
-                                                    <div className="flex-shrink-0 w-32 rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
-                                                        <div className="h-20 bg-gray-200 relative">
-                                                            <img src="/sample/prop4.webp" alt="Property" className="w-full h-full object-cover" />
-                                                            <div className="absolute bottom-0 left-0 bg-emerald-600 text-white text-xs px-1">$287,000</div>
-                                                        </div>
-                                                        <div className="p-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">1125 W Washburne Ave</p>
-                                                            <div className="flex items-center justify-between mt-1">
-                                                                <span className="text-xs text-gray-500">4 bed</span>
-                                                                <span className="text-xs text-gray-500">2 bath</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
+                                                <div className="flex overflow-x-auto space-x-2 pb-2 scrollbar-hide">
+                                                    {propertyListings.map((property) => (
+                                                        <PropertyCard key={property.id} property={property} />
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
