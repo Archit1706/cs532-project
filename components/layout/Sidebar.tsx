@@ -7,6 +7,8 @@ import { FaHome } from "react-icons/fa";
 import { FaChartLine } from "react-icons/fa6";
 import { MdOutlineLogout, MdOutlineLiveHelp, MdMenu, MdMenuOpen } from "react-icons/md";
 import { IoSettingsOutline, IoChatbubbleOutline } from "react-icons/io5";
+import { toast } from 'react-toastify';
+import { SignOutButton } from '@clerk/nextjs';
 
 
 const Sidebar = () => {
@@ -69,10 +71,14 @@ const Sidebar = () => {
 
             {/* Logout */}
             <button className="px-2 pb-6 w-full cursor-pointer">
-                <div className={`flex items-center gap-3 p-3 rounded-lg hover:bg-red-50 text-gray-600 hover:text-red-500 ${collapsed ? 'justify-center' : ''}`}>
-                    <MdOutlineLogout className="w-5 h-5" />
-                    {!collapsed && <span className="transition-opacity duration-200">Logout</span>}
-                </div>
+                <SignOutButton>
+                    <div className={`flex items-center gap-3 p-3 rounded-lg hover:bg-red-50 text-gray-600 hover:text-red-500 ${collapsed ? 'justify-center' : ''}`}
+                    >
+                        <MdOutlineLogout className="w-5 h-5" />
+                        {!collapsed && <span className="transition-opacity duration-200">Logout</span>}
+                    </div>
+                </SignOutButton>
+
             </button>
         </aside>
     );
