@@ -116,7 +116,7 @@ export default function Page() {
                         <div className="bg-gray-50 p-6 border-t border-gray-100">
                             <p className="text-center text-gray-600 text-sm">
                                 Already have an account?{' '}
-                                <Link href="/sign-in" className="text-emerald-600 font-medium hover:text-emerald-700">
+                                <Link href={"/sign-in"} className="text-emerald-600 font-medium hover:text-emerald-700">
                                     Sign in
                                 </Link>
                             </p>
