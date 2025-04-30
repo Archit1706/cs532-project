@@ -13,13 +13,15 @@ import RestaurantTab from '../Tabs/RestaurantTab';
 import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
 import AIWorkflowTab from '../Tabs/AIWorkflowTab';
+import PropertyAgentTab from '../Tabs/PropertyAgentsTab';
 
 // Create unique IDs for each section that can be used as anchors
 const SECTION_IDS = {
     PROPERTIES: 'properties-section',
     MARKET: 'market-trends-section',
     AMENITIES: 'local-amenities-section',
-    TRANSIT: 'transit-section'
+    TRANSIT: 'transit-section',
+    AGENTS: 'agents-section',
 };
 
 const InfoPanel = () => {
@@ -189,6 +191,29 @@ const InfoPanel = () => {
                             </div>
                         </div>
                         <TransitTab />
+                    </section>
+
+                    {/* Agents Section with Improved Header */}
+                    <section id={SECTION_IDS.AGENTS} className="scroll-mt-16 mt-8">
+                        <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl shadow-md mb-4">
+                            <div className="flex items-center p-4">
+                                <MdLocationCity className="text-white mr-3 text-2xl" />
+                                <h2 className="text-xl font-bold text-white">Top Agents</h2>
+                                <a
+                                    href={`#${SECTION_IDS.AGENTS}`}
+                                    className="ml-auto text-purple-100 hover:text-white"
+                                    title="Copy link to this section"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.AGENTS}`);
+                                    }}
+                                >
+                                    #
+                                </a>
+                            </div>
+                        </div>
+                        {/* AgentsTab component here */}
+                        <PropertyAgentTab />
                     </section>
                 </div>
             );

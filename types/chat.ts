@@ -64,6 +64,7 @@ interface LocationData {
     restaurants: LocationResult[];
     transit: LocationResult[];
     zipCode: string;
+    agents: Agent[];
 }
 
 interface Property {
@@ -79,6 +80,31 @@ interface Property {
     latitude?: number;
     longitude?: number;
 }
+interface AgentsResponse {
+    agents: Agent[];
+}
 
+interface Agent {
+    businessName: string;
+    encodedZuid: string;
+    fullName: string;
+    isTeamLead: boolean;
+    isTopAgent: boolean;
+    location: string;
+    numTotalReviews: number;
+    phoneNumber: string;
+    profileLink: string;
+    profilePhotoSrc: string;
+    reviewExcerpt: string;
+    reviewExcerptDate: string; // Consider using `Date` if parsing into JS Date objects
+    reviewLink: string;
+    reviewStarsRating: number;
+    reviews: string;
+    saleCountAllTime: number;
+    saleCountLastYear: number;
+    salePriceRangeThreeYearMax: number;
+    salePriceRangeThreeYearMin: number;
+    username: string;
+}
 
-export type { Message, FeatureExtraction, LocationResponse, LocationData, Property };
+export type { Message, FeatureExtraction, LocationResponse, LocationData, Property, Agent, AgentsResponse, LocationResult };
