@@ -79,16 +79,16 @@ const InfoPanel = () => {
             if (isPropertyChat && propertyDetails) {
                 return (
                     <div className="space-y-6 m-6">
-                        <h2 className="text-xl font-semibold text-slate-700">Property Overview</h2>
+                        <h2 className="text-xl font-semibold text-slate-200">Property Overview</h2>
                         <SinglePropertyOverview />
 
-                        <h2 className="text-lg font-semibold text-slate-700">Transit</h2>
+                        <h2 className="text-lg font-semibold text-slate-200">Transit</h2>
                         <TransitTab />
 
-                        <h2 className="text-lg font-semibold text-slate-700">Local Amenities</h2>
+                        <h2 className="text-lg font-semibold text-slate-200">Local Amenities</h2>
                         <RestaurantTab />
 
-                        <h2 className="text-lg font-semibold text-slate-700">Similar Properties</h2>
+                        <h2 className="text-lg font-semibold text-slate-200">Similar Properties</h2>
                         <PropertyTab source="nearby" />
                     </div>
                 );

@@ -21,7 +21,9 @@ import {
     MdLink,
     MdPayment,
     MdChat,
-    MdClose
+    MdClose,
+    MdChevronLeft,
+    MdChevronRight,
 } from "react-icons/md";
 import Link from "next/link";
 import { TbAirConditioning } from "react-icons/tb";
@@ -32,7 +34,7 @@ import { IoIosPricetag } from "react-icons/io";
 export const PROPERTY_TAB_IDS = {
     DETAILS: "property-details-tab",
     PRICE_HISTORY: "property-price-history-tab",
-    SCHOOLS: "property-schools-tab", 
+    SCHOOLS: "property-schools-tab",
     MARKET_ANALYSIS: "property-market-analysis-tab"
 };
 
@@ -57,6 +59,8 @@ const Section = ({
     </div>
 );
 
+// Inside the component or as a separate component
+
 const SinglePropertyOverview = () => {
     const { propertyDetails, setPropertyContext } = useChatContext();
     const [activeTab, setActiveTab] = useState('details');
@@ -74,7 +78,7 @@ const SinglePropertyOverview = () => {
                 [PROPERTY_TAB_IDS.SCHOOLS]: 'schools',
                 [PROPERTY_TAB_IDS.MARKET_ANALYSIS]: 'market analysis'
             };
-            
+
             if (tabMap[hash]) {
                 setActiveTab(tabMap[hash]);
                 // Scroll to the tab section
@@ -94,10 +98,10 @@ const SinglePropertyOverview = () => {
             console.log('Event received: switchToPropertyMarketTab');
             setActiveTab('market analysis');
         };
-        
+
         // Listen for custom event from UI links
         document.addEventListener('switchToPropertyMarketTab', handleTabSwitch);
-        
+
         // Cleanup
         return () => {
             document.removeEventListener('switchToPropertyMarketTab', handleTabSwitch);
@@ -149,14 +153,29 @@ const SinglePropertyOverview = () => {
                     priceHistory: `#${PROPERTY_TAB_IDS.PRICE_HISTORY}`,
                     schools: `#${PROPERTY_TAB_IDS.SCHOOLS}`,
                     marketAnalysis: `#${PROPERTY_TAB_IDS.MARKET_ANALYSIS}`
-                }
+                },
+                neighborhoodScores: {
+                    walkability: {
+                        score: propertyDetails.walkability?.walkscore,
+                        description: propertyDetails.walkability?.description
+                    },
+                    transit: {
+                        score: propertyDetails.transit?.transit_score,
+                        description: propertyDetails.transit?.description
+                    },
+                    bike: {
+                        score: propertyDetails.bike?.bikescore,
+                        description: propertyDetails.bike?.description
+                    }
+                },
+                rentEstimate: propertyDetails.rent_estimate
             };
-            
+
             // Store this in context for the chat to access
             if (setPropertyContext) {
                 setPropertyContext(contextData);
             }
-            
+
             console.log('Property context set for chat:', contextData);
         }
     }, [propertyDetails, setPropertyContext]);
@@ -166,12 +185,12 @@ const SinglePropertyOverview = () => {
     const info = propertyDetails.basic_info;
     const features = propertyDetails.features || {};
     const address = info.address?.full || `${info.address?.streetAddress}, ${info.address?.city}, ${info.address?.state} ${info.address?.zipcode}`;
-    
+
     // Use the first property image from the array, or fall back to a default
     const image = propertyDetails.images?.[0] || "https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2";
-    
+
     // Extract HOA fee if available
-    const hoaFee = features?.atAGlanceFacts?.find((fact: any) => 
+    const hoaFee = features?.atAGlanceFacts?.find((fact: any) =>
         fact.factLabel?.toLowerCase().includes('hoa') || fact.factLabel?.toLowerCase().includes('association fee')
     )?.factValue || 'N/A';
 
@@ -267,7 +286,7 @@ const SinglePropertyOverview = () => {
     const copyTabLink = (tabId: string) => {
         const url = `${window.location.href.split('#')[0]}#${tabId}`;
         navigator.clipboard.writeText(url);
-        
+
         // Visual feedback
         const linkBtn = document.getElementById(`copy-${tabId}`);
         if (linkBtn) {
@@ -277,6 +296,144 @@ const SinglePropertyOverview = () => {
             }, 1000);
         }
     };
+
+    const ImageGallery = ({ images }: { images: string[] }) => {
+        const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+        const nextImage = () => {
+            setCurrentImageIndex((prevIndex) =>
+                prevIndex === images.length - 1 ? 0 : prevIndex + 1
+            );
+        };
+
+        const prevImage = () => {
+            setCurrentImageIndex((prevIndex) =>
+                prevIndex === 0 ? images.length - 1 : prevIndex - 1
+            );
+        };
+
+        return (
+            <div className="relative group">
+                {/* Main Image */}
+                <img
+                    src={images[currentImageIndex]}
+                    alt={`Property image ${currentImageIndex + 1}`}
+                    className="w-full h-72 md:w-96 object-cover rounded-lg"
+                />
+
+                {/* Navigation Arrows - Only show if more than one image */}
+                {images.length > 1 && (
+                    <>
+                        {/* Left Arrow */}
+                        <button
+                            onClick={prevImage}
+                            className="absolute top-1/2 left-2 transform -translate-y-1/2 
+                                bg-white/50 hover:bg-white/75 rounded-full p-2 
+                                opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        >
+                            <MdChevronLeft className="text-slate-800 text-2xl" />
+                        </button>
+
+                        {/* Right Arrow */}
+                        <button
+                            onClick={nextImage}
+                            className="absolute top-1/2 right-2 transform -translate-y-1/2 
+                                bg-white/50 hover:bg-white/75 rounded-full p-2 
+                                opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                        >
+                            <MdChevronRight className="text-slate-800 text-2xl" />
+                        </button>
+                    </>
+                )}
+
+                {/* Dot Indicators */}
+                {images.length > 1 && (
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                        {images.map((_, index) => (
+                            <button
+                                key={index}
+                                onClick={() => setCurrentImageIndex(index)}
+                                className={`w-2 h-2 rounded-full transition-colors duration-300 ${index === currentImageIndex
+                                        ? 'bg-teal-600'
+                                        : 'bg-white/50 hover:bg-white/75'
+                                    }`}
+                            />
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    const NeighborhoodScores = ({ propertyDetails }) => {
+        const { walkability, transit, bike } = propertyDetails;
+
+        const ScoreBar = ({ label, score, description }) => (
+            <div className="mb-4">
+                <div className="flex justify-between items-center mb-1">
+                    <span className="text-slate-700">{label}</span>
+                    <span className="text-slate-600 font-medium">{score}/100</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2.5">
+                    <div
+                        className="bg-teal-600 h-2.5 rounded-full"
+                        style={{ width: `${score}%` }}
+                    />
+                </div>
+                <p className="text-xs text-slate-500 mt-1">{description}</p>
+            </div>
+        );
+
+        return (
+            <div>
+                <ScoreBar
+                    label="Walkability"
+                    score={walkability?.walkscore}
+                    description={walkability.description}
+                />
+                <ScoreBar
+                    label="Transit"
+                    score={transit?.transit_score}
+                    description={transit.description}
+                />
+                <ScoreBar
+                    label="Bike Friendliness"
+                    score={bike?.bikescore}
+                    description={bike.description}
+                />
+            </div>
+        );
+    };
+
+    const RentEstimateSection = ({ propertyDetails }) => {
+        const { rent_estimate } = propertyDetails;
+
+        return (
+            <div>
+                <div className="grid grid-cols-3 gap-4 text-center">
+                    <div>
+                        <div className="text-sm text-slate-500">Estimated Rent</div>
+                        <div className="text-lg font-semibold text-emerald-600">
+                            ${rent_estimate?.rent_estimate}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-sm text-slate-500">Low Range</div>
+                        <div className="text-md text-slate-700">
+                            ${rent_estimate?.rent_estimate_range_low}
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-sm text-slate-500">High Range</div>
+                        <div className="text-md text-slate-700">
+                            ${rent_estimate?.rent_estimate_range_high}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
 
     return (
         <div className="max-w-5xl mx-auto bg-slate-50 p-4 rounded-2xl">
@@ -289,21 +446,32 @@ const SinglePropertyOverview = () => {
                         <h1 className="text-2xl font-bold">{address}</h1>
                     </div>
                 </div>
-                
+
                 <div className="md:flex">
-                    {/* Property Image */}
+                    {/* Property Image Gallery */}
                     <div className="md:flex-shrink-0 relative">
-                        <img
-                            className="h-72 w-full object-cover md:w-96"
-                            src={image || undefined}
-                            alt={address}
-                        />
+                        {propertyDetails.images && propertyDetails.images.length > 0 ? (
+                            <ImageGallery
+                                images={propertyDetails.images.map(img =>
+                                    img || "https://via.placeholder.com/800x400?text=No+Image"
+                                )}
+                            />
+                        ) : (
+                            <img
+                                className="h-72 w-full object-cover md:w-96"
+                                src={image || undefined}
+                                alt={address}
+                            />
+                        )}
+
                         {/* Price tag overlay at top right of image */}
                         <div className="absolute top-4 right-4 bg-emerald-600 text-white py-2 px-4 rounded-lg shadow-lg">
                             <span className="text-xl font-bold">${info.price?.toLocaleString()}</span>
                         </div>
                     </div>
-                    
+
+                    {/* <ImageGallery images={propertyDetails.images || []} /> */}
+
                     {/* Property Details with HOA fee - Reorganized */}
                     <div className="p-6 w-full">
                         {/* Property type */}
@@ -331,7 +499,7 @@ const SinglePropertyOverview = () => {
                                     <div className="text-lg font-semibold text-gray-800">{info.bathrooms}</div>
                                 </div>
                             </div>
-                            
+
                             {/* Row 2: Year Built & HOA Fee */}
                             <div className="bg-slate-50 p-3 rounded-lg flex items-center">
                                 <MdRuleFolder className="text-teal-600 mr-3 text-xl" />
@@ -470,7 +638,7 @@ const SinglePropertyOverview = () => {
                                         </Section>
                                     )}
 
-{(features.heating?.length > 0 || features.cooling?.length > 0) && (
+                                    {(features.heating?.length > 0 || features.cooling?.length > 0) && (
                                         <Section title="Climate Control" icon={TbAirConditioning}>
                                             {features.heating?.length > 0 && (
                                                 <div className="mb-2">
@@ -484,6 +652,18 @@ const SinglePropertyOverview = () => {
                                                     <p className="text-slate-600">{features.cooling.join(", ")}</p>
                                                 </div>
                                             )}
+                                        </Section>
+                                    )}
+
+                                    {/* NeighborhoodScores  and  RentEstimateSection  */}
+                                    {propertyDetails.walkability && (
+                                        <Section title="Neighborhood Scores" icon={MdLocationOn}>
+                                            <NeighborhoodScores propertyDetails={propertyDetails} />
+                                        </Section>
+                                    )}
+                                    {propertyDetails.rent_estimate && (
+                                        <Section title="Rent Estimate" icon={MdAttachMoney}>
+                                            <RentEstimateSection propertyDetails={propertyDetails} />
                                         </Section>
                                     )}
                                 </div>
@@ -506,7 +686,7 @@ const SinglePropertyOverview = () => {
                             </Section>
                         </div>
                     )}
-                    
+
                     {activeTab === 'market analysis' && (
                         <div id={PROPERTY_TAB_IDS.MARKET_ANALYSIS} className="animate-fadeIn">
                             <PropertyMarketTab />

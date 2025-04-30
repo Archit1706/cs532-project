@@ -9,7 +9,7 @@ const TransitTab = () => {
     const { locationData } = useChatContext();
 
     if (!locationData || locationData.transit.length === 0) {
-        return <div className="text-slate-700 text-sm p-2">No transit stations found nearby.</div>;
+        return <div className="text-slate-100 text-sm p-2">No transit stations found nearby.</div>;
     }
 
     return (
