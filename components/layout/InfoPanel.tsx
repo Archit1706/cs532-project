@@ -14,6 +14,8 @@ import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
 import AIWorkflowTab from '../Tabs/AIWorkflowTab';
 import PropertyAgentTab from '../Tabs/PropertyAgentsTab';
+import AgentContactList from '../AgentContactList';
+import AgentChat from '../AgentChat';
 
 // Create unique IDs for each section that can be used as anchors
 const SECTION_IDS = {
@@ -228,8 +230,24 @@ const InfoPanel = () => {
         }
 
         if (activeTab === 'updates') {
-            return <div className="text-slate-600 space-y-6 m-6">No updates yet.</div>;
-        }
+            const { selectedAgentContact } = useChatContext();
+            
+            return (
+              <div className="h-full flex flex-col bg-white">
+                <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-teal-700 to-teal-900 text-white">
+                  <h2 className="text-xl font-semibold">Agent Conversations</h2>
+                  <p className="text-sm text-teal-100">Connect with real estate professionals</p>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {selectedAgentContact ? (
+                    <AgentChat />
+                  ) : (
+                    <AgentContactList />
+                  )}
+                </div>
+              </div>
+            );
+          }
 
         return null;
     };

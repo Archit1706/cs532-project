@@ -8,6 +8,7 @@ import InfoPanel from 'components/layout/InfoPanel';
 import Sidebar from 'components/layout/Sidebar';
 import TopHeader from 'components/layout/TopHeader';
 import { Property } from '@/types/chat';
+import AgentMessagingDebugger from '../../components/AgentMessagingDebugger';
 
 const ChatPageContent = () => {
     const { properties, setSelectedProperty, setIsPropertyChat, setPropertyDetails, loadPropertyChat, locationData } = useChatContext();
@@ -43,6 +44,7 @@ const ChatPageContent = () => {
                     <ChatPanel />
                     <InfoPanel />
                 </div>
+                <AgentMessagingDebugger />
             </main>
         </div>
     );

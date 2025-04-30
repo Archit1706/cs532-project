@@ -1,10 +1,10 @@
-// components/tabs/PropertyAgentTab.tsx
+// components/Tabs/PropertyAgentTab.tsx (Updated)
 "use client";
 
 import React from "react";
 import { useChatContext } from "context/ChatContext";
 import { FaStar, FaStarHalfAlt, FaRegStar } from "react-icons/fa";
-import { MdPhone, MdBusiness, MdPerson, MdAttachMoney } from "react-icons/md";
+import { MdPhone, MdBusiness, MdPerson, MdAttachMoney, MdMessage } from "react-icons/md";
 
 const getStarIcons = (rating: number) => {
     const stars = [];
@@ -25,7 +25,13 @@ const getStarIcons = (rating: number) => {
 };
 
 const PropertyAgentTab = () => {
-    const { locationData } = useChatContext();
+    const { locationData, setActiveTab, addAgentToContacts } = useChatContext();
+
+    // Add handler function for sending message to agent
+    const handleSendMessageToAgent = (agent: any) => {
+        addAgentToContacts(agent);
+        setActiveTab('updates');
+    };
 
     if (!locationData?.agents || locationData.agents.length === 0) {
         return <div className="text-slate-700 text-sm p-2">No top agents found in this area.</div>;
@@ -75,14 +81,24 @@ const PropertyAgentTab = () => {
                                     <p className="mt-2 text-sm italic text-slate-500">"{agent.reviewExcerpt}"</p>
                                 )}
                             </div>
-                            <a
-                                href={`https://www.zillow.com${agent.reviewLink}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm mt-2 text-teal-600 hover:underline font-medium"
-                            >
-                                Read all reviews →
-                            </a>
+                            <div className="flex justify-between items-center mt-3">
+                                <a
+                                    href={`https://www.zillow.com${agent.reviewLink}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-sm text-teal-600 hover:underline font-medium"
+                                >
+                                    Read reviews →
+                                </a>
+                                
+                                {/* Add Send Message button */}
+                                <button
+                                    onClick={() => handleSendMessageToAgent(agent)}
+                                    className="text-sm text-white bg-teal-600 hover:bg-teal-700 px-3 py-1.5 rounded-md font-medium inline-flex items-center"
+                                >
+                                    <MdMessage className="mr-1" /> Send Message
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ))}

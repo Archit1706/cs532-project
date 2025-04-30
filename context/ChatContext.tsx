@@ -1,6 +1,6 @@
 // context/ChatContext.tsx
 import React, { createContext, useContext, useRef, useState, useEffect } from 'react';
-import { Message, Property, LocationData, FeatureExtraction } from '../types/chat';
+import { Message, Property, LocationData, FeatureExtraction, Agent } from '../types/chat';
 import { fetchLocationData as fetchLocationDetails } from '../utils/locationUtils';
 import { extractFeaturesWithLLM } from '../utils/llmFeatureExtractor';
 // Add the import for property tab IDs
@@ -57,6 +57,49 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [workflowState, setWorkflowState] = useState<string | null>(null);
     const [previousWorkflows, setPreviousWorkflows] = useState<Array<{ query: string, zipCode: string, timestamp: number }>>([]);
 
+    const [agentContacts, setAgentContacts] = useState<Agent[]>([]);
+    const [selectedAgentContact, setSelectedAgentContact] = useState<Agent | null>(null);
+    const [agentMessages, setAgentMessages] = useState<{ [agentId: string]: Message[] }>({});
+
+
+    // Add this function to add an agent to contacts
+const addAgentToContacts = (agent: Agent) => {
+    // Check if agent is already in contacts
+    if (!agentContacts.some(contact => contact.encodedZuid === agent.encodedZuid)) {
+      setAgentContacts(prev => [...prev, agent]);
+    }
+    // Set as the selected agent contact
+    setSelectedAgentContact(agent);
+  };
+
+  // Add this function to send a message to an agent
+const sendMessageToAgent = (agentId: string, message: string) => {
+    const newMessage: Message = {
+      id: Date.now(),
+      type: 'user',
+      content: message,
+    };
+    
+    // Add message to the agent's conversation
+    setAgentMessages(prev => ({
+      ...prev,
+      [agentId]: [...(prev[agentId] || []), newMessage]
+    }));
+    
+    // Simulate a reply after a delay (for mock implementation)
+    setTimeout(() => {
+      const replyMessage: Message = {
+        id: Date.now() + 1,
+        type: 'bot',
+        content: `Thank you for your message. This is a mock reply from the agent.`,
+      };
+      
+      setAgentMessages(prev => ({
+        ...prev,
+        [agentId]: [...(prev[agentId] || []), replyMessage]
+      }));
+    }, 1000);
+  };
 
     // Update handleUILink function in ChatContext.tsx
 
@@ -893,7 +936,13 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
                 setWorkflowState,
                 previousWorkflows,
                 persistWorkflow,
-                restorePreviousWorkflow
+                restorePreviousWorkflow,
+                agentContacts,
+                selectedAgentContact,
+                setSelectedAgentContact,
+                agentMessages,
+                addAgentToContacts,
+                sendMessageToAgent,
             }}
         >
             {children}
