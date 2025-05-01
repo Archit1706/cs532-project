@@ -39,6 +39,7 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
   const [selectedPlaceIndex, setSelectedPlaceIndex] = useState<number | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedTravelMode, setSelectedTravelMode] = useState<TravelMode>(TravelMode.DRIVING);
+  const [isLoading, setIsLoading] = useState(false);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
@@ -46,45 +47,93 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
   const directionsService = useRef<google.maps.DirectionsService | null>(null);
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
   const infoWindow = useRef<google.maps.InfoWindow | null>(null);
+  
+  // Get amenity type from features
+  const getAmenityType = () => {
+    if (features?.locationFeatures?.amenityType) {
+      return features.locationFeatures.amenityType;
+    }
+    
+    if (features?.locationFeatures?.proximity?.to) {
+      return features.locationFeatures.proximity.to;
+    }
+    
+    // Extract from query as fallback
+    const amenityWords = ['schools', 'coffee', 'restaurant', 'grocery', 'park', 'hospital', 'library'];
+    for (const word of amenityWords) {
+      if (query.toLowerCase().includes(word)) {
+        return word;
+      }
+    }
+    
+    return 'restaurants'; // Default
+  };
 
-  // Filter places based on proximity feature
-  useEffect(() => {
-    if (locationData) {
-      let amenitiesData: Place[] = [];
+  // Fetch custom amenity data when needed
+  const fetchCustomAmenityData = async (amenityType: string) => {
+    setIsLoading(true);
+    
+    try {
+      const response = await fetch('/api/location', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          zipCode, 
+          type: amenityType 
+        })
+      });
       
-      // Determine what type of amenity to show based on features
-      const amenityType = features?.locationFeatures?.proximity?.to;
-      console.log("Amenity type detected:", amenityType);
-      
-      if (amenityType) {
-        // Find places that match the requested type
-        if (amenityType.includes('restaurant') || amenityType.includes('food') || 
-            amenityType.includes('cafe') || amenityType.includes('coffee')) {
-          amenitiesData = locationData.restaurants || [];
-          console.log(`Loaded ${amenitiesData.length} restaurants`);
-        } else if (amenityType.includes('transit') || amenityType.includes('bus') || 
-                  amenityType.includes('train') || amenityType.includes('transportation')) {
-          amenitiesData = locationData.transit || [];
-          console.log(`Loaded ${amenitiesData.length} transit options`);
-        } else {
-          // If we don't have data for the specific type, load restaurants as default
-          // In a real app, you would make a specific search request here
-          amenitiesData = locationData.restaurants || [];
-          console.log(`No specific data for ${amenityType}, using restaurants as default`);
-          
-          // Search for the specific amenity type
-          searchNearbyPlaces(amenityType);
-        }
-      } else {
-        // Default to showing restaurants if no specific type requested
-        amenitiesData = locationData.restaurants || [];
-        console.log("No specific amenity type, loading restaurants by default");
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ${amenityType} data`);
       }
       
-      setPlaces(amenitiesData);
-      setFilteredPlaces(amenitiesData);
+      const data = await response.json();
+      
+      if (data.results && data.results.length > 0) {
+        setPlaces(data.results);
+        setFilteredPlaces(data.results);
+        console.log(`Loaded ${data.results.length} ${amenityType} places`);
+      } else {
+        console.log(`No results for ${amenityType}, using fallback data`);
+      }
+    } catch (error) {
+      console.error(`Error fetching ${amenityType} data:`, error);
+    } finally {
+      setIsLoading(false);
     }
-  }, [locationData, features]);
+  };
+
+  // Effect to load amenity data based on features
+  useEffect(() => {
+    if (locationData) {
+      const amenityType = getAmenityType();
+      console.log("Amenity type detected:", amenityType);
+      
+      // Handle different amenity types
+      if (amenityType.includes('restaurant') || amenityType.includes('food') || 
+          amenityType.includes('cafe') || amenityType.includes('coffee')) {
+        if (locationData.restaurants?.length > 0) {
+          setPlaces(locationData.restaurants);
+          setFilteredPlaces(locationData.restaurants);
+          console.log(`Loaded ${locationData.restaurants.length} restaurants`);
+        } else {
+          fetchCustomAmenityData('Restaurants');
+        }
+      } else if (amenityType.includes('transit') || amenityType.includes('bus') || 
+                amenityType.includes('train') || amenityType.includes('transportation')) {
+        if (locationData.transit?.length > 0) {
+          setPlaces(locationData.transit);
+          setFilteredPlaces(locationData.transit);
+          console.log(`Loaded ${locationData.transit.length} transit options`);
+        } else {
+          fetchCustomAmenityData('Bus Stop');
+        }
+      } else {
+        // For other amenity types, make a specific API call
+        fetchCustomAmenityData(amenityType);
+      }
+    }
+  }, [locationData, features, zipCode]);
 
   // Initialize Google Maps
   useEffect(() => {
@@ -309,16 +358,17 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${mode}`, '_blank');
   };
 
-  // Search for nearby places of a specific type
+  // Search for nearby places of a specific type (using Google Places API)
   const searchNearbyPlaces = (type: string) => {
-    if (!googleMapRef.current) return;
+    if (!googleMapRef.current || !window.google || !window.google.maps || !window.google.maps.places) return;
+    
+    const service = new google.maps.places.PlacesService(googleMapRef.current);
     
     const request = {
       query: `${type} near ${zipCode}`,
       fields: ['name', 'geometry', 'formatted_address']
     };
     
-    const service = new google.maps.places.PlacesService(googleMapRef.current);
     service.textSearch(request, (results, status) => {
       if (status === google.maps.places.PlacesServiceStatus.OK && results) {
         // Convert to our Place format
@@ -326,7 +376,6 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
           title: result.name!,
           address: result.formatted_address!,
           type: type,
-          // Calculate distance if we have coordinates
           distance: result.geometry?.location ? 
             calculateDistance(
               googleMapRef.current!.getCenter()!.lat(), 
@@ -432,7 +481,17 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
       
       {/* Map Container */}
       <div className="w-full h-96 rounded-lg border border-slate-200 overflow-hidden bg-slate-50 mb-4">
-        <div ref={mapRef} className="w-full h-full"></div>
+        {isLoading ? (
+          <div className="w-full h-full flex items-center justify-center bg-slate-50">
+            <div className="flex space-x-2">
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce"></div>
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+              <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+            </div>
+          </div>
+        ) : (
+          <div ref={mapRef} className="w-full h-full"></div>
+        )}
       </div>
       
       {/* Search and Filter Controls */}
@@ -476,7 +535,14 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
       
       {/* Places List */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredPlaces.length > 0 ? (
+        {isLoading ? (
+          <div className="col-span-full text-center py-10">
+            <div className="flex justify-center mb-3">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <p className="text-slate-600">Loading places...</p>
+          </div>
+        ) : filteredPlaces.length > 0 ? (
           filteredPlaces.map((place, index) => (
             <div
               key={index}
@@ -486,11 +552,11 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
               {place.image ? (
                 <div className="h-32 overflow-hidden">
                   <img
-                    src={place.image || "https://via.placeholder.com/300x150?text=No+Image"}
+                    src={place.image}
                     alt={place.title}
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.currentTarget.src = "https://via.placeholder.com/300x150?text=No+Image";
+                      (e.target as HTMLImageElement).src = "https://via.placeholder.com/300x150?text=No+Image";
                     }}
                   />
                 </div>
