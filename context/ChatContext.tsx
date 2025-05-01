@@ -20,6 +20,7 @@ export const SECTION_IDS = {
 
 
 interface UIComponentLink {
+    element: any;
     type: 'market' | 'property' | 'restaurants' | 'transit' | 'propertyDetail' | 'propertyMarket' | 'propertyDetails' | 'propertyPriceHistory' | 'propertySchools' | 'propertyMarketAnalysis' | 'agents';
     label: string;
     data?: any;
@@ -173,10 +174,7 @@ const sendMessageToAgent = (agentId: string, message: string) => {
         return false;
     };
 
-    // Update the handleUILink function to handle section links
-    // Updated handleUILink function for ChatContext.tsx
-
-    // Update the handleUILink function to handle section links
+/*
     const handleUILink = (link: UIComponentLink) => {
         console.log('UI link clicked:', link);
 
@@ -343,6 +341,92 @@ const sendMessageToAgent = (agentId: string, message: string) => {
                 console.warn('Unknown UI link type:', link.type);
         }
     };
+*/
+
+    // Add this improved handleUILink function to your ChatContext.tsx
+
+// Updated handleUILink function for cross-tab navigation
+const handleUILink = (link: UIComponentLink) => {
+    console.log('UI link clicked:', link);
+    
+    // Extract data attributes from the link element
+    const forceTabSwitch = link.element?.dataset.forceTab === 'true';
+    const targetTab = link.element?.dataset.tab;
+    const propertyTab = link.element?.dataset.propertyTab;
+    const section = link.element?.dataset.section;
+    
+    // If forceTabSwitch is true and a target tab is specified, switch to that tab
+    if (forceTabSwitch && targetTab) {
+        console.log(`Forcing tab switch to: ${targetTab}`);
+        setActiveTab(targetTab as any);
+    }
+    
+    // Handle property-specific links
+    if (propertyTab && (isPropertyChat || selectedProperty)) {
+        // If we're not already in property chat mode, load the property first
+        if (!isPropertyChat && selectedProperty) {
+            console.log('Loading property before switching tabs');
+            loadPropertyChat(selectedProperty.zpid);
+            
+            // Set a timeout to allow property to load
+            setTimeout(() => {
+                // Dispatch event to switch to the specific property tab
+                console.log(`Switching to property tab: ${propertyTab}`);
+                document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
+                    detail: { 
+                        tabId: propertyTab,
+                        section: section // Pass section if specified (for scrolling to subsections)
+                    }
+                }));
+            }, 1000);
+        } else {
+            // We're already in property chat, just switch tabs
+            console.log(`Switching to property tab: ${propertyTab}`);
+            document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
+                detail: { 
+                    tabId: propertyTab,
+                    section: section
+                }
+            }));
+        }
+        return;
+    }
+    
+    // Handle main section links when we're in the explore tab
+    if (activeTab === 'explore' || forceTabSwitch) {
+        switch (link.type) {
+            case 'market':
+                scrollToSection(SECTION_IDS.MARKET);
+                break;
+            case 'property':
+                scrollToSection(SECTION_IDS.PROPERTIES);
+                break;
+            case 'restaurants':
+                scrollToSection(SECTION_IDS.AMENITIES);
+                break;
+            case 'transit':
+                scrollToSection(SECTION_IDS.TRANSIT);
+                break;
+            case 'agents':
+                scrollToSection(SECTION_IDS.AGENTS);
+                break;
+            default:
+                console.warn('Unknown UI link type:', link.type);
+        }
+    }
+};
+
+// Helper function to scroll to a section with a small delay to ensure rendering
+const scrollToSection = (sectionId: string) => {
+    setTimeout(() => {
+        const section = document.getElementById(sectionId);
+        if (section) {
+            section.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            console.warn(`Section not found: ${sectionId}`);
+        }
+    }, 100);
+};
     // Update the createLinkableContent function
     // Enhanced createLinkableContent function
     const createLinkableContent = (message: string) => {

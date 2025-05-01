@@ -185,43 +185,47 @@ Question: {question}
 Answer:
 """)
 
-# Enhanced system prompt with UI linking instructions
-# Updated system prompt with section link instructions
-# Updated ENHANCED_SYSTEM_PROMPT in app.py
-
-# Updated ENHANCED_SYSTEM_PROMPT in app.py
+# Update the ENHANCED_SYSTEM_PROMPT in app.py
 
 ENHANCED_SYSTEM_PROMPT = """
 You are REbot, a helpful real estate AI assistant that helps users search for properties, track market trends, understand neighborhoods, and answer real estate questions.
 
 CRITICAL - RESPONSE GUIDELINES:
-1. ALWAYS answer the user's question DIRECTLY and COMPLETELY first with specific facts and details before mentioning UI links
-2. Include specific details from the property or area data when it's available to you
+1. ALWAYS answer the user's question DIRECTLY and COMPLETELY first with specific facts and details
+2. Include specific details from the property or area data when available to you
 3. When discussing price history, include actual prices and dates if you have them 
 4. When discussing market data, include actual numbers and percentages
-5. After giving your direct answer, then include relevant UI section links
-6. Be conversational, friendly and concise (1-2 paragraphs maximum)
+5. For longer responses, use bullet points to organize information
+6. Be conversational, friendly and concise
 7. Personalize responses to show awareness of the selected property when relevant
 
 CRITICAL - UI LINK INSTRUCTIONS:
 You MUST include specific section references in your responses using these exact link formats:
 
-1. When discussing a specific property's details: Use exactly "[[property details]]" in your response
-2. When discussing a property's price history: Use exactly "[[price history]]" in your response
-3. When discussing nearby schools: Use exactly "[[property schools]]" or "[[schools]]" in your response
-4. When discussing market analysis for a property: Use exactly "[[property market analysis]]" in your response
-5. When mentioning market data for the area: Use exactly "[[market trends]]" in your response
-6. When mentioning properties in the area: Use exactly "[[properties]]" in your response
-7. When mentioning restaurants or local amenities: Use exactly "[[restaurants]]" or "[[local amenities]]" in your response
-8. When mentioning transit options: Use exactly "[[transit]]" in your response
+MAIN SECTIONS (When discussing area-wide information):
+- When mentioning properties in the area: Use exactly "[[properties]]" in your response
+- When mentioning market data for the area: Use exactly "[[market trends]]" in your response  
+- When mentioning restaurants or local amenities: Use exactly "[[local amenities]]" in your response
+- When mentioning transit options: Use exactly "[[transit]]" in your response
+- When mentioning real estate agents: Use exactly "[[agents]]" in your response
 
-For example:
-"The last sale of this property was on March 15, 2023 for $450,000. Before that, it sold in 2018 for $380,000. You can see more details in the [[price history]] tab."
+PROPERTY SECTIONS (When discussing a specific property):
+- When discussing a specific property's details: Use exactly "[[property details]]" in your response
+- When discussing a property's price history: Use exactly "[[price history]]" in your response
+- When discussing nearby schools: Use exactly "[[schools]]" in your response
+- When discussing market analysis for a property: Use exactly "[[property market analysis]]" in your response
+- When discussing property description: Use exactly "[[property description]]" in your response
 
-Or: "According to the market data, home prices in this area have increased by 5.2% in the last year. The median price is now $525,000. You can see full market trend information in the [[market trends]] section."
+FORMAT EXAMPLES:
+Short response: "The last sale of this property was on March 15, 2023 for $450,000. Before that, it sold in 2018 for $380,000. You can see more details in the [[price history]] tab."
 
-When answering questions about a specific property, ALWAYS include at least one relevant property tab link.
-When answering questions about the local area, ALWAYS include at least one relevant section link.
+Bulleted response:
+"According to the market data for this area:
+* Home prices have increased by 5.2% in the last year
+* The median price is now $525,000
+* Inventory is down 15% compared to the same period last year
+
+You can see full market trend information in the [[market trends]] section."
 
 CURRENT UI STATE:
 {ui_context}
@@ -232,19 +236,14 @@ USER QUERY: {question}
 
 import re
 
-
-
 # Function to format response with proper HTML links
-# In app.py, replace the format_response_with_links function with this improved version
-
 def format_response_with_links(response_text):
-    """Replace markdown (**bold**, *italic*, # headings) and link placeholders with HTML."""
+    """Replace markdown and link placeholders with HTML, with enhanced cross-tab navigation."""
     text = response_text
     
-    # Log the input for debugging
     logging.info(f"Formatting response with links. Input: {text[:100]}...")
     
-    # — 1) Convert headings (#, ##, ###, etc.) to <h1>…<h6>
+    # — 1) Convert headings
     heading_patterns = {
         r'^###### (.+)$': r'<h6>\1</h6>',
         r'^##### (.+)$': r'<h5>\1</h5>',
@@ -256,50 +255,49 @@ def format_response_with_links(response_text):
     for pattern, repl in heading_patterns.items():
         text = re.sub(pattern, repl, text, flags=re.MULTILINE)
     
-    # — 2) Convert **bold** and *italic*
-    #    First bold (two stars), then italic (single stars)
+    # — 2) Convert bold/italic formatting
     text = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
     text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<em>\1</em>', text)
     
-    # — 3) Convert your [[…]] placeholders into HTML links
-    # Log found link patterns for debugging
+    # — 3) Log found link patterns for debugging
     all_link_patterns = re.findall(r'\[\[.+?\]\]', text)
     if all_link_patterns:
         logging.info(f"Found link patterns: {all_link_patterns}")
     
+    # — 4) Define ALL link replacements with enhanced attributes for cross-tab navigation
     replacements = [
-        # Market trends link
+        # Main section links
         (r'\[\[market(?:\s+trends)?\]\]', 
-         f'<a href="#{SECTION_IDS["MARKET"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market">market trends</a>'),
+         f'<a href="#{SECTION_IDS["MARKET"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market" data-tab="explore" data-force-tab="true">market trends</a>'),
         
-        # Properties link
         (r'\[\[properties\]\]', 
-         f'<a href="#{SECTION_IDS["PROPERTIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property">properties</a>'),
+         f'<a href="#{SECTION_IDS["PROPERTIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property" data-tab="explore" data-force-tab="true">properties</a>'),
         
-        # Restaurants/amenities link
         (r'\[\[restaurants\]\]|\[\[local\s+amenities\]\]', 
-         f'<a href="#{SECTION_IDS["AMENITIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants">local amenities</a>'),
+         f'<a href="#{SECTION_IDS["AMENITIES"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants" data-tab="explore" data-force-tab="true">local amenities</a>'),
         
-        # Transit link
         (r'\[\[transit\]\]', 
-         f'<a href="#{SECTION_IDS["TRANSIT"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit">transit options</a>'),
+         f'<a href="#{SECTION_IDS["TRANSIT"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit" data-tab="explore" data-force-tab="true">transit options</a>'),
+         
+        (r'\[\[agents\]\]', 
+         f'<a href="#{SECTION_IDS["AGENTS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="agents" data-tab="explore" data-force-tab="true">top agents</a>'),
         
-        # Property market link (without section ID since it's a different view)
-        (r'\[\[property\s+market\]\]',
-         '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'),
-        
-        # Property tab links - added for better property context support
+        # Property tab links - enhanced with data attributes
         (r'\[\[property\s+details\]\]',
-         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails">property details</a>'),
+         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails" data-property-tab="details" data-force-tab="true">property details</a>'),
         
         (r'\[\[price\s+history\]\]', 
-         f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory">price history</a>'),
+         f'<a href="#{PROPERTY_TAB_IDS["PRICE_HISTORY"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory" data-property-tab="priceHistory" data-force-tab="true">price history</a>'),
         
         (r'\[\[property\s+schools\]\]|\[\[schools\]\]', 
-         f'<a href="#{PROPERTY_TAB_IDS["SCHOOLS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertySchools">schools</a>'),
+         f'<a href="#{PROPERTY_TAB_IDS["SCHOOLS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertySchools" data-property-tab="schools" data-force-tab="true">schools</a>'),
         
         (r'\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]', 
-         f'<a href="#{PROPERTY_TAB_IDS["MARKET_ANALYSIS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis">market analysis</a>')
+         f'<a href="#{PROPERTY_TAB_IDS["MARKET_ANALYSIS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis" data-property-tab="marketAnalysis" data-force-tab="true">market analysis</a>'),
+         
+        # Property description - new link
+        (r'\[\[property\s+description\]\]', 
+         f'<a href="#{PROPERTY_TAB_IDS["DETAILS"]}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDescription" data-property-tab="details" data-section="description" data-force-tab="true">property description</a>'),
     ]
     
     # Apply each replacement pattern
@@ -310,15 +308,49 @@ def format_response_with_links(response_text):
         if before_count > after_count:
             logging.info(f"Replaced pattern {pattern} - found {before_count - after_count} occurrences")
     
-    # Check if any link patterns remain (which would indicate a missed pattern)
+    # Check for any unprocessed link patterns
     remaining_links = re.findall(r'\[\[.+?\]\]', text)
     if remaining_links:
         logging.warning(f"Remaining unprocessed link patterns: {remaining_links}")
     
-    # Log the output for debugging
+    # — 5) Format list items for better readability
+    # Convert markdown-style lists to HTML lists
+    text = format_bullet_points(text)
+    
     logging.info(f"Formatted output: {text[:100]}...")
     
     return text
+
+def format_bullet_points(text):
+    """Convert markdown-style bullet points to HTML lists for better readability."""
+    
+    # Find contiguous blocks of bullet points (lines starting with * or -)
+    bullet_pattern = re.compile(r'((?:^[*-] .+?\n)+)', re.MULTILINE)
+    
+    def replace_bullet_list(match):
+        bullet_list = match.group(1)
+        # Convert each bullet point to a list item
+        items = re.sub(r'^[*-] (.+?)$', r'<li>\1</li>', bullet_list, flags=re.MULTILINE)
+        # Wrap in an unordered list
+        return f'<ul class="list-disc pl-5 space-y-1 my-2">{items}</ul>'
+    
+    # Replace bullet lists
+    processed_text = bullet_pattern.sub(replace_bullet_list, text)
+    
+    # Find contiguous blocks of numbered lists (lines starting with 1., 2., etc.)
+    numbered_pattern = re.compile(r'((?:^\d+\. .+?\n)+)', re.MULTILINE)
+    
+    def replace_numbered_list(match):
+        numbered_list = match.group(1)
+        # Convert each numbered item to a list item
+        items = re.sub(r'^\d+\. (.+?)$', r'<li>\1</li>', numbered_list, flags=re.MULTILINE)
+        # Wrap in an ordered list
+        return f'<ol class="list-decimal pl-5 space-y-1 my-2">{items}</ol>'
+    
+    # Replace numbered lists
+    processed_text = numbered_pattern.sub(replace_numbered_list, processed_text)
+    
+    return processed_text
 
 # Initialize Azure OpenAI
 def get_llm():

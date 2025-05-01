@@ -30,6 +30,26 @@ import { TbAirConditioning } from "react-icons/tb";
 import { FaRoute, FaMoneyBill, FaChartLine } from "react-icons/fa";
 import { IoIosPricetag } from "react-icons/io";
 
+// Define types for property details
+interface PropertyDetailsTypes {
+    basic_info: any;
+    features?: any;
+    priceHistory?: any[];
+    taxes?: any[];
+    schools?: any[];
+    images?: string[];
+    walkability?: any;
+    transit?: any;
+    bike?: any;
+    rent_estimate?: any;
+}
+
+interface NeighborhoodScoreProps {
+    label: string;
+    score: number;
+    description: string;
+}
+
 // Define tab IDs for direct linking
 export const PROPERTY_TAB_IDS = {
     DETAILS: "property-details-tab",
@@ -59,11 +79,9 @@ const Section = ({
     </div>
 );
 
-// Inside the component or as a separate component
-
 const SinglePropertyOverview = () => {
     const { propertyDetails, setPropertyContext } = useChatContext();
-    const [activeTab, setActiveTab] = useState('details');
+    const [activeTab, setActiveTab] = useState<string>('details');
     const [showChatInfo, setShowChatInfo] = useState(true);
 
     // Handle URL hash for direct tab linking
@@ -72,7 +90,7 @@ const SinglePropertyOverview = () => {
         const hash = window.location.hash.substring(1);
         if (hash) {
             // Map hash to tab name
-            const tabMap = {
+            const tabMap: {[key: string]: string} = {
                 [PROPERTY_TAB_IDS.DETAILS]: 'details',
                 [PROPERTY_TAB_IDS.PRICE_HISTORY]: 'price history',
                 [PROPERTY_TAB_IDS.SCHOOLS]: 'schools',
@@ -105,6 +123,58 @@ const SinglePropertyOverview = () => {
         // Cleanup
         return () => {
             document.removeEventListener('switchToPropertyMarketTab', handleTabSwitch);
+        };
+    }, []);
+
+    // Handler for property tab switching
+    useEffect(() => {
+        const handlePropertyTabSwitch = (event: CustomEvent) => {
+            const { tabId, section } = event.detail;
+            
+            // Map tab ID to tab name
+            let tabName = 'details';
+            
+            switch (tabId) {
+                case 'details':
+                case PROPERTY_TAB_IDS.DETAILS:
+                    tabName = 'details';
+                    break;
+                case 'priceHistory':
+                case PROPERTY_TAB_IDS.PRICE_HISTORY:
+                    tabName = 'price history';
+                    break;
+                case 'schools':
+                case PROPERTY_TAB_IDS.SCHOOLS:
+                    tabName = 'schools';
+                    break;
+                case 'marketAnalysis':
+                case PROPERTY_TAB_IDS.MARKET_ANALYSIS:
+                    tabName = 'market analysis';
+                    break;
+                default:
+                    tabName = 'details';
+            }
+            
+            // Switch to the tab
+            setActiveTab(tabName);
+            
+            // If a specific section was requested, scroll to it
+            if (section) {
+                setTimeout(() => {
+                    const sectionElement = document.getElementById(`property-${tabId}-${section}`);
+                    if (sectionElement) {
+                        sectionElement.scrollIntoView({ behavior: 'smooth' });
+                    }
+                }, 300); // Allow time for tab rendering
+            }
+        };
+        
+        // Add event listener
+        document.addEventListener('switchToPropertyTab', handlePropertyTabSwitch as EventListener);
+        
+        // Clean up on unmount
+        return () => {
+            document.removeEventListener('switchToPropertyTab', handlePropertyTabSwitch as EventListener);
         };
     }, []);
 
@@ -218,7 +288,7 @@ const SinglePropertyOverview = () => {
             <>
                 {/* Price History Section */}
                 {priceEvents?.length > 0 && (
-                    <div className="mb-6">
+                    <div className="mb-6" id="property-priceHistory-events">
                         <h4 className="text-md font-semibold text-slate-700 mb-2">Sales History</h4>
                         {priceEvents.map((entry: any, i: number) => (
                             <div
@@ -236,7 +306,7 @@ const SinglePropertyOverview = () => {
 
                 {/* Tax History Section */}
                 {taxEvents?.length > 0 && (
-                    <div>
+                    <div id="property-priceHistory-taxes">
                         <h4 className="text-md font-semibold text-slate-700 mb-2">Tax History</h4>
                         {taxEvents.map((entry: any, i: number) => (
                             <div
@@ -365,10 +435,10 @@ const SinglePropertyOverview = () => {
         );
     };
 
-    const NeighborhoodScores = ({ propertyDetails }) => {
+    const NeighborhoodScores = ({ propertyDetails }: { propertyDetails: PropertyDetailsTypes }) => {
         const { walkability, transit, bike } = propertyDetails;
 
-        const ScoreBar = ({ label, score, description }) => (
+        const ScoreBar = ({ label, score, description }: NeighborhoodScoreProps) => (
             <div className="mb-4">
                 <div className="flex justify-between items-center mb-1">
                     <span className="text-slate-700">{label}</span>
@@ -389,23 +459,23 @@ const SinglePropertyOverview = () => {
                 <ScoreBar
                     label="Walkability"
                     score={walkability?.walkscore}
-                    description={walkability.description}
+                    description={walkability?.description}
                 />
                 <ScoreBar
                     label="Transit"
                     score={transit?.transit_score}
-                    description={transit.description}
+                    description={transit?.description}
                 />
                 <ScoreBar
                     label="Bike Friendliness"
                     score={bike?.bikescore}
-                    description={bike.description}
+                    description={bike?.description}
                 />
             </div>
         );
     };
 
-    const RentEstimateSection = ({ propertyDetails }) => {
+    const RentEstimateSection = ({ propertyDetails }: { propertyDetails: PropertyDetailsTypes }) => {
         const { rent_estimate } = propertyDetails;
 
         return (
@@ -452,7 +522,7 @@ const SinglePropertyOverview = () => {
                     <div className="md:flex-shrink-0 relative">
                         {propertyDetails.images && propertyDetails.images.length > 0 ? (
                             <ImageGallery
-                                images={propertyDetails.images.map(img =>
+                                images={propertyDetails.images.map((img: any) =>
                                     img || "https://via.placeholder.com/800x400?text=No+Image"
                                 )}
                             />
@@ -469,8 +539,6 @@ const SinglePropertyOverview = () => {
                             <span className="text-xl font-bold">${info.price?.toLocaleString()}</span>
                         </div>
                     </div>
-
-                    {/* <ImageGallery images={propertyDetails.images || []} /> */}
 
                     {/* Property Details with HOA fee - Reorganized */}
                     <div className="p-6 w-full">
@@ -561,7 +629,7 @@ const SinglePropertyOverview = () => {
                             {/* Full-width Description */}
                             {info.description && (
                                 <Section title="Description" icon={MdInfo} className="w-full">
-                                    <p className="text-slate-700 whitespace-pre-line leading-relaxed">
+                                    <p id="property-details-description" className="text-slate-700 whitespace-pre-line leading-relaxed">
                                         {info.description}
                                     </p>
                                 </Section>
