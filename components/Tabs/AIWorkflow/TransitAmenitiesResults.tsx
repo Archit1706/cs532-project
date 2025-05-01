@@ -1,7 +1,7 @@
 // components/Tabs/AIWorkflow/TransitAmenitiesResults.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useChatContext } from 'context/ChatContext';
-import { FaMapMarkerAlt, FaDirections, FaExternalLinkAlt, FaFilter, FaSearch, FaTimesCircle, FaCar, FaWalking, FaBicycle, FaBus } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaDirections, FaExternalLinkAlt, FaFilter, FaSearch, FaTimesCircle, FaCar, FaWalking, FaBicycle, FaBus, FaClock } from 'react-icons/fa';
 
 interface TransitAmenitiesResultsProps {
   zipCode: string;
@@ -21,6 +21,7 @@ interface Place {
   image?: string;
   price?: string;
   directions?: string;
+  placeId?: string; // For Google Maps Place ID
 }
 
 // Define travel modes for route display
@@ -40,17 +41,20 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedTravelMode, setSelectedTravelMode] = useState<TravelMode>(TravelMode.DRIVING);
   const [isLoading, setIsLoading] = useState(false);
+  const [scriptLoaded, setScriptLoaded] = useState(false);
+  const [mapCenter, setMapCenter] = useState<{lat: number, lng: number} | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{distance: string, duration: string} | null>(null);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const googleMapRef = useRef<google.maps.Map | null>(null);
-  const markersRef = useRef<google.maps.Marker[]>([]);
+  const markersRef = useRef<any[]>([]);
   const directionsService = useRef<google.maps.DirectionsService | null>(null);
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
   const infoWindow = useRef<google.maps.InfoWindow | null>(null);
+  const mapScriptRef = useRef<HTMLScriptElement | null>(null);
   
   // Get amenity type from features
-// Improved getAmenityType to be more precise
-const getAmenityType = () => {
+  const getAmenityType = () => {
     // First check the exact proximity.to from features
     if (features?.locationFeatures?.proximity?.to) {
       return features.locationFeatures.proximity.to;
@@ -61,63 +65,362 @@ const getAmenityType = () => {
       return features.locationFeatures.amenityType;
     }
     
-    // Extract from query as fallback with more precise matching
+    // Extract from query as fallback with precise matching
     if (query.toLowerCase().includes('coffee')) {
-      return 'coffee places';
+      return 'coffee';
     }
     
     if (query.toLowerCase().includes('restaurant')) {
-      return 'restaurants';
+      return 'restaurant';
     }
     
-    const amenityWords = ['schools', 'grocery', 'park', 'hospital', 'library', 'gym'];
+    const amenityWords = ['school', 'grocery', 'park', 'hospital', 'library', 'gym'];
     for (const word of amenityWords) {
       if (query.toLowerCase().includes(word)) {
         return word;
       }
     }
     
-    return 'restaurants'; // Default
+    return 'restaurant'; // Default
   };
-  // Fetch custom amenity data when needed
-  const fetchCustomAmenityData = async (amenityType: string) => {
+
+  // Load Google Maps and required libraries
+  useEffect(() => {
+    const loadGoogleMaps = async () => {
+      if (window.google?.maps) {
+        setScriptLoaded(true);
+        return;
+      }
+      
+      if (document.getElementById('google-maps-script')) {
+        return;
+      }
+      
+      try {
+        // Create script element
+        const script = document.createElement('script');
+        script.id = 'google-maps-script';
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initGoogleCallback`;
+        script.async = true;
+        script.defer = true;
+        
+        // Define callback function in window scope
+        window.initGoogleCallback = () => {
+          setScriptLoaded(true);
+        };
+        
+        // Store reference and append to document
+        mapScriptRef.current = script;
+        document.head.appendChild(script);
+      } catch (error) {
+        console.error('Error loading Google Maps:', error);
+      }
+    };
+    
+    loadGoogleMaps();
+    
+    // Cleanup
+    return () => {
+      // Clean up markers and directions
+      if (markersRef.current) {
+        markersRef.current.forEach(marker => {
+          if (marker) marker.setMap(null);
+        });
+        markersRef.current = [];
+      }
+      
+      if (directionsRenderer.current) {
+        directionsRenderer.current.setMap(null);
+      }
+      
+      if (infoWindow.current) {
+        infoWindow.current.close();
+      }
+    };
+  }, []);
+
+  // Geocode the zip code to get coordinates
+  useEffect(() => {
+    if (scriptLoaded && zipCode) {
+      const geocodeZipCode = async () => {
+        try {
+          setIsLoading(true);
+          const geocoder = new google.maps.Geocoder();
+          const results = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
+            geocoder.geocode({ address: zipCode }, (results, status) => {
+              if (status === 'OK' && results && results.length > 0) {
+                resolve(results);
+              } else {
+                reject(new Error(`Geocoding failed: ${status}`));
+              }
+            });
+          });
+          
+          const location = results[0].geometry.location;
+          setMapCenter({
+            lat: location.lat(),
+            lng: location.lng()
+          });
+        } catch (error) {
+          console.error('Error geocoding zip code:', error);
+          // Fallback to Chicago coordinates
+          setMapCenter({ lat: 41.8781, lng: -87.6298 });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      
+      geocodeZipCode();
+    }
+  }, [scriptLoaded, zipCode]);
+
+  // Initialize map when script is loaded and coordinates are available
+  useEffect(() => {
+    if (scriptLoaded && mapRef.current && mapCenter) {
+      const initializeMap = async () => {
+        try {
+          // Import required libraries
+          const { Map } = await google.maps.importLibrary('maps') as google.maps.MapsLibrary;
+          const { InfoWindow } = await google.maps.importLibrary('maps') as google.maps.MapsLibrary;
+          
+          // Create map instance
+          googleMapRef.current = new Map(mapRef.current!, {
+            center: mapCenter,
+            zoom: 14,
+            mapTypeControl: false,
+            mapId: 'DEMO_MAP_ID'
+          });
+          
+          // Initialize info window
+          infoWindow.current = new InfoWindow();
+          
+          // Initialize directions service
+          directionsService.current = new google.maps.DirectionsService();
+          directionsRenderer.current = new google.maps.DirectionsRenderer({
+            map: googleMapRef.current,
+            suppressMarkers: false
+          });
+          
+          setMapLoaded(true);
+        } catch (error) {
+          console.error('Error initializing map:', error);
+        }
+      };
+      
+      initializeMap();
+    }
+  }, [scriptLoaded, mapCenter]);
+
+  // Load initial data based on amenity type
+  useEffect(() => {
+    if (mapLoaded && mapCenter) {
+      const amenityType = getAmenityType();
+      console.log("Amenity type detected:", amenityType);
+      
+      searchNearbyPlaces(amenityType);
+    }
+  }, [mapLoaded, mapCenter]);
+
+  // Search for nearby places with the new Places API
+  const searchNearbyPlaces = async (type: string) => {
+    if (!googleMapRef.current || !mapCenter) return;
+    
     setIsLoading(true);
     
     try {
-      // Map amenity types to specific search terms for the API
-      let searchType = amenityType;
+        // Import libraries
+        const { Place, SearchNearbyRankPreference } = 
+          await google.maps.importLibrary('places') as google.maps.PlacesLibrary;
+        const { AdvancedMarkerElement } = 
+          await google.maps.importLibrary("marker") as google.maps.MarkerLibrary;
+        const { LatLngBounds } = 
+          await google.maps.importLibrary("core") as google.maps.CoreLibrary;
+        
+        // Map amenity type to Google Places type
+        let placeTypes: string[] = ['restaurant'];
+        
+        if (type.includes('coffee')) {
+          placeTypes = ['cafe'];
+        } else if (type.includes('school')) {
+          placeTypes = ['school'];
+        } else if (type.includes('grocery')) {
+          placeTypes = ['grocery_or_supermarket'];
+        } else if (type.includes('park')) {
+          placeTypes = ['park'];
+        } else if (type.includes('hospital')) {
+          placeTypes = ['hospital'];
+        } else if (type.includes('library')) {
+          placeTypes = ['library'];
+        }
+        
+        console.log(`Searching for ${placeTypes.join(', ')} near ${mapCenter.lat}, ${mapCenter.lng}`);
+        
+        // Create search request with increased radius (5000 meters = ~3 miles)
+        const request = {
+          fields: ['displayName', 'formattedAddress', 'location', 'rating', 'businessStatus', 'types', 'priceLevel', 'id', 'photos'],
+          locationRestriction: {
+            center: new google.maps.LatLng(mapCenter.lat, mapCenter.lng),
+            radius: 6000, // Increased to ~4 miles
+          },
+          includedPrimaryTypes: placeTypes,
+          maxResultCount: 20,
+          rankPreference: SearchNearbyRankPreference.DISTANCE,
+          language: 'en-US',
+          region: 'us',
+        };
       
-      // Leave the original amenity type if it's already a specific search term
-      if (!searchType.includes(' Shop') && !searchType.includes(' Stop')) {
-        // Map common amenity types to specific search terms
-        if (searchType.toLowerCase().includes('coffee')) {
-          searchType = 'Coffee Shop';
-        } else if (searchType.toLowerCase().includes('school')) {
-          searchType = 'School';
-        } else if (searchType.toLowerCase().includes('grocery')) {
-          searchType = 'Grocery Store';
-        } else if (searchType.toLowerCase().includes('hospital')) {
-          searchType = 'Hospital';
-        } else if (searchType.toLowerCase().includes('park')) {
-          searchType = 'Park';
-        } else if (searchType.toLowerCase().includes('library')) {
-          searchType = 'Library';
+      // Perform search
+      const { places: searchResults } = await Place.searchNearby(request);
+      
+      if (searchResults && searchResults.length > 0) {
+        console.log(`Found ${searchResults.length} places`);
+        
+        // Clear existing markers
+        if (markersRef.current.length > 0) {
+          markersRef.current.forEach(marker => marker.setMap(null));
+          markersRef.current = [];
+        }
+        
+        // Create bounds for map fitting
+        const bounds = new LatLngBounds();
+        
+        // Convert to our Place format
+        const newPlaces: Place[] = await Promise.all(searchResults.map(async (place) => {
+          // Add marker
+          const marker = new AdvancedMarkerElement({
+            map: googleMapRef.current!,
+            position: place.location,
+            title: place.displayName,
+          });
+          
+          // Add to markers ref
+          markersRef.current.push(marker);
+          
+          // Extend bounds
+          bounds.extend(place.location as google.maps.LatLng);
+          
+          // Calculate distance
+          const distance = calculateDistance(
+            mapCenter.lat,
+            mapCenter.lng,
+            place.location!.lat(),
+            place.location!.lng()
+          );
+          
+          // Get image if available
+          let imageUrl;
+          if (place.photos && place.photos.length > 0) {
+            try {
+              imageUrl = place.photos[0].getURI({
+                maxWidth: 400,
+                maxHeight: 300
+              });
+            } catch (error) {
+              console.error('Error getting photo:', error);
+            }
+          }
+          
+          return {
+            title: place.displayName || 'Unnamed Place',
+            address: place.formattedAddress || 'No address',
+            type: place.types ? place.types[0] : type,
+            rating: place.rating ? place.rating.toString() : undefined,
+            price: place.priceLevel ? '$'.repeat(Number(place.priceLevel)) : undefined,
+            distance: distance,
+            placeId: place.id,
+            image: imageUrl
+          };
+        }));
+        
+        // Fit map to bounds
+        googleMapRef.current!.fitBounds(bounds);
+        
+        // Update state
+        setPlaces(newPlaces);
+        setFilteredPlaces(newPlaces);
+      } else {
+        console.log(`No results for ${type}, falling back to restaurants`);
+        
+        // If not already searching for restaurants, try that as fallback
+        if (!type.includes('restaurant')) {
+          searchNearbyPlaces('restaurant');
+        } else {
+          // If we are already searching for restaurants with no results,
+          // fallback to data from context
+          fetchRestaurantsFallback();
         }
       }
+    } catch (error) {
+      console.error(`Error searching for ${type}:`, error);
+      // Fallback to restaurants from context
+      fetchRestaurantsFallback();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+// Updated getPlaceDetails function with fixed fields
+const getPlaceDetails = async (placeId: string) => {
+    if (!placeId) return null;
+    
+    try {
+      const { Place } = await google.maps.importLibrary("places") as google.maps.PlacesLibrary;
       
-      console.log(`Fetching data for '${searchType}' near ${zipCode}`);
+      // Create place instance
+      const place = new Place({
+        id: placeId,
+        requestedLanguage: 'en'
+      });
       
+      // Fetch details with CORRECT field names
+      await place.fetchFields({ 
+        fields: [
+          'displayName', 
+          'formattedAddress', 
+          'location', 
+          'rating',
+          'userRatingCount',
+          'editorialSummary',
+          'websiteURI',
+          'nationalPhoneNumber',
+          'regularOpeningHours', // CORRECT field name 
+          'photos',
+          'priceLevel'
+        ] 
+      });
+      
+      return place;
+    } catch (error) {
+      console.error('Error fetching place details:', error);
+      return null;
+    }
+  };
+
+  // Fetch restaurant data as fallback
+  const fetchRestaurantsFallback = async () => {
+    console.log("Fetching restaurants as fallback");
+    
+    try {
+      // Check if we already have restaurant data in context
+      if (locationData?.restaurants?.length > 0) {
+        console.log(`Using ${locationData.restaurants.length} restaurants from context`);
+        setPlaces(locationData.restaurants);
+        setFilteredPlaces(locationData.restaurants);
+        return;
+      }
+      
+      // Otherwise fetch restaurants from API
       const response = await fetch('/api/location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           zipCode, 
-          type: searchType 
+          type: 'Restaurant' 
         })
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${searchType} data`);
+        throw new Error('Failed to fetch restaurant data');
       }
       
       const data = await response.json();
@@ -125,342 +428,17 @@ const getAmenityType = () => {
       if (data.results && data.results.length > 0) {
         setPlaces(data.results);
         setFilteredPlaces(data.results);
-        console.log(`Loaded ${data.results.length} ${searchType} places`);
+        console.log(`Loaded ${data.results.length} restaurants as fallback`);
       } else {
-        console.log(`No results for ${searchType}, falling back to search nearby places`);
-        
-        // Fallback to Google Places search if API returned no results
-        if (window.google && window.google.maps && googleMapRef.current) {
-          searchNearbyPlaces(amenityType);
-        }
+        console.log("No restaurant results found");
+        setPlaces([]);
+        setFilteredPlaces([]);
       }
     } catch (error) {
-      console.error(`Error fetching ${amenityType} data:`, error);
-      
-      // Fallback to Google Places search on error
-      if (window.google && window.google.maps && googleMapRef.current) {
-        searchNearbyPlaces(amenityType);
-      }
-    } finally {
-      setIsLoading(false);
+      console.error('Error fetching restaurant fallback:', error);
+      setPlaces([]);
+      setFilteredPlaces([]);
     }
-  };
-
-  // Effect to load amenity data based on features
-  useEffect(() => {
-    if (locationData) {
-      const amenityType = getAmenityType();
-      console.log("Amenity type detected:", amenityType);
-      
-      // Always use the exact extracted amenity type for the search
-      if (amenityType.includes('restaurant') || amenityType === 'food') {
-        if (locationData.restaurants?.length > 0) {
-          setPlaces(locationData.restaurants);
-          setFilteredPlaces(locationData.restaurants);
-          console.log(`Loaded ${locationData.restaurants.length} restaurants`);
-        } else {
-          fetchCustomAmenityData('Restaurant');
-        }
-      } else if (amenityType.includes('coffee') || amenityType.includes('cafe')) {
-        // Specifically fetch coffee shops rather than using general restaurant data
-        console.log("Fetching coffee shops data");
-        fetchCustomAmenityData('Coffee Shop');
-      } else if (amenityType.includes('transit') || amenityType.includes('bus') || 
-                amenityType.includes('train') || amenityType.includes('transportation')) {
-        if (locationData.transit?.length > 0) {
-          setPlaces(locationData.transit);
-          setFilteredPlaces(locationData.transit);
-          console.log(`Loaded ${locationData.transit.length} transit options`);
-        } else {
-          fetchCustomAmenityData('Bus Stop');
-        }
-      } else {
-        // For other amenity types, make a specific API call
-        fetchCustomAmenityData(amenityType);
-      }
-    }
-  }, [locationData, features, zipCode]);
-
-
-  // Fix the useEffect cleanup function for Google Maps
-useEffect(() => {
-    const loadGoogleMaps = () => {
-      if (window.google && window.google.maps && mapRef.current && !googleMapRef.current) {
-        initializeMap();
-      } else if (!window.google || !window.google.maps) {
-        loadGoogleMapsScript();
-      }
-    };
-  
-    const loadGoogleMapsScript = () => {
-      if (!document.getElementById('google-maps-script')) {
-        const script = document.createElement('script');
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`;
-        script.id = 'google-maps-script';
-        script.async = true;
-        script.defer = true;
-        script.onload = initializeMap;
-        document.head.appendChild(script);
-      }
-    };
-  
-    const initializeMap = () => {
-      const mapElement = mapRef.current;
-      if (!mapElement) return;
-      
-      // Geocode zipCode to get coordinates
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ address: zipCode }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
-          const location = results[0].geometry.location;
-          
-          // Initialize the map
-          googleMapRef.current = new google.maps.Map(mapElement, {
-            center: location,
-            zoom: 14,
-            mapTypeControl: false
-          });
-          
-          // Initialize directions service and renderer
-          directionsService.current = new google.maps.DirectionsService();
-          directionsRenderer.current = new google.maps.DirectionsRenderer({
-            map: googleMapRef.current,
-            suppressMarkers: false
-          });
-          
-          // Initialize info window
-          infoWindow.current = new google.maps.InfoWindow();
-          
-          // Add markers for all places
-          addMarkers();
-          
-          setMapLoaded(true);
-        } else {
-          console.error('Geocoding failed:', status);
-        }
-      });
-    };
-  
-    loadGoogleMaps();
-    
-  // Improved cleanup function to prevent Node.removeChild errors
-  return () => {
-       // Only clean up map components, _do not_ remove the <script> tag itself
-       markersRef.current.forEach(m => m.setMap(null));
-       markersRef.current = [];
-       if (directionsRenderer.current) {
-         directionsRenderer.current.setMap(null);
-         directionsRenderer.current = null;
-       }
-       if (infoWindow.current) {
-         infoWindow.current.close();
-       }
-       googleMapRef.current = null;
-     };
-}, [zipCode]);
-
-  // Add markers when places or map changes
-  useEffect(() => {
-    if (mapLoaded && googleMapRef.current) {
-      addMarkers();
-    }
-  }, [filteredPlaces, mapLoaded]);
-
-  // Add markers for all places
-const addMarkers = () => {
-  if (!googleMapRef.current || !mapLoaded) return;
-  
-  // Clear existing markers safely
-  if (markersRef.current && markersRef.current.length > 0) {
-    markersRef.current.forEach(marker => {
-      if (marker) marker.setMap(null);
-    });
-    markersRef.current = [];
-  }
-  
-  // Skip if no places
-  if (!filteredPlaces || filteredPlaces.length === 0) return;
-  
-  // Add a marker for each place
-  filteredPlaces.forEach((place, index) => {
-    if (!place || !place.address || !googleMapRef.current) return;
-    
-    // Geocode the address to get coordinates
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ address: place.address }, (results, status) => {
-      if (status === 'OK' && results && results[0] && googleMapRef.current) {
-        const location = results[0].geometry.location;
-        
-        // Create marker
-        const marker = new google.maps.Marker({
-          position: location,
-          map: googleMapRef.current,
-          title: place.title,
-          label: {
-            text: String(index + 1),
-            color: '#FFFFFF',
-            fontWeight: 'bold'
-          },
-          animation: google.maps.Animation.DROP
-        });
-        
-        // Add click handler
-        marker.addListener('click', () => {
-          setSelectedPlaceIndex(index);
-          showPlaceInfo(place, marker);
-        });
-        
-        // Store marker reference
-        markersRef.current.push(marker);
-      }
-    });
-  });
-};
-  // Show info window for a place
-  const showPlaceInfo = (place: Place, marker: google.maps.Marker) => {
-    if (!infoWindow.current || !googleMapRef.current) return;
-    
-    // Create info window content
-    const content = `
-      <div style="max-width: 250px; padding: 5px;">
-        <h3 style="margin: 0 0 5px 0; font-size: 16px;">${place.title}</h3>
-        <p style="margin: 0 0 5px 0; font-size: 12px;">${place.address}</p>
-        ${place.distance ? `<p style="margin: 0; font-size: 12px;">Distance: ${place.distance} miles</p>` : ''}
-        ${place.rating ? `<p style="margin: 0; font-size: 12px;">Rating: ${place.rating}/5 (${place.reviews_original})</p>` : ''}
-      </div>
-    `;
-    
-    infoWindow.current.setContent(content);
-    infoWindow.current.open({
-      map: googleMapRef.current,
-      anchor: marker
-    });
-  };
-
-  // Filter places based on search term
-  const filterPlaces = (term: string) => {
-    if (!term.trim()) {
-      setFilteredPlaces(places);
-      return;
-    }
-    
-    const filtered = places.filter(place => 
-      place.title.toLowerCase().includes(term.toLowerCase()) ||
-      place.address.toLowerCase().includes(term.toLowerCase()) ||
-      (place.type && place.type.toLowerCase().includes(term.toLowerCase())) ||
-      (place.category && place.category.toLowerCase().includes(term.toLowerCase()))
-    );
-    
-    setFilteredPlaces(filtered);
-  };
-
-  // Calculate route to selected place
-  const calculateRoute = (place: Place, travelMode: TravelMode = TravelMode.DRIVING) => {
-    if (!directionsService.current || !directionsRenderer.current || !googleMapRef.current) return;
-    
-    // First geocode the destination address
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ address: place.address }, (results, status) => {
-      if (status === 'OK' && results && results[0]) {
-        const destination = results[0].geometry.location;
-        
-        // Then geocode the origin (zip code)
-        geocoder.geocode({ address: zipCode }, (results, status) => {
-          if (status === 'OK' && results && results[0]) {
-            const origin = results[0].geometry.location;
-            
-            // Create route request
-            const request = {
-              origin: origin,
-              destination: destination,
-              travelMode: google.maps.TravelMode[travelMode]
-            };
-            
-            // Calculate route
-            directionsService.current!.route(request, (result, status) => {
-              if (status === 'OK' && result) {
-                directionsRenderer.current!.setDirections(result);
-                
-                // Fit map to show the entire route
-                if (googleMapRef.current) {
-                  googleMapRef.current.fitBounds(result.routes[0].bounds);
-                }
-              } else {
-                console.error('Directions request failed:', status);
-              }
-            });
-          }
-        });
-      }
-    });
-  };
-
-  // Clear the current route
-  const clearRoute = () => {
-    if (directionsRenderer.current) {
-      directionsRenderer.current.setMap(null);
-      directionsRenderer.current.setMap(googleMapRef.current);
-    }
-    // Reset selected place
-    setSelectedPlaceIndex(null);
-  };
-
-  // Open Google Maps directions in a new tab
-  const openExternalDirections = (place: Place) => {
-    const destination = encodeURIComponent(place.address);
-    const origin = encodeURIComponent(zipCode);
-    const mode = selectedTravelMode.toLowerCase();
-    window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${mode}`, '_blank');
-  };
-
-  // Search for nearby places of a specific type (using Google Places API)
-  const searchNearbyPlaces = (type: string) => {
-    if (!googleMapRef.current || !window.google || !window.google.maps || !window.google.maps.places) return;
-    
-    const service = new google.maps.places.PlacesService(googleMapRef.current);
-    
-    const request = {
-      query: `${type} near ${zipCode}`,
-      fields: ['name', 'geometry', 'formatted_address']
-    };
-    
-    service.textSearch(request, (results, status) => {
-      if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-        // Convert to our Place format
-
-        
-        // Before mapping:
-const center = googleMapRef.current?.getCenter();
-const originLat = center?.lat();
-const originLng = center?.lng();
-
-const newPlaces: Place[] = results.map(result => {
-  let distance: number | undefined;
-  if (originLat != null && originLng != null && result.geometry?.location) {
-    distance = calculateDistance(
-      originLat,
-      originLng,
-      result.geometry.location.lat(),
-      result.geometry.location.lng()
-    );
-  }
-  return {
-    title: result.name!,
-    address: result.formatted_address!,
-    type,
-    distance
-  };
-});
-
-        
-        // Add to places and filtered places
-        setPlaces(prevPlaces => [...prevPlaces, ...newPlaces]);
-        setFilteredPlaces(prevFiltered => [...prevFiltered, ...newPlaces]);
-        
-        // Add markers for new places
-        setTimeout(addMarkers, 100);
-      }
-    });
   };
 
   // Calculate distance between two points in miles
@@ -481,17 +459,166 @@ const newPlaces: Place[] = results.map(result => {
     return deg * (Math.PI/180);
   };
 
+  // Show place details in info window
+// Updated showPlaceInfo function with improved styling for better readability
+const showPlaceInfo = async (place: Place, index: number) => {
+    if (!infoWindow.current || !googleMapRef.current || !markersRef.current[index]) return;
+    
+    // Improved styling with better contrast and font weights
+    let content = `
+      <div style="max-width: 300px; padding: 10px; font-family: Arial, sans-serif;">
+        <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600; color: #2d3748;">${place.title}</h3>
+        <p style="margin: 0 0 8px 0; font-size: 14px; color: #4a5568;">${place.address}</p>
+        ${place.distance ? `<p style="margin: 0 0 5px 0; font-size: 14px; color: #4a5568;"><strong>Distance:</strong> ${place.distance} miles</p>` : ''}
+        ${place.rating ? `<p style="margin: 0 0 5px 0; font-size: 14px; color: #4a5568;"><strong>Rating:</strong> ${place.rating}/5</p>` : ''}
+    `;
+    
+    // If we have a place ID, try to get more details
+    if (place.placeId) {
+      const details = await getPlaceDetails(place.placeId);
+      if (details) {
+        content += details.editorialSummary ? 
+          `<p style="margin: 8px 0; font-size: 14px; color: #4a5568;">${details.editorialSummary}</p>` : '';
+        
+        // Using regularOpeningHours instead of openingHours
+        content += details.regularOpeningHours?.weekdayDescriptions ? 
+          `<p style="margin: 5px 0; font-size: 14px; color: #4a5568;"><strong>Hours:</strong> ${details.regularOpeningHours.weekdayDescriptions[0]}</p>` : '';
+        
+        content += details.nationalPhoneNumber ? 
+          `<p style="margin: 5px 0; font-size: 14px; color: #4a5568;"><strong>Phone:</strong> ${details.nationalPhoneNumber}</p>` : '';
+        
+        content += details.websiteURI ? 
+          `<p style="margin: 5px 0; font-size: 14px; color: #4a5568;"><a href="${details.websiteURI}" target="_blank" style="color: #4299e1; text-decoration: underline;">Visit Website</a></p>` : '';
+      }
+    }
+    
+    content += `</div>`;
+    
+    infoWindow.current.setContent(content);
+    infoWindow.current.open({
+      map: googleMapRef.current,
+      anchor: markersRef.current[index]
+    });
+  };
+
+
+  // Filter places based on search term
+  const filterPlaces = (term: string) => {
+    if (!term.trim()) {
+      setFilteredPlaces(places);
+      return;
+    }
+    
+    const filtered = places.filter(place => 
+      place.title.toLowerCase().includes(term.toLowerCase()) ||
+      place.address.toLowerCase().includes(term.toLowerCase()) ||
+      (place.type && place.type.toLowerCase().includes(term.toLowerCase())) ||
+      (place.category && place.category.toLowerCase().includes(term.toLowerCase()))
+    );
+    
+    setFilteredPlaces(filtered);
+  };
+
+  // Calculate route to selected place
+  const calculateRoute = (place: Place, travelMode: TravelMode = TravelMode.DRIVING) => {
+    if (!directionsService.current || !directionsRenderer.current || !googleMapRef.current || !mapCenter) return;
+    
+    try {
+      // Use coordinates directly if available via placeId, otherwise geocode the address
+      const getDestination = async () => {
+        if (place.placeId) {
+          const placeDetails = await getPlaceDetails(place.placeId);
+          if (placeDetails && placeDetails.location) {
+            return placeDetails.location;
+          }
+        }
+        
+        // Fallback to geocoding
+        return new Promise<google.maps.LatLng>((resolve, reject) => {
+          const geocoder = new google.maps.Geocoder();
+          geocoder.geocode({ address: place.address }, (results, status) => {
+            if (status === 'OK' && results && results[0]) {
+              resolve(results[0].geometry.location);
+            } else {
+              reject(new Error(`Geocoding failed: ${status}`));
+            }
+          });
+        });
+      };
+      
+      getDestination().then(destination => {
+        // Create route request
+        const request = {
+          origin: new google.maps.LatLng(mapCenter.lat, mapCenter.lng),
+          destination: destination,
+          travelMode: google.maps.TravelMode[travelMode]
+        };
+        
+        // Calculate route
+        directionsService.current!.route(request, (result, status) => {
+          if (status === 'OK' && result) {
+            directionsRenderer.current!.setDirections(result);
+            
+            // Extract route information
+            const route = result.routes[0];
+            if (route && route.legs && route.legs.length > 0) {
+              const leg = route.legs[0];
+              setRouteInfo({
+                distance: leg.distance?.text || 'Unknown distance',
+                duration: leg.duration?.text || 'Unknown duration'
+              });
+            }
+            
+            // Fit map to show the entire route
+            if (googleMapRef.current && result.routes[0].bounds) {
+              googleMapRef.current.fitBounds(result.routes[0].bounds);
+            }
+          } else {
+            console.error('Directions request failed:', status);
+            setRouteInfo(null);
+          }
+        });
+      }).catch(error => {
+        console.error('Error getting destination:', error);
+        setRouteInfo(null);
+      });
+    } catch (error) {
+      console.error('Error calculating route:', error);
+      setRouteInfo(null);
+    }
+  };
+
+  // Clear the current route
+  const clearRoute = () => {
+    if (directionsRenderer.current && googleMapRef.current) {
+      directionsRenderer.current.setMap(null);
+      directionsRenderer.current.setMap(googleMapRef.current);
+    }
+    // Reset selected place and route info
+    setSelectedPlaceIndex(null);
+    setRouteInfo(null);
+  };
+
+  // Open Google Maps directions in a new tab
+  const openExternalDirections = (place: Place) => {
+    const destination = encodeURIComponent(place.address);
+    const origin = encodeURIComponent(zipCode);
+    const mode = selectedTravelMode.toLowerCase();
+    window.open(`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=${mode}`, '_blank');
+  };
+
   // Handle place card click
-  const handlePlaceCardClick = (index: number) => {
+  const handlePlaceCardClick = (place: Place, index: number) => {
     setSelectedPlaceIndex(index);
     
-    // Show info window
-    if (markersRef.current[index]) {
-      showPlaceInfo(filteredPlaces[index], markersRef.current[index]);
-      
-      // Pan to marker
-      if (googleMapRef.current) {
-        googleMapRef.current.panTo(markersRef.current[index].getPosition()!);
+    // Show info window for the place
+    showPlaceInfo(place, index);
+    
+    // Pan to marker
+    if (markersRef.current[index] && googleMapRef.current) {
+      const position = markersRef.current[index].position;
+      if (position) {
+        googleMapRef.current.panTo(position);
         googleMapRef.current.setZoom(15);
       }
     }
@@ -544,12 +671,25 @@ const newPlaces: Place[] = results.map(result => {
               </button>
             </div>
           </div>
+          
+          {/* Route information display */}
+          {routeInfo && (
+  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+    <div className="flex items-center text-blue-800">
+      <FaClock className="mr-2" />
+      <div>
+        <p className="font-semibold mb-1">Route Information</p>
+        <p className="text-sm">Distance: <span className="font-medium">{routeInfo.distance}</span> • Travel time: <span className="font-medium">{routeInfo.duration}</span></p>
+      </div>
+    </div>
+  </div>
+)}
         </div>
       </div>
       
       {/* Map Container */}
       <div className="w-full h-96 rounded-lg border border-slate-200 overflow-hidden bg-slate-50 mb-4">
-        {isLoading ? (
+        {isLoading || !scriptLoaded ? (
           <div className="w-full h-full flex items-center justify-center bg-slate-50">
             <div className="flex space-x-2">
               <div className="w-3 h-3 bg-indigo-500 rounded-full animate-bounce"></div>
@@ -615,7 +755,7 @@ const newPlaces: Place[] = results.map(result => {
             <div
               key={index}
               className={`bg-white rounded-lg border ${selectedPlaceIndex === index ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-slate-200'} overflow-hidden cursor-pointer transition-all hover:shadow-md`}
-              onClick={() => handlePlaceCardClick(index)}
+              onClick={() => handlePlaceCardClick(place, index)}
             >
               {place.image ? (
                 <div className="h-32 overflow-hidden">
@@ -700,5 +840,13 @@ const newPlaces: Place[] = results.map(result => {
     </div>
   );
 };
+
+// Declare initGoogleCallback in global scope
+declare global {
+  interface Window {
+    initGoogleCallback: () => void;
+    google: any;
+  }
+}
 
 export default TransitAmenitiesResults;
