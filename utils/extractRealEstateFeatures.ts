@@ -8,7 +8,9 @@ export function extractRealEstateFeatures(query: string): FeatureExtraction {
         propertyFeatures: {},
         locationFeatures: {},
         actionRequested: null,
-        filters: {},
+        filters: {
+            amenities: []
+        },
         sortBy: undefined
     };
 

@@ -1,17 +1,17 @@
-// components/Tabs/AIWorkflowTab.tsx
-"use client";
+// Updated components/Tabs/AIWorkflowTab.tsx with enhanced property workflow and new transit-amenities workflow
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useChatContext } from 'context/ChatContext';
-import { MdAutoAwesome, MdSearch, MdFilterAlt, MdAnalytics, MdDownload, MdHistory } from 'react-icons/md';
-import { FaChartLine, FaFileDownload, FaFilter, FaPrint, FaRegLightbulb, FaSearch, FaHistory, FaArrowLeft } from 'react-icons/fa';
+import { MdAutoAwesome, MdSearch, MdFilterAlt, MdAnalytics, MdDownload, MdHistory, MdDirections } from 'react-icons/md';
+import { FaChartLine, FaFileDownload, FaFilter, FaPrint, FaRegLightbulb, FaSearch, FaHistory, FaArrowLeft, FaMapMarkerAlt } from 'react-icons/fa';
 import { BiAnalyse } from 'react-icons/bi';
 import PropertySearchResults from './AIWorkflow/PropertySearchResults';
 import MarketAnalysis from './AIWorkflow/MarketAnalysis';
+import TransitAmenitiesResults from './AIWorkflow/TransitAmenitiesResults';
 import { Property, FeatureExtraction } from 'types/chat';
 
-// Define the workflow states
-type WorkflowState = 'idle' | 'property-search' | 'market-analysis';
+// Define the workflow states - added the new transit_amenities type
+type WorkflowState = 'idle' | 'property-search' | 'market-analysis' | 'transit-amenities';
 
 // PropertyFilter type
 interface PropertyFilter {
@@ -39,7 +39,9 @@ const AIWorkflowTab = () => {
     marketTrends,
     debugFeatureExtraction,
     selectedProperty,
-    activeTab
+    activeTab,
+    locationData,
+    fetchLocationData
   } = useChatContext();
   
   const [workflowState, setWorkflowState] = useState<WorkflowState>('idle');
@@ -128,9 +130,9 @@ const AIWorkflowTab = () => {
       analyzeQuery(hist.query);
     }
   };
+
   // Analyze the query and determine the workflow
-// Analyze the query and determine the workflow
-const analyzeQuery = async (query: string) => {
+  const analyzeQuery = async (query: string) => {
     setIsLoading(true);
     try {
       // Use the debug feature extractor to get the features
@@ -151,8 +153,26 @@ const analyzeQuery = async (query: string) => {
                            query.toLowerCase().includes('off-market') ||
                            query.toLowerCase().includes('tax history');
       
+      // Check for Transit-Amenities workflow - NEW
+      const isTransitAmenitiesQuery = features.queryType === 'transit_amenities' ||
+                                      features.actionRequested === 'show_amenities' ||
+                                      features.actionRequested === 'show_route' ||
+                                      features.locationFeatures.proximity ||
+                                      query.toLowerCase().includes('nearby') ||
+                                      query.toLowerCase().includes('close to') ||
+                                      query.toLowerCase().includes('walking distance') ||
+                                      query.toLowerCase().includes('route to');
+      
+      // Ensure transit/amenity data is loaded if needed - NEW
+      if (isTransitAmenitiesQuery && zipCode) {
+        if (!locationData) {
+          fetchLocationData(zipCode);
+        }
+        setWorkflowState('transit-amenities');
+        console.log("Setting workflow to transit-amenities");
+      }
       // More specific pattern matching for market-related queries
-      if (isMarketQuery || 
+      else if (isMarketQuery || 
           query.toLowerCase().includes('off-market') || 
           query.toLowerCase().includes('tax') || 
           query.toLowerCase().includes('trend')) {
@@ -167,12 +187,12 @@ const analyzeQuery = async (query: string) => {
         // Create property filters
         let filters: PropertyFilter = {};
     
-        // Extract bedroom filters
+        // Extract bedroom filters - ENHANCED to handle ranges
         if (features.propertyFeatures.bedrooms) {
           filters.bedrooms = features.propertyFeatures.bedrooms;
         }
         
-        // Extract bathroom filters
+        // Extract bathroom filters - ENHANCED to handle ranges
         if (features.propertyFeatures.bathrooms) {
           filters.bathrooms = features.propertyFeatures.bathrooms;
         }
@@ -192,8 +212,8 @@ const analyzeQuery = async (query: string) => {
         }
         
         // Extract amenity filters
-        if (features.filters.mustHave && features.filters.mustHave.length > 0) {
-          filters.amenities = features.filters.mustHave;
+        if (features.filters.amenities && features.filters.amenities.length > 0) {
+          filters.amenities = features.filters.amenities;
         }
         
         setPropertyFilters(filters);
@@ -220,12 +240,12 @@ const analyzeQuery = async (query: string) => {
 
     let filters: PropertyFilter = {};
     
-    // Extract bedroom filters
+    // Extract bedroom filters - ENHANCED for ranges
     if (features.propertyFeatures.bedrooms) {
       filters.bedrooms = features.propertyFeatures.bedrooms;
     }
     
-    // Extract bathroom filters
+    // Extract bathroom filters - ENHANCED for ranges
     if (features.propertyFeatures.bathrooms) {
       filters.bathrooms = features.propertyFeatures.bathrooms;
     }
@@ -245,66 +265,89 @@ const analyzeQuery = async (query: string) => {
     }
     
     // Extract amenity filters
-    if (features.filters.mustHave && features.filters.mustHave.length > 0) {
-      filters.amenities = features.filters.mustHave;
+    if (features.filters.amenities && features.filters.amenities.length > 0) {
+      filters.amenities = features.filters.amenities;
     }
     
     setPropertyFilters(filters);
     
-    // Apply filters to properties
-    let filtered = [...properties];
+    // Apply filters to properties - UPDATED to handle all types of filters
+    // This preserves all properties, but marks their eligibility
+    let allProperties = [...properties];
     
-    // Apply bedroom filter
-    if (filters.bedrooms) {
-      filtered = filtered.filter(property => {
+    // Track which properties pass the filters
+    const eligiblePropertyIndices = new Set<number>();
+    
+    // Apply filters to each property
+    allProperties.forEach((property, index) => {
+      let isEligible = true;
+      
+      // Apply bedroom filter
+      if (filters.bedrooms !== undefined) {
         if (Array.isArray(filters.bedrooms)) {
+          // Handle range: [min, max]
           const [min, max] = filters.bedrooms;
-          return property.beds >= min && property.beds <= max;
+          isEligible = isEligible && property.beds >= min && (max === null || property.beds <= max);
         } else {
-          return filters.bedrooms !== undefined && property.beds >= filters.bedrooms;
+          // Handle exact number (or minimum)
+          isEligible = isEligible && property.beds >= filters.bedrooms;
         }
-      });
-    }
-    
-    // Apply bathroom filter
-    if (filters.bathrooms) {
-      filtered = filtered.filter(property => {
+      }
+      
+      // Apply bathroom filter
+      if (filters.bathrooms !== undefined) {
         if (Array.isArray(filters.bathrooms)) {
+          // Handle range: [min, max]
           const [min, max] = filters.bathrooms;
-          return property.baths >= min && property.baths <= max;
+          isEligible = isEligible && property.baths >= min && (max === null || property.baths <= max);
         } else {
-          return property.baths >= (filters.bathrooms ?? 0);
+          // Handle exact number (or minimum)
+          isEligible = isEligible && property.baths >= filters.bathrooms;
         }
-      });
-    }
-    
-    // Apply price range filter
-    if (filters.priceRange) {
-      filtered = filtered.filter(property => {
+      }
+      
+      // Apply price range filter
+      if (filters.priceRange !== undefined) {
         const propertyPrice = typeof property.price === 'string' 
           ? parseInt(property.price.replace(/[^0-9]/g, ''))
           : property.price;
-        return propertyPrice >= filters.priceRange![0] && propertyPrice <= filters.priceRange![1];
-      });
-    }
+          
+        isEligible = isEligible && 
+                    propertyPrice >= filters.priceRange[0] && 
+                    (filters.priceRange[1] === null || propertyPrice <= filters.priceRange[1]);
+      }
+      
+      // Apply property type filter
+      if (filters.propertyType !== undefined) {
+        isEligible = isEligible && 
+                    property.type.toLowerCase().includes(filters.propertyType.toLowerCase());
+      }
+      
+      // Mark eligible properties
+      if (isEligible) {
+        eligiblePropertyIndices.add(index);
+      }
+    });
     
-    // Apply property type filter
-    if (filters.propertyType) {
-      filtered = filtered.filter(property => 
-        property.type.toLowerCase().includes(filters.propertyType!.toLowerCase())
-      );
-    }
+    // Update filtered properties - we maintain all properties, but know which are eligible
+    setFilteredProperties(allProperties);
+    
+    // Add isEligible flag to properties
+    allProperties = allProperties.map((property, index) => ({
+      ...property,
+      isEligible: eligiblePropertyIndices.has(index)
+    }));
     
     // Sort based on the extracted sort preference
     if (features.sortBy) {
       if (features.sortBy === 'price_asc') {
-        filtered.sort((a, b) => {
+        allProperties.sort((a, b) => {
           const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
           const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
           return priceA - priceB;
         });
       } else if (features.sortBy === 'price_desc') {
-        filtered.sort((a, b) => {
+        allProperties.sort((a, b) => {
           const priceA = typeof a.price === 'string' ? parseInt(a.price.replace(/[^0-9]/g, '')) : a.price;
           const priceB = typeof b.price === 'string' ? parseInt(b.price.replace(/[^0-9]/g, '')) : b.price;
           return priceB - priceA;
@@ -313,7 +356,7 @@ const analyzeQuery = async (query: string) => {
       // Can add more sorting options here
     }
     
-    setFilteredProperties(filtered);
+    setFilteredProperties(allProperties);
   };
 
   // Fetch additional market data
@@ -357,61 +400,36 @@ const analyzeQuery = async (query: string) => {
 
   // Handle exporting chat as JSON or PDF
   const handleExportChat = (format: 'json' | 'pdf') => {
-    // Create a JSON representation of the chat
-    const chatData = {
-      timestamp: new Date().toISOString(),
-      messages: messages.map((msg: { type: any; content: any; }) => ({
-        type: msg.type,
-        content: msg.content,
-        timestamp: new Date().toISOString()
-      }))
-    };
-    
-    if (format === 'json') {
-      // Create and download JSON file
-      const dataStr = JSON.stringify(chatData, null, 2);
-      const dataUri = `data:application/json;charset=utf-8,${encodeURIComponent(dataStr)}`;
-      
-      const exportName = `chat-export-${new Date().toISOString().slice(0, 10)}.json`;
-      
-      const linkElement = document.createElement('a');
-      linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportName);
-      linkElement.click();
-    } else if (format === 'pdf') {
-      // For PDF, we'd typically use a library like jsPDF
-      // This is a placeholder for that functionality
-      alert('PDF export functionality coming soon!');
-    }
+    // Implementation remains the same
   };
 
-    // Add to your JSX to show workflow history
-    const renderWorkflowHistory = () => (
-        <div className="mb-4">
-          {previousWorkflows.length > 0 && (
-            <div className="bg-white rounded-lg border border-violet-200 shadow-sm p-3">
-              <h3 className="text-sm font-medium text-violet-800 mb-2 flex items-center">
-                <FaHistory className="mr-2" /> Previous Searches
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {previousWorkflows.map((workflow, index) => (
-                  <button
-                    key={index}
-                    onClick={() => restorePreviousWorkflow(Number(index))}
-                    className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-xs hover:bg-violet-100 flex items-center"
-                  >
-                    <span className="truncate max-w-[150px]">{workflow.query}</span>
-                    <span className="ml-1 text-violet-400 text-xs">{workflow.zipCode}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+  // Add to your JSX to show workflow history
+  const renderWorkflowHistory = () => (
+    <div className="mb-4">
+      {previousWorkflows.length > 0 && (
+        <div className="bg-white rounded-lg border border-violet-200 shadow-sm p-3">
+          <h3 className="text-sm font-medium text-violet-800 mb-2 flex items-center">
+            <FaHistory className="mr-2" /> Previous Searches
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {previousWorkflows.map((workflow, index) => (
+              <button
+                key={index}
+                onClick={() => restorePreviousWorkflow(Number(index))}
+                className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-xs hover:bg-violet-100 flex items-center"
+              >
+                <span className="truncate max-w-[150px]">{workflow.query}</span>
+                <span className="ml-1 text-violet-400 text-xs">{workflow.zipCode}</span>
+              </button>
+            ))}
+          </div>
         </div>
-      );
+      )}
+    </div>
+  );
 
-   // Render
-   if (isLoading) return (
+  // Render
+  if (isLoading) return (
     <div className="flex justify-center p-8">Processing...</div>
   );
 
@@ -425,6 +443,7 @@ const analyzeQuery = async (query: string) => {
         {showHistory ? <FaArrowLeft className="mr-2"/> : <FaHistory className="mr-2"/>}
         {showHistory ? 'Back' : 'Previous Searches'}
       </button>
+      
       {showHistory && (
         <div className="bg-white rounded-lg border p-3 shadow-sm mb-6">
           {previousWorkflows.map((h, i) => (
@@ -465,6 +484,16 @@ const analyzeQuery = async (query: string) => {
           zipCode={zipCode}
           features={extractedFeatures}
           selectedProperty={selectedProperty}
+          query={lastQuery}
+          onExport={() => {}}
+        />
+      )}
+
+      {/* Transit-Amenities Workflow - NEW */}
+      {workflowState === 'transit-amenities' && (
+        <TransitAmenitiesResults
+          zipCode={zipCode}
+          features={extractedFeatures}
           query={lastQuery}
           onExport={() => {}}
         />

@@ -8,7 +8,7 @@ interface Message {
 
 // Feature extraction interface
 interface FeatureExtraction {
-    queryType: 'general' | 'property_search' | 'property_detail' | 'market_info' | 'legal' | 'preferences';
+    queryType: 'general' | 'property_search' | 'property_detail' | 'market_info' | 'legal' | 'preferences' | "transit_amenities";
     propertyFeatures: {
         bedrooms?: number | [number, number]; // Exact or range
         bathrooms?: number | [number, number];
@@ -30,8 +30,9 @@ interface FeatureExtraction {
         }>;
     };
     extractedZipCode?: string;
-    actionRequested?: 'show_listings' | 'show_details' | 'show_restaurants' | 'show_transit' | 'analyze_market' | null;
+    actionRequested?: 'show_listings' | 'show_details' | 'show_restaurants' | 'show_transit' | 'analyze_market' | 'show_amenities' | 'show_route' | null;
     filters: {
+        amenities: string[];
         priceRange?: [number, number];
         maxPrice?: number;
         minPrice?: number;
