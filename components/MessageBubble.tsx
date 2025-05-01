@@ -1,149 +1,141 @@
-// Properly fixed MessageBubble.tsx with correct ReactMarkdown props
+// components/MessageBubble.tsx
 "use client";
 
-import React, { useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { Message } from 'types/chat';
+import React, { useEffect, useMemo } from 'react';
 import { useChatContext } from '../context/ChatContext';
+import { Message } from '../types/chat';
 
-interface Props {
-    message: Message;
+interface MessageBubbleProps {
+  message: Message;
 }
 
-const MessageBubble: React.FC<Props> = ({ message }) => {
-    const { handleUILink } = useChatContext();
-    const messageRef = useRef<HTMLDivElement>(null);
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
+  const { handleUILink, createLinkableContent } = useChatContext();
+
+  // Process message content to handle Markdown and UI links
+  const processedContent = useMemo(() => {
+    if (!message.content) return '';
     
-    // Add event listeners to links after component mounts
-    useEffect(() => {
-        if (messageRef.current && message.type === 'bot') {
-            // Find all links in the message
-            const allLinks = messageRef.current.querySelectorAll('a');
-            
-            // Add click event to all links
-            allLinks.forEach((link, index) => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    
-                    // If it has data-ui-link attribute, use the link handler
-                    if (link.hasAttribute('data-ui-link')) {
-                        const linkType = link.getAttribute('data-ui-link');
-                        let data = null;
-                        
-                        // For property links
-                        if (linkType === 'propertyDetail') {
-                            const zpid = link.getAttribute('data-zpid');
-                            if (zpid) {
-                                data = { zpid };
-                            }
-                        }
-                        
-                        // Call the handler
-                        console.log('Calling handleUILink with:', { type: linkType, text: link.textContent });
-                        handleUILink({
-                            type: linkType as any,
-                            label: link.textContent || 'View',
-                            data
-                        });
-                        
-                        // Add visual feedback
-                        link.style.backgroundColor = '#bae6fd';
-                        link.style.color = '#0369a1';
-                    } else {
-                        // Handle regular href links
-                        const href = link.getAttribute('href');
-                        
-                        if (href && href.startsWith('#')) {
-                            const sectionId = href.substring(1);
-                            
-                            const section = document.getElementById(sectionId);
-                            if (section) {
-                                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            }
-                        }
-                    }
-                });
-            });
-        }
-    }, [message, handleUILink]);
+    // First process any UI links
+    let content = createLinkableContent(message.content);
+    
+    // Then process Markdown formatting
+    content = processMarkdown(content);
+    
+    return content;
+  }, [message.content, createLinkableContent]);
 
-    // Custom renderer for markdown content
-    const renderMarkdownContent = () => {
-        // If it's a bot message with HTML content, preserve the HTML
-        if (message.type === 'bot' && (message.content.includes('<a') || message.content.includes('<br>') || message.content.includes('<div'))) {
-            return (
-                <div 
-                    className="markdown"
-                    dangerouslySetInnerHTML={{ __html: message.content }}
-                />
-            );
-        }
-        
-        // Otherwise, parse as markdown
-        return (
-            <div className="markdown">
-                <ReactMarkdown
-                    components={{
-                        h1: ({children, ...props}) => <h1 className="text-xl font-bold my-2" {...props}>{children}</h1>,
-                        h2: ({children, ...props}) => <h2 className="text-lg font-bold my-2" {...props}>{children}</h2>,
-                        h3: ({children, ...props}) => <h3 className="text-md font-bold my-1" {...props}>{children}</h3>,
-                        h4: ({children, ...props}) => <h4 className="font-bold my-1" {...props}>{children}</h4>,
-                        ul: ({children, ...props}) => <ul className="list-disc ml-6 my-2" {...props}>{children}</ul>,
-                        ol: ({children, ...props}) => <ol className="list-decimal ml-6 my-2" {...props}>{children}</ol>,
-                        li: ({children, ...props}) => <li className="my-1" {...props}>{children}</li>,
-                        p: ({children, ...props}) => <p className="my-2" {...props}>{children}</p>,
-                        a: ({href, children, ...props}) => (
-                            <a 
-                                href={href} 
-                                className="text-teal-600 hover:text-teal-800 underline"
-                                onClick={(e) => e.preventDefault()}
-                                {...props}
-                            >
-                                {children}
-                            </a>
-                        ),
-                        code: ({children, className, ...props}) => {
-                            const match = /language-(\w+)/.exec(className || '');
-                            return props.node?.properties?.inline ? (
-                                <code className="bg-gray-100 px-1 py-0.5 rounded text-sm font-mono" {...props}>
-                                    {children}
-                                </code>
-                            ) : (
-                                <pre className="bg-gray-100 p-2 rounded my-2 overflow-x-auto">
-                                    <code className={className ? className : 'text-sm font-mono'} {...props}>
-                                        {children}
-                                    </code>
-                                </pre>
-                            );
-                        },
-                        blockquote: ({children, ...props}) => (
-                            <blockquote className="border-l-4 border-gray-300 pl-4 italic my-2 text-gray-700" {...props}>
-                                {children}
-                            </blockquote>
-                        ),
-                        strong: ({children, ...props}) => <strong className="font-bold" {...props}>{children}</strong>,
-                        em: ({children, ...props}) => <em className="italic" {...props}>{children}</em>,
-                    }}
-                >
-                    {message.content}
-                </ReactMarkdown>
-            </div>
-        );
+  // Function to convert basic Markdown to HTML
+  function processMarkdown(text: string) {
+    // Preserve [[links]] first
+    const linkPlaceholders: string[] = [];
+    const placeholderText = text.replace(/\[\[(.*?)\]\]/g, (_, match) => {
+      linkPlaceholders.push(match);
+      return `@@LINK_${linkPlaceholders.length - 1}@@`;
+    });
+  
+    let html = placeholderText;
+  
+    // Bold
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+    // Italic
+    html = html.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  
+    // Normalize line endings
+    html = html.replace(/\r\n/g, '\n');
+  
+    // Group bullet lines into UL
+    html = html.replace(/(?:^|\n)([-*] .+?)(?=\n[^-* ]|$)/g, (match) => {
+      const items = match.trim().split('\n').map(line => line.replace(/^[-*] (.+)/, '<li>$1</li>')).join('');
+      return `<ul class="list-disc pl-5 my-2">${items}</ul>`;
+    });
+  
+    // Group numbered lines into OL
+    html = html.replace(/(?:^|\n)(\d+\. .+?)(?=\n[^0-9.]|$)/g, (match) => {
+      const items = match.trim().split('\n').map(line => line.replace(/^\d+\. (.+)/, '<li>$1</li>')).join('');
+      return `<ol class="list-decimal pl-5 my-2">${items}</ol>`;
+    });
+  
+    // Convert plain lines to <p> unless they are already block elements
+    html = html.replace(/(?:^|\n)(?!<\/?(ul|ol|li|p|strong|em|a)\b)(.+)/g, (match, _, content) => {
+      if (!content.trim()) return '';
+      return `<p>${content.trim()}</p>`;
+    });
+  
+    // Clean up multiple <p> inside list
+    html = html.replace(/<\/(ul|ol)>\s*<p>/g, '</$1><p>');
+    html = html.replace(/<\/li>\s*<p>/g, '</li><p>');
+  
+    // Restore [[links]]
+    html = html.replace(/@@LINK_(\d+)@@/g, (_, i) => `[[${linkPlaceholders[+i]}]]`);
+  
+    return html;
+  }
+  
+  // Add event listeners for UI links after component mounts
+  useEffect(() => {
+    const messageElement = document.getElementById(`message-${message.id}`);
+    if (!messageElement) return;
+
+    const links = messageElement.querySelectorAll('a[data-ui-link]');
+    
+    const handleLinkClick = (e: Event) => {
+      e.preventDefault();
+      const link = e.currentTarget as HTMLAnchorElement;
+      
+      // Extract link data attributes
+      const linkType = link.getAttribute('data-ui-link');
+      const tab = link.getAttribute('data-tab');
+      const propertyTab = link.getAttribute('data-property-tab');
+      const section = link.getAttribute('data-section');
+      const forceTab = link.getAttribute('data-force-tab') === 'true';
+      
+      handleUILink({
+        type: linkType,
+        element: link,
+        tab,
+        propertyTab,
+        section,
+        forceTab
+      });
     };
+    
+    // Add click event listeners to all links
+    links.forEach(link => {
+      link.addEventListener('click', handleLinkClick);
+    });
+    
+    // Cleanup on unmount
+    return () => {
+      links.forEach(link => {
+        link.removeEventListener('click', handleLinkClick);
+      });
+    };
+  }, [message.id, handleUILink, processedContent]);
 
-    return (
-        <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div
-                ref={messageRef}
-                className={`max-w-[80%] p-4 rounded-2xl ${message.type === 'user'
-                    ? 'bg-teal-700 text-white rounded-tr-none'
-                    : 'bg-gray-50 text-slate-800 border border-slate-200 rounded-tl-none'
-                    }`}
-            >
-                {renderMarkdownContent()}
-            </div>
-        </div>
-    );
+  // Determine message position and styling
+  const isBot = message.type === 'bot';
+  
+  return (
+    <div
+      id={`message-${message.id}`}
+      className={`flex ${isBot ? 'justify-start' : 'justify-end'} mb-4`}
+    >
+      <div 
+        className={`max-w-[80%] rounded-2xl p-4 ${
+          isBot 
+            ? 'bg-white border border-slate-200 rounded-tl-none text-slate-800' 
+            : 'bg-teal-600 text-white rounded-tr-none'
+        }`}
+      >
+        <div 
+          className="prose prose-sm max-w-none"
+          dangerouslySetInnerHTML={{ __html: processedContent }}
+        />
+      </div>
+    </div>
+  );
 };
 
 export default MessageBubble;

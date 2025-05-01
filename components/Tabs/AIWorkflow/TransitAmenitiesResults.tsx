@@ -277,55 +277,55 @@ useEffect(() => {
   }, [filteredPlaces, mapLoaded]);
 
   // Add markers for all places
-  const addMarkers = () => {
-    if (!googleMapRef.current || !mapLoaded) return;
-    
-    // Clear existing markers safely
-    if (markersRef.current && markersRef.current.length > 0) {
-      markersRef.current.forEach(marker => {
-        if (marker) marker.setMap(null);
-      });
-      markersRef.current = [];
-    }
-    
-    // Skip if no places
-    if (!filteredPlaces || filteredPlaces.length === 0) return;
-    
-    // Add a marker for each place
-    filteredPlaces.forEach((place, index) => {
-      if (!place || !place.address || !googleMapRef.current) return;
-      
-      // Geocode the address to get coordinates
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ address: place.address }, (results, status) => {
-        if (status === 'OK' && results && results[0] && googleMapRef.current) {
-          const location = results[0].geometry.location;
-          
-          // Create marker
-          const marker = new google.maps.Marker({
-            position: location,
-            map: googleMapRef.current,
-            title: place.title,
-            label: {
-              text: String(index + 1),
-              color: '#FFFFFF',
-              fontWeight: 'bold'
-            },
-            animation: google.maps.Animation.DROP
-          });
-          
-          // Add click handler
-          marker.addListener('click', () => {
-            setSelectedPlaceIndex(index);
-            showPlaceInfo(place, marker);
-          });
-          
-          // Store marker reference
-          markersRef.current.push(marker);
-        }
-      });
+const addMarkers = () => {
+  if (!googleMapRef.current || !mapLoaded) return;
+  
+  // Clear existing markers safely
+  if (markersRef.current && markersRef.current.length > 0) {
+    markersRef.current.forEach(marker => {
+      if (marker) marker.setMap(null);
     });
-  };
+    markersRef.current = [];
+  }
+  
+  // Skip if no places
+  if (!filteredPlaces || filteredPlaces.length === 0) return;
+  
+  // Add a marker for each place
+  filteredPlaces.forEach((place, index) => {
+    if (!place || !place.address || !googleMapRef.current) return;
+    
+    // Geocode the address to get coordinates
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: place.address }, (results, status) => {
+      if (status === 'OK' && results && results[0] && googleMapRef.current) {
+        const location = results[0].geometry.location;
+        
+        // Create marker
+        const marker = new google.maps.Marker({
+          position: location,
+          map: googleMapRef.current,
+          title: place.title,
+          label: {
+            text: String(index + 1),
+            color: '#FFFFFF',
+            fontWeight: 'bold'
+          },
+          animation: google.maps.Animation.DROP
+        });
+        
+        // Add click handler
+        marker.addListener('click', () => {
+          setSelectedPlaceIndex(index);
+          showPlaceInfo(place, marker);
+        });
+        
+        // Store marker reference
+        markersRef.current.push(marker);
+      }
+    });
+  });
+};
   // Show info window for a place
   const showPlaceInfo = (place: Place, marker: google.maps.Marker) => {
     if (!infoWindow.current || !googleMapRef.current) return;

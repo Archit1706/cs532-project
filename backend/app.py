@@ -236,7 +236,6 @@ USER QUERY: {question}
 
 import re
 
-# Function to format response with proper HTML links
 def format_response_with_links(response_text):
     """Replace markdown and link placeholders with HTML, with enhanced cross-tab navigation."""
     text = response_text
@@ -351,7 +350,6 @@ def format_bullet_points(text):
     processed_text = numbered_pattern.sub(replace_numbered_list, processed_text)
     
     return processed_text
-
 # Initialize Azure OpenAI
 def get_llm():
     logger.info(f"Initializing Azure OpenAI with deployment: VARELab-GPT4o, API version: 2024-08-01-preview")

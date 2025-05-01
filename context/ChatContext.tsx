@@ -346,6 +346,9 @@ const sendMessageToAgent = (agentId: string, message: string) => {
     // Add this improved handleUILink function to your ChatContext.tsx
 
 // Updated handleUILink function for cross-tab navigation
+// Add this improved handleUILink function to your ChatContext.tsx
+
+// Updated handleUILink function for cross-tab navigation
 const handleUILink = (link: UIComponentLink) => {
     console.log('UI link clicked:', link);
     
@@ -416,6 +419,7 @@ const handleUILink = (link: UIComponentLink) => {
     }
 };
 
+
 // Helper function to scroll to a section with a small delay to ensure rendering
 const scrollToSection = (sectionId: string) => {
     setTimeout(() => {
@@ -429,18 +433,21 @@ const scrollToSection = (sectionId: string) => {
 };
     // Update the createLinkableContent function
     // Enhanced createLinkableContent function
-    const createLinkableContent = (message: string) => {
-        console.log("Creating linkable content from:", message);
+// 2. Update the createLinkableContent function to better handle HTML content
+const createLinkableContent = (message: string) => {
+    if (!message || typeof message !== 'string') {
+        return message;
+    }
 
-        // First, check if we need to process the message
-        if (!message || typeof message !== 'string') {
-            return message;
-        }
+    // Check if the message already contains HTML with data-ui-link attributes
+    if (message.includes('data-ui-link')) {
+        console.log("Message already contains UI links, skipping processing");
+        return message;
+    }
 
-        // Process the message with the processUILinks function
-        return processUILinks(message);
-    };
-
+    // Process the UI links in the message
+    return processUILinks(message);
+};
     const fetchMarketTrends = async (location?: string, zipCode?: string) => {
         console.log('Fetching market trends for:', location || zipCode);
 
@@ -1034,58 +1041,58 @@ const scrollToSection = (sectionId: string) => {
     );
 };
 
+
+// This is the revised implementation for ChatContext.tsx
+
+// 1. First, update the processUILinks function to correctly handle all link patterns
 const processUILinks = (text: string) => {
     console.log("Processing UI links in text:", text);
+    if (!text) return text;
 
     // Define patterns to detect UI link mentions
     const linkPatterns = [
+        // Main sections in Explore tab
         {
             regex: /\[\[market(?:\s+trends)?\]\]/gi,
-            id: SECTION_IDS.MARKET,
-            label: 'market trends'
+            replacement: `<a href="#${SECTION_IDS.MARKET}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="market" data-tab="explore" data-force-tab="true">market trends</a>`
         },
         {
             regex: /\[\[properties\]\]/gi,
-            id: SECTION_IDS.PROPERTIES,
-            label: 'properties'
+            replacement: `<a href="#${SECTION_IDS.PROPERTIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="property" data-tab="explore" data-force-tab="true">properties</a>`
         },
         {
             regex: /\[\[restaurants\]\]|\[\[local\s+amenities\]\]/gi,
-            id: SECTION_IDS.AMENITIES,
-            label: 'local amenities'
+            replacement: `<a href="#${SECTION_IDS.AMENITIES}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="restaurants" data-tab="explore" data-force-tab="true">local amenities</a>`
         },
         {
             regex: /\[\[transit\]\]/gi,
-            id: SECTION_IDS.TRANSIT,
-            label: 'transit options'
+            replacement: `<a href="#${SECTION_IDS.TRANSIT}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="transit" data-tab="explore" data-force-tab="true">transit options</a>`
         },
         {
-            regex: /\[\[property\s+market\]\]/gi,
-            replacement: '<a href="#" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarket">property market analysis</a>'
+            regex: /\[\[agents\]\]/gi,
+            replacement: `<a href="#${SECTION_IDS.AGENTS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="agents" data-tab="explore" data-force-tab="true">top agents</a>`
         },
+        
+        // Property tab links
         {
             regex: /\[\[property\s+details\]\]/gi,
-            id: PROPERTY_TAB_IDS.DETAILS,
-            label: 'property details',
-            linkType: 'propertyDetails'
+            replacement: `<a href="#${PROPERTY_TAB_IDS.DETAILS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDetails" data-property-tab="details" data-force-tab="true">property details</a>`
         },
         {
             regex: /\[\[price\s+history\]\]/gi,
-            id: PROPERTY_TAB_IDS.PRICE_HISTORY,
-            label: 'price history',
-            linkType: 'propertyPriceHistory'
+            replacement: `<a href="#${PROPERTY_TAB_IDS.PRICE_HISTORY}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyPriceHistory" data-property-tab="priceHistory" data-force-tab="true">price history</a>`
         },
         {
             regex: /\[\[property\s+schools\]\]|\[\[schools\]\]/gi,
-            id: PROPERTY_TAB_IDS.SCHOOLS,
-            label: 'schools',
-            linkType: 'propertySchools'
+            replacement: `<a href="#${PROPERTY_TAB_IDS.SCHOOLS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertySchools" data-property-tab="schools" data-force-tab="true">schools</a>`
         },
         {
             regex: /\[\[property\s+market(?:\s+analysis)?\]\]|\[\[market\s+analysis\]\]/gi,
-            id: PROPERTY_TAB_IDS.MARKET_ANALYSIS,
-            label: 'market analysis',
-            linkType: 'propertyMarketAnalysis'
+            replacement: `<a href="#${PROPERTY_TAB_IDS.MARKET_ANALYSIS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyMarketAnalysis" data-property-tab="marketAnalysis" data-force-tab="true">market analysis</a>`
+        },
+        {
+            regex: /\[\[property\s+description\]\]/gi,
+            replacement: `<a href="#${PROPERTY_TAB_IDS.DETAILS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="propertyDescription" data-property-tab="details" data-section="description" data-force-tab="true">property description</a>`
         }
     ];
 
@@ -1093,23 +1100,25 @@ const processUILinks = (text: string) => {
     let processedText = text;
 
     linkPatterns.forEach(pattern => {
-        processedText = processedText.replace(pattern.regex, (match) => {
-            console.log(`Found link pattern: "${match}"`);
-
-            // Handle property tab links differently than section links
-            if (pattern.linkType) {
-                return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.linkType}">${pattern.label}</a>`;
-            } else if (pattern.id) {
-                return `<a href="#${pattern.id}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="${pattern.label.includes('market') ? 'market' : pattern.label.includes('properties') ? 'property' : pattern.label.includes('amenities') ? 'restaurants' : 'transit'}">${pattern.label}</a>`;
-            } else if (pattern.replacement) {
-                // For patterns with direct replacement
-                return pattern.replacement;
-            }
-            // Default case: return the original match if no replacement is found
-            return match;
-        });
+        processedText = processedText.replace(pattern.regex, pattern.replacement);
     });
 
     console.log("Processed text:", processedText);
     return processedText;
+};
+
+// 2. Update the createLinkableContent function to better handle HTML content
+const createLinkableContent = (message: string) => {
+    if (!message || typeof message !== 'string') {
+        return message;
+    }
+
+    // Check if the message already contains HTML with data-ui-link attributes
+    if (message.includes('data-ui-link')) {
+        console.log("Message already contains UI links, skipping processing");
+        return message;
+    }
+
+    // Process the UI links in the message
+    return processUILinks(message);
 };

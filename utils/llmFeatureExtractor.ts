@@ -301,11 +301,11 @@ export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtr
   if (transitAmenityType) {
     defaultExtraction.queryType = 'transit_amenities';
     defaultExtraction.actionRequested = 'show_amenities';
-    defaultExtraction.locationFeatures.proximity = {
+    defaultExtraction.locationFeatures.proximity = [{
       to: transitAmenityType,
       distance: 1, // Default to 1 mile
       unit: 'miles'
-    };
+    }];
     console.log(`🏙️ Detected transit/amenity query for: ${transitAmenityType}`);
     
     // Extract distance if specified
@@ -313,8 +313,10 @@ export async function extractFeaturesWithLLM(query: string): Promise<FeatureExtr
     if (distanceMatch) {
       const distance = parseFloat(distanceMatch[1]);
       const unit = distanceMatch[2].toLowerCase().startsWith('mile') ? 'miles' : 'km';
-      defaultExtraction.locationFeatures.proximity.distance = distance;
-      defaultExtraction.locationFeatures.proximity.unit = unit;
+      if (Array.isArray(defaultExtraction.locationFeatures.proximity) && defaultExtraction.locationFeatures.proximity.length > 0) {
+        defaultExtraction.locationFeatures.proximity[0].distance = distance;
+        defaultExtraction.locationFeatures.proximity[0].unit = unit;
+      }
       console.log(`📏 Detected proximity: within ${distance} ${unit}`);
     }
     
