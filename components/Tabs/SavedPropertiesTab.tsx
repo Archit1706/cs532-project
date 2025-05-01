@@ -5,7 +5,8 @@ import React from 'react';
 import { useChatContext } from 'context/ChatContext';
 
 const SavedPropertiesTab = () => {
-  const { savedProperties, setSelectedProperty } = useChatContext();
+  const { savedProperties, setSelectedProperty, activeTab,
+    setActiveTab } = useChatContext();
 
   if (!savedProperties.length) {
     return <div className="text-slate-700 text-sm p-4">No saved properties yet.</div>;
@@ -16,7 +17,10 @@ const SavedPropertiesTab = () => {
       {savedProperties.map((property, index) => (
         <div
           key={index}
-          onClick={() => setSelectedProperty(property)}
+          onClick={() => {
+            setSelectedProperty(property);
+            setActiveTab('explore');
+          }}
           className="min-w-[250px] max-w-xs bg-white rounded-lg border border-slate-200 overflow-hidden h-64 flex-shrink-0 flex flex-col transition-all duration-200 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
         >
           <div className="h-32 overflow-hidden">

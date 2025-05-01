@@ -6,7 +6,7 @@ import { useChatContext } from 'context/ChatContext';
 import PropertyDetailCard from '../PropertyDetailCard';
 import SinglePropertyOverview from '../SinglePropertyOverview';
 import WelcomeCard from '../WelcomeCard';
-import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats, MdAutoAwesome } from 'react-icons/md';
+import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats, MdAutoAwesome, MdFavorite } from 'react-icons/md';
 import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
@@ -192,7 +192,20 @@ const AIWorkflowTabContent = () => {
 };
 
 const SavedTabContent = () => {
-    return <SavedPropertiesTab />;
+    // return <SavedPropertiesTab />;
+    return (
+        <div className="space-y-6 m-6 pb-12 overflow-y-auto">
+            <section className="scroll-mt-16 mt-8">
+                <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdFavorite className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Saved Properties</h2>
+                    </div>
+                </div>
+                <SavedPropertiesTab />
+            </section>
+        </div>
+    )
 };
 
 const UpdatesTabContent = () => {
