@@ -3,7 +3,6 @@ export const languageOptions = [
     { code: 'en', name: 'English' },
     { code: 'es', name: 'Spanish' },
     { code: 'fr', name: 'French' },
-    { code: 'hi', name: 'Hindi' },
     { code: 'zh', name: 'Chinese' },
     { code: 'de', name: 'German' }
 ];
