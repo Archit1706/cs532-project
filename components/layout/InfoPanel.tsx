@@ -10,6 +10,7 @@ import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDir
 import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
+import SavedPropertiesTab from '../Tabs/SavedPropertiesTab';
 import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
 import AIWorkflowTab from '../Tabs/AIWorkflowTab';
@@ -36,13 +37,13 @@ const ExploreTabContent = () => {
         propertyDetails,
         zipCode
     } = useChatContext();
-    
+
     // Client-side only component guard
     const [mounted, setMounted] = useState(false);
     useEffect(() => {
         setMounted(true);
     }, []);
-    
+
     if (!mounted) return null;
 
     if (isPropertyChat && propertyDetails) {
@@ -191,12 +192,12 @@ const AIWorkflowTabContent = () => {
 };
 
 const SavedTabContent = () => {
-    return <div className="text-slate-600 space-y-6 m-6">No saved items yet.</div>;
+    return <SavedPropertiesTab />;
 };
 
 const UpdatesTabContent = () => {
     const { selectedAgentContact } = useChatContext();
-    
+
     return (
         <div className="h-full flex flex-col bg-white">
             <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-teal-700 to-teal-900 text-white">
