@@ -49,17 +49,28 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
   const infoWindow = useRef<google.maps.InfoWindow | null>(null);
   
   // Get amenity type from features
-  const getAmenityType = () => {
-    if (features?.locationFeatures?.amenityType) {
-      return features.locationFeatures.amenityType;
-    }
-    
+// Improved getAmenityType to be more precise
+const getAmenityType = () => {
+    // First check the exact proximity.to from features
     if (features?.locationFeatures?.proximity?.to) {
       return features.locationFeatures.proximity.to;
     }
     
-    // Extract from query as fallback
-    const amenityWords = ['schools', 'coffee', 'restaurant', 'grocery', 'park', 'hospital', 'library'];
+    // Then check the amenityType
+    if (features?.locationFeatures?.amenityType) {
+      return features.locationFeatures.amenityType;
+    }
+    
+    // Extract from query as fallback with more precise matching
+    if (query.toLowerCase().includes('coffee')) {
+      return 'coffee places';
+    }
+    
+    if (query.toLowerCase().includes('restaurant')) {
+      return 'restaurants';
+    }
+    
+    const amenityWords = ['schools', 'grocery', 'park', 'hospital', 'library', 'gym'];
     for (const word of amenityWords) {
       if (query.toLowerCase().includes(word)) {
         return word;
@@ -68,23 +79,45 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
     
     return 'restaurants'; // Default
   };
-
   // Fetch custom amenity data when needed
   const fetchCustomAmenityData = async (amenityType: string) => {
     setIsLoading(true);
     
     try {
+      // Map amenity types to specific search terms for the API
+      let searchType = amenityType;
+      
+      // Leave the original amenity type if it's already a specific search term
+      if (!searchType.includes(' Shop') && !searchType.includes(' Stop')) {
+        // Map common amenity types to specific search terms
+        if (searchType.toLowerCase().includes('coffee')) {
+          searchType = 'Coffee Shop';
+        } else if (searchType.toLowerCase().includes('school')) {
+          searchType = 'School';
+        } else if (searchType.toLowerCase().includes('grocery')) {
+          searchType = 'Grocery Store';
+        } else if (searchType.toLowerCase().includes('hospital')) {
+          searchType = 'Hospital';
+        } else if (searchType.toLowerCase().includes('park')) {
+          searchType = 'Park';
+        } else if (searchType.toLowerCase().includes('library')) {
+          searchType = 'Library';
+        }
+      }
+      
+      console.log(`Fetching data for '${searchType}' near ${zipCode}`);
+      
       const response = await fetch('/api/location', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           zipCode, 
-          type: amenityType 
+          type: searchType 
         })
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch ${amenityType} data`);
+        throw new Error(`Failed to fetch ${searchType} data`);
       }
       
       const data = await response.json();
@@ -92,12 +125,22 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
       if (data.results && data.results.length > 0) {
         setPlaces(data.results);
         setFilteredPlaces(data.results);
-        console.log(`Loaded ${data.results.length} ${amenityType} places`);
+        console.log(`Loaded ${data.results.length} ${searchType} places`);
       } else {
-        console.log(`No results for ${amenityType}, using fallback data`);
+        console.log(`No results for ${searchType}, falling back to search nearby places`);
+        
+        // Fallback to Google Places search if API returned no results
+        if (window.google && window.google.maps && googleMapRef.current) {
+          searchNearbyPlaces(amenityType);
+        }
       }
     } catch (error) {
       console.error(`Error fetching ${amenityType} data:`, error);
+      
+      // Fallback to Google Places search on error
+      if (window.google && window.google.maps && googleMapRef.current) {
+        searchNearbyPlaces(amenityType);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,16 +152,19 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
       const amenityType = getAmenityType();
       console.log("Amenity type detected:", amenityType);
       
-      // Handle different amenity types
-      if (amenityType.includes('restaurant') || amenityType.includes('food') || 
-          amenityType.includes('cafe') || amenityType.includes('coffee')) {
+      // Always use the exact extracted amenity type for the search
+      if (amenityType.includes('restaurant') || amenityType === 'food') {
         if (locationData.restaurants?.length > 0) {
           setPlaces(locationData.restaurants);
           setFilteredPlaces(locationData.restaurants);
           console.log(`Loaded ${locationData.restaurants.length} restaurants`);
         } else {
-          fetchCustomAmenityData('Restaurants');
+          fetchCustomAmenityData('Restaurant');
         }
+      } else if (amenityType.includes('coffee') || amenityType.includes('cafe')) {
+        // Specifically fetch coffee shops rather than using general restaurant data
+        console.log("Fetching coffee shops data");
+        fetchCustomAmenityData('Coffee Shop');
       } else if (amenityType.includes('transit') || amenityType.includes('bus') || 
                 amenityType.includes('train') || amenityType.includes('transportation')) {
         if (locationData.transit?.length > 0) {
@@ -135,8 +181,9 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
     }
   }, [locationData, features, zipCode]);
 
-  // Initialize Google Maps
-  useEffect(() => {
+
+  // Fix the useEffect cleanup function for Google Maps
+useEffect(() => {
     const loadGoogleMaps = () => {
       if (window.google && window.google.maps && mapRef.current && !googleMapRef.current) {
         initializeMap();
@@ -144,7 +191,7 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
         loadGoogleMapsScript();
       }
     };
-
+  
     const loadGoogleMapsScript = () => {
       if (!document.getElementById('google-maps-script')) {
         const script = document.createElement('script');
@@ -156,7 +203,7 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
         document.head.appendChild(script);
       }
     };
-
+  
     const initializeMap = () => {
       const mapElement = mapRef.current;
       if (!mapElement) return;
@@ -193,21 +240,34 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
         }
       });
     };
-
+  
     loadGoogleMaps();
     
-    // Cleanup function
-    return () => {
-      // Clear markers
-      if (markersRef.current) {
-        markersRef.current.forEach(marker => marker.setMap(null));
-      }
-      // Clear directions
-      if (directionsRenderer.current) {
-        directionsRenderer.current.setMap(null);
-      }
-    };
-  }, [zipCode]);
+  // Improved cleanup function to prevent Node.removeChild errors
+  return () => {
+    // Clear markers safely
+    if (markersRef.current && markersRef.current.length > 0) {
+      markersRef.current.forEach(marker => {
+        if (marker) marker.setMap(null);
+      });
+      markersRef.current = [];
+    }
+    
+    // Clear directions safely
+    if (directionsRenderer.current) {
+      directionsRenderer.current.setMap(null);
+      directionsRenderer.current = null;
+    }
+    
+    // Close info window if open
+    if (infoWindow.current) {
+      infoWindow.current.close();
+    }
+    
+    // Reset map reference
+    googleMapRef.current = null;
+  };
+}, [zipCode]);
 
   // Add markers when places or map changes
   useEffect(() => {
@@ -218,27 +278,33 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
 
   // Add markers for all places
   const addMarkers = () => {
-    // Clear existing markers
-    markersRef.current.forEach(marker => marker.setMap(null));
-    markersRef.current = [];
+    if (!googleMapRef.current || !mapLoaded) return;
     
-    // Skip if map not loaded or no places
-    if (!googleMapRef.current || !filteredPlaces.length) return;
+    // Clear existing markers safely
+    if (markersRef.current && markersRef.current.length > 0) {
+      markersRef.current.forEach(marker => {
+        if (marker) marker.setMap(null);
+      });
+      markersRef.current = [];
+    }
+    
+    // Skip if no places
+    if (!filteredPlaces || filteredPlaces.length === 0) return;
     
     // Add a marker for each place
     filteredPlaces.forEach((place, index) => {
-      if (!place.address) return;
+      if (!place || !place.address || !googleMapRef.current) return;
       
       // Geocode the address to get coordinates
       const geocoder = new google.maps.Geocoder();
       geocoder.geocode({ address: place.address }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
+        if (status === 'OK' && results && results[0] && googleMapRef.current) {
           const location = results[0].geometry.location;
           
           // Create marker
           const marker = new google.maps.Marker({
             position: location,
-            map: googleMapRef.current!,
+            map: googleMapRef.current,
             title: place.title,
             label: {
               text: String(index + 1),
@@ -260,7 +326,6 @@ const TransitAmenitiesResults: React.FC<TransitAmenitiesResultsProps> = ({ zipCo
       });
     });
   };
-
   // Show info window for a place
   const showPlaceInfo = (place: Place, marker: google.maps.Marker) => {
     if (!infoWindow.current || !googleMapRef.current) return;
