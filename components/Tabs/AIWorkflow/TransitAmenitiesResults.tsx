@@ -245,28 +245,18 @@ useEffect(() => {
     
   // Improved cleanup function to prevent Node.removeChild errors
   return () => {
-    // Clear markers safely
-    if (markersRef.current && markersRef.current.length > 0) {
-      markersRef.current.forEach(marker => {
-        if (marker) marker.setMap(null);
-      });
-      markersRef.current = [];
-    }
-    
-    // Clear directions safely
-    if (directionsRenderer.current) {
-      directionsRenderer.current.setMap(null);
-      directionsRenderer.current = null;
-    }
-    
-    // Close info window if open
-    if (infoWindow.current) {
-      infoWindow.current.close();
-    }
-    
-    // Reset map reference
-    googleMapRef.current = null;
-  };
+       // Only clean up map components, _do not_ remove the <script> tag itself
+       markersRef.current.forEach(m => m.setMap(null));
+       markersRef.current = [];
+       if (directionsRenderer.current) {
+         directionsRenderer.current.setMap(null);
+         directionsRenderer.current = null;
+       }
+       if (infoWindow.current) {
+         infoWindow.current.close();
+       }
+       googleMapRef.current = null;
+     };
 }, [zipCode]);
 
   // Add markers when places or map changes
@@ -437,18 +427,31 @@ const addMarkers = () => {
     service.textSearch(request, (results, status) => {
       if (status === google.maps.places.PlacesServiceStatus.OK && results) {
         // Convert to our Place format
-        const newPlaces: Place[] = results.map(result => ({
-          title: result.name!,
-          address: result.formatted_address!,
-          type: type,
-          distance: result.geometry?.location ? 
-            calculateDistance(
-              googleMapRef.current!.getCenter()!.lat(), 
-              googleMapRef.current!.getCenter()!.lng(),
-              result.geometry.location.lat(),
-              result.geometry.location.lng()
-            ) : undefined
-        }));
+
+        
+        // Before mapping:
+const center = googleMapRef.current?.getCenter();
+const originLat = center?.lat();
+const originLng = center?.lng();
+
+const newPlaces: Place[] = results.map(result => {
+  let distance: number | undefined;
+  if (originLat != null && originLng != null && result.geometry?.location) {
+    distance = calculateDistance(
+      originLat,
+      originLng,
+      result.geometry.location.lat(),
+      result.geometry.location.lng()
+    );
+  }
+  return {
+    title: result.name!,
+    address: result.formatted_address!,
+    type,
+    distance
+  };
+});
+
         
         // Add to places and filtered places
         setPlaces(prevPlaces => [...prevPlaces, ...newPlaces]);
