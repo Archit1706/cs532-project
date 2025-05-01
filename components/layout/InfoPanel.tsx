@@ -19,7 +19,7 @@ import AgentContactList from '../AgentContactList';
 import AgentChat from '../AgentChat';
 
 // Create unique IDs for each section that can be used as anchors
-const SECTION_IDS = {
+export const SECTION_IDS = {
     PROPERTIES: 'properties-section',
     MARKET: 'market-trends-section',
     AMENITIES: 'local-amenities-section',
@@ -27,16 +27,198 @@ const SECTION_IDS = {
     AGENTS: 'agents-section',
 };
 
-const InfoPanel = () => {
+// Separate components for each tab content to avoid hooks ordering issues
+const ExploreTabContent = () => {
     const {
         selectedProperty,
         setSelectedProperty,
         locationData,
-        activeTab,
-        setActiveTab,
         isPropertyChat,
         propertyDetails,
         zipCode
+    } = useChatContext();
+    
+    // Client-side only component guard
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+    
+    if (!mounted) return null;
+
+    if (isPropertyChat && propertyDetails) {
+        return (
+            <div className="space-y-6 m-6">
+                <h2 className="text-xl font-semibold text-slate-200">Property Overview</h2>
+                <SinglePropertyOverview />
+
+                <h2 className="text-lg font-semibold text-slate-200">Transit</h2>
+                <TransitTab />
+
+                <h2 className="text-lg font-semibold text-slate-200">Local Amenities</h2>
+                <RestaurantTab />
+
+                <h2 className="text-lg font-semibold text-slate-200">Similar Properties</h2>
+                <PropertyTab source="nearby" />
+            </div>
+        );
+    }
+
+    // Only show this if we're not in a dedicated property chat
+    if (selectedProperty) {
+        return <PropertyDetailCard property={selectedProperty} onClose={() => setSelectedProperty(null)} />;
+    }
+
+    if (!locationData || !zipCode)
+        return <></>;
+
+    return (
+        <div className="space-y-6 m-6 pb-12 overflow-y-auto">
+            {/* Properties Section with Improved Header */}
+            <section id={SECTION_IDS.PROPERTIES} className="scroll-mt-16">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdHome className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Properties in {zipCode}</h2>
+                        <a
+                            href={`#${SECTION_IDS.PROPERTIES}`}
+                            className="ml-auto text-blue-100 hover:text-white"
+                            title="Copy link to this section"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.PROPERTIES}`);
+                            }}
+                        >
+                            #
+                        </a>
+                    </div>
+                </div>
+                <PropertyTab />
+            </section>
+
+            {/* Market Trends Section with Improved Header */}
+            <section id={SECTION_IDS.MARKET} className="scroll-mt-16 mt-8">
+                <div className="bg-gradient-to-r from-emerald-600 to-emerald-700 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdQueryStats className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Market Trends</h2>
+                        <a
+                            href={`#${SECTION_IDS.MARKET}`}
+                            className="ml-auto text-emerald-100 hover:text-white"
+                            title="Copy link to this section"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.MARKET}`);
+                            }}
+                        >
+                            #
+                        </a>
+                    </div>
+                </div>
+                <MarketTab />
+            </section>
+
+            {/* Local Amenities Section with Improved Header */}
+            <section id={SECTION_IDS.AMENITIES} className="scroll-mt-16 mt-8">
+                <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdRestaurant className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Local Amenities</h2>
+                        <a
+                            href={`#${SECTION_IDS.AMENITIES}`}
+                            className="ml-auto text-amber-100 hover:text-white"
+                            title="Copy link to this section"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.AMENITIES}`);
+                            }}
+                        >
+                            #
+                        </a>
+                    </div>
+                </div>
+                <RestaurantTab />
+            </section>
+
+            {/* Transit Section with Improved Header */}
+            <section id={SECTION_IDS.TRANSIT} className="scroll-mt-16 mt-8">
+                <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdDirectionsTransit className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Transit Options</h2>
+                        <a
+                            href={`#${SECTION_IDS.TRANSIT}`}
+                            className="ml-auto text-indigo-100 hover:text-white"
+                            title="Copy link to this section"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.TRANSIT}`);
+                            }}
+                        >
+                            #
+                        </a>
+                    </div>
+                </div>
+                <TransitTab />
+            </section>
+
+            {/* Agents Section with Improved Header */}
+            <section id={SECTION_IDS.AGENTS} className="scroll-mt-16 mt-8">
+                <div className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl shadow-md mb-4">
+                    <div className="flex items-center p-4">
+                        <MdLocationCity className="text-white mr-3 text-2xl" />
+                        <h2 className="text-xl font-bold text-white">Top Agents</h2>
+                        <a
+                            href={`#${SECTION_IDS.AGENTS}`}
+                            className="ml-auto text-purple-100 hover:text-white"
+                            title="Copy link to this section"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                navigator.clipboard.writeText(window.location.href.split('#')[0] + `#${SECTION_IDS.AGENTS}`);
+                            }}
+                        >
+                            #
+                        </a>
+                    </div>
+                </div>
+                <PropertyAgentTab />
+            </section>
+        </div>
+    );
+};
+
+const AIWorkflowTabContent = () => {
+    return <AIWorkflowTab />;
+};
+
+const SavedTabContent = () => {
+    return <div className="text-slate-600 space-y-6 m-6">No saved items yet.</div>;
+};
+
+const UpdatesTabContent = () => {
+    const { selectedAgentContact } = useChatContext();
+    
+    return (
+        <div className="h-full flex flex-col bg-white">
+            <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-teal-700 to-teal-900 text-white">
+                <h2 className="text-xl font-semibold">Agent Conversations</h2>
+                <p className="text-sm text-teal-100">Connect with real estate professionals</p>
+            </div>
+            <div className="flex-1 overflow-hidden">
+                {selectedAgentContact ? (
+                    <AgentChat />
+                ) : (
+                    <AgentContactList />
+                )}
+            </div>
+        </div>
+    );
+};
+
+const InfoPanel = () => {
+    const {
+        activeTab,
+        setActiveTab
     } = useChatContext();
 
     const [isMounted, setIsMounted] = useState(false);
@@ -62,21 +244,25 @@ const InfoPanel = () => {
         }
 
         prevTabRef.current = newTab;
-    }, [activeTab, isMounted /*, any handler functions*/]);
+    }, [activeTab, isMounted]);
 
-    const renderTabContent = () => {
-        // Use state to track if component is mounted (client-side only)
-        const [isMounted, setIsMounted] = useState(false);
+    // Function to render the appropriate tab content
+    const renderContent = () => {
+        if (!isMounted) return null;
 
-        // Only execute on client side
-        useEffect(() => {
-            setIsMounted(true);
-        }, []);
-
-        // Return null during server-side rendering to prevent hydration mismatch
-        if (!isMounted) {
-            return null;
+        switch (activeTab) {
+            case 'explore':
+                return <ExploreTabContent />;
+            case 'ai':
+                return <AIWorkflowTabContent />;
+            case 'saved':
+                return <SavedTabContent />;
+            case 'updates':
+                return <UpdatesTabContent />;
+            default:
+                return null;
         }
+<<<<<<< Updated upstream
 
         if (activeTab === 'explore') {
             if (isPropertyChat && propertyDetails) {
@@ -251,6 +437,8 @@ const InfoPanel = () => {
         }
 
         return null;
+=======
+>>>>>>> Stashed changes
     };
 
     return (
@@ -299,10 +487,10 @@ const InfoPanel = () => {
                 </div>
 
                 <div className="overflow-y-auto flex-1 space-y-4">
-                    {renderTabContent()}
+                    {renderContent()}
                 </div>
             </div>
-        </div >
+        </div>
     );
 };
 
