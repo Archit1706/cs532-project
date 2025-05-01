@@ -9,6 +9,7 @@ import WelcomeCard from '../WelcomeCard';
 import { MdExplore, MdNotifications, MdHome, MdLocationCity, MdRestaurant, MdDirectionsTransit, MdQueryStats, MdAutoAwesome } from 'react-icons/md';
 import { FaRegBookmark } from 'react-icons/fa';
 import PropertyTab from '../Tabs/PropertyTab';
+import SavedPropertiesTab from '../Tabs/SavedPropertiesTab';
 import RestaurantTab from '../Tabs/RestaurantTab';
 import TransitTab from '../Tabs/TransitTab';
 import MarketTab from '../Tabs/MarketTab';
@@ -226,28 +227,28 @@ const InfoPanel = () => {
         }
 
         if (activeTab === 'saved') {
-            return <div className="text-slate-600 space-y-6 m-6">No saved items yet.</div>;
+            return <SavedPropertiesTab />;
         }
 
         if (activeTab === 'updates') {
             const { selectedAgentContact } = useChatContext();
-            
+
             return (
-              <div className="h-full flex flex-col bg-white">
-                <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-teal-700 to-teal-900 text-white">
-                  <h2 className="text-xl font-semibold">Agent Conversations</h2>
-                  <p className="text-sm text-teal-100">Connect with real estate professionals</p>
+                <div className="h-full flex flex-col bg-white">
+                    <div className="p-4 border-b border-slate-200 bg-gradient-to-r from-teal-700 to-teal-900 text-white">
+                        <h2 className="text-xl font-semibold">Agent Conversations</h2>
+                        <p className="text-sm text-teal-100">Connect with real estate professionals</p>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                        {selectedAgentContact ? (
+                            <AgentChat />
+                        ) : (
+                            <AgentContactList />
+                        )}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-hidden">
-                  {selectedAgentContact ? (
-                    <AgentChat />
-                  ) : (
-                    <AgentContactList />
-                  )}
-                </div>
-              </div>
             );
-          }
+        }
 
         return null;
     };

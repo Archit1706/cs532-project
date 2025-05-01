@@ -51,6 +51,8 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [propertyDetails, setPropertyDetails] = useState<any>(null);
     const [dynamicQuestions, setDynamicQuestions] = useState<string[]>([]);
 
+    const [savedProperties, setSavedProperties] = useState<Property[]>([]);
+
     const [propertyContext, setPropertyContext] = useState<any>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -62,45 +64,55 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     const [selectedAgentContact, setSelectedAgentContact] = useState<Agent | null>(null);
     const [agentMessages, setAgentMessages] = useState<{ [agentId: string]: Message[] }>({});
 
+    const toggleSaveProperty = (property: Property) => {
+        setSavedProperties(prev => {
+            const exists = prev.some(p => p.zpid === property.zpid);
+            if (exists) {
+                return prev.filter(p => p.zpid !== property.zpid);
+            }
+            return [...prev, property];
+        });
+    };
+
 
     // Add this function to add an agent to contacts
-const addAgentToContacts = (agent: Agent) => {
-    // Check if agent is already in contacts
-    if (!agentContacts.some(contact => contact.encodedZuid === agent.encodedZuid)) {
-      setAgentContacts(prev => [...prev, agent]);
-    }
-    // Set as the selected agent contact
-    setSelectedAgentContact(agent);
-  };
-
-  // Add this function to send a message to an agent
-const sendMessageToAgent = (agentId: string, message: string) => {
-    const newMessage: Message = {
-      id: Date.now(),
-      type: 'user',
-      content: message,
+    const addAgentToContacts = (agent: Agent) => {
+        // Check if agent is already in contacts
+        if (!agentContacts.some(contact => contact.encodedZuid === agent.encodedZuid)) {
+            setAgentContacts(prev => [...prev, agent]);
+        }
+        // Set as the selected agent contact
+        setSelectedAgentContact(agent);
     };
-    
-    // Add message to the agent's conversation
-    setAgentMessages(prev => ({
-      ...prev,
-      [agentId]: [...(prev[agentId] || []), newMessage]
-    }));
-    
-    // Simulate a reply after a delay (for mock implementation)
-    setTimeout(() => {
-      const replyMessage: Message = {
-        id: Date.now() + 1,
-        type: 'bot',
-        content: `Thank you for your message. This is a mock reply from the agent.`,
-      };
-      
-      setAgentMessages(prev => ({
-        ...prev,
-        [agentId]: [...(prev[agentId] || []), replyMessage]
-      }));
-    }, 1000);
-  };
+
+    // Add this function to send a message to an agent
+    const sendMessageToAgent = (agentId: string, message: string) => {
+        const newMessage: Message = {
+            id: Date.now(),
+            type: 'user',
+            content: message,
+        };
+
+        // Add message to the agent's conversation
+        setAgentMessages(prev => ({
+            ...prev,
+            [agentId]: [...(prev[agentId] || []), newMessage]
+        }));
+
+        // Simulate a reply after a delay (for mock implementation)
+        setTimeout(() => {
+            const replyMessage: Message = {
+                id: Date.now() + 1,
+                type: 'bot',
+                content: `Thank you for your message. This is a mock reply from the agent.`,
+            };
+
+            setAgentMessages(prev => ({
+                ...prev,
+                [agentId]: [...(prev[agentId] || []), replyMessage]
+            }));
+        }, 1000);
+    };
 
     // Update handleUILink function in ChatContext.tsx
 
@@ -174,280 +186,280 @@ const sendMessageToAgent = (agentId: string, message: string) => {
         return false;
     };
 
-/*
-    const handleUILink = (link: UIComponentLink) => {
-        console.log('UI link clicked:', link);
-
-        // Handle property tab links
-        if (['propertyDetails', 'propertyPriceHistory', 'propertySchools', 'propertyMarketAnalysis'].includes(link.type)) {
-            // First ensure we're on a property details page
-            if (isPropertyChat && propertyDetails) {
-                // Map to the tab ID
-                let tabId;
-                switch (link.type) {
-                    case 'propertyDetails':
-                        tabId = PROPERTY_TAB_IDS.DETAILS;
-                        break;
-                    case 'propertyPriceHistory':
-                        tabId = PROPERTY_TAB_IDS.PRICE_HISTORY;
-                        break;
-                    case 'propertySchools':
-                        tabId = PROPERTY_TAB_IDS.SCHOOLS;
-                        break;
-                    case 'propertyMarketAnalysis':
-                        tabId = PROPERTY_TAB_IDS.MARKET_ANALYSIS;
-                        break;
-                }
-
-                // Switch to the tab
-                if (tabId) {
-                    // Use custom event to trigger tab change
-                    document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
-                        detail: { tabId }
-                    }));
-
-                    // Scroll to the tab element
-                    setTimeout(() => {
-                        const element = document.getElementById(tabId);
-                        if (element) {
-                            element.scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }, 100);
-                }
-            } else if (selectedProperty) {
-                // If we're not in property chat mode, load the property first
-                console.log('Loading property before switching to tab');
-                loadPropertyChat(selectedProperty.zpid);
-
-                // Then switch to the tab after a delay
-                setTimeout(() => {
-                    const tabId = link.type === 'propertyDetails' ? PROPERTY_TAB_IDS.DETAILS :
-                        link.type === 'propertyPriceHistory' ? PROPERTY_TAB_IDS.PRICE_HISTORY :
-                            link.type === 'propertySchools' ? PROPERTY_TAB_IDS.SCHOOLS :
-                                PROPERTY_TAB_IDS.MARKET_ANALYSIS;
-
-                    console.log(`Switching to property tab: ${link.type} (${tabId})`);
-                    document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
-                        detail: { tabId }
-                    }));
-                }, 1000);
-            }
-
-            return;
-        }
-
-        // FIX: First ensure we're in 'explore' tab when handling other link types
-        setActiveTab('explore');
-
-        // Handle other link types (market, restaurants, etc.)
-        switch (link.type) {
-            case 'market':
-                console.log('Activating market trends tab');
-                // First ensure market trends data is loaded
-                if (!marketTrends && zipCode) {
-                    fetchMarketTrends(undefined, zipCode);
-                }
-
-                // Scroll to the market section after a short delay to ensure UI is updated
-                setTimeout(() => {
-                    const marketSection = document.getElementById(SECTION_IDS.MARKET);
-                    if (marketSection) {
-                        marketSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, 100);
-                break;
-
-            case 'property':
-                console.log('Activating properties tab');
-
-                // If data includes a specific property, select it
-                if (link.data && typeof link.data === 'object') {
-                    setSelectedProperty(link.data);
-                }
-
-                // Scroll to the properties section
-                setTimeout(() => {
-                    const propertiesSection = document.getElementById(SECTION_IDS.PROPERTIES);
-                    if (propertiesSection) {
-                        propertiesSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, 100);
-                break;
-
-            case 'restaurants':
-                console.log('Activating restaurants tab');
-                if (locationData?.restaurants?.length === 0 && zipCode) {
-                    fetchLocationData(zipCode);
-                }
-
-                // Scroll to the restaurants section
-                setTimeout(() => {
-                    const amenitiesSection = document.getElementById(SECTION_IDS.AMENITIES);
-                    if (amenitiesSection) {
-                        amenitiesSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, 100);
-                break;
-
-            case 'transit':
-                console.log('Activating transit tab');
-                if (locationData?.transit?.length === 0 && zipCode) {
-                    fetchLocationData(zipCode);
-                }
-
-                // Scroll to the transit section
-                setTimeout(() => {
-                    const transitSection = document.getElementById(SECTION_IDS.TRANSIT);
-                    if (transitSection) {
-                        transitSection.scrollIntoView({ behavior: 'smooth' });
-                    }
-                }, 100);
-                break;
-
-            case 'propertyMarket':
-                console.log('Viewing property market analysis');
+    /*
+        const handleUILink = (link: UIComponentLink) => {
+            console.log('UI link clicked:', link);
+    
+            // Handle property tab links
+            if (['propertyDetails', 'propertyPriceHistory', 'propertySchools', 'propertyMarketAnalysis'].includes(link.type)) {
+                // First ensure we're on a property details page
                 if (isPropertyChat && propertyDetails) {
-                    setTimeout(() => {
-                        console.log('Dispatching switchToPropertyMarketTab event');
-                        document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
-                    }, 100);
+                    // Map to the tab ID
+                    let tabId;
+                    switch (link.type) {
+                        case 'propertyDetails':
+                            tabId = PROPERTY_TAB_IDS.DETAILS;
+                            break;
+                        case 'propertyPriceHistory':
+                            tabId = PROPERTY_TAB_IDS.PRICE_HISTORY;
+                            break;
+                        case 'propertySchools':
+                            tabId = PROPERTY_TAB_IDS.SCHOOLS;
+                            break;
+                        case 'propertyMarketAnalysis':
+                            tabId = PROPERTY_TAB_IDS.MARKET_ANALYSIS;
+                            break;
+                    }
+    
+                    // Switch to the tab
+                    if (tabId) {
+                        // Use custom event to trigger tab change
+                        document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
+                            detail: { tabId }
+                        }));
+    
+                        // Scroll to the tab element
+                        setTimeout(() => {
+                            const element = document.getElementById(tabId);
+                            if (element) {
+                                element.scrollIntoView({ behavior: 'smooth' });
+                            }
+                        }, 100);
+                    }
                 } else if (selectedProperty) {
-                    console.log('Loading property before switching to market tab');
+                    // If we're not in property chat mode, load the property first
+                    console.log('Loading property before switching to tab');
                     loadPropertyChat(selectedProperty.zpid);
-
+    
+                    // Then switch to the tab after a delay
                     setTimeout(() => {
-                        console.log('Dispatching switchToPropertyMarketTab event after loading property');
-                        document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                        const tabId = link.type === 'propertyDetails' ? PROPERTY_TAB_IDS.DETAILS :
+                            link.type === 'propertyPriceHistory' ? PROPERTY_TAB_IDS.PRICE_HISTORY :
+                                link.type === 'propertySchools' ? PROPERTY_TAB_IDS.SCHOOLS :
+                                    PROPERTY_TAB_IDS.MARKET_ANALYSIS;
+    
+                        console.log(`Switching to property tab: ${link.type} (${tabId})`);
+                        document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
+                            detail: { tabId }
+                        }));
                     }, 1000);
                 }
-                break;
-
-            case 'agents':
-                console.log('Activating agents tab');
-                if (locationData?.agents?.length === 0 && zipCode) {
-                    fetchLocationData(zipCode);
-                }
-
-                // Scroll to the agents section
-                setTimeout(() => {
-                    const agentsSection = document.getElementById(SECTION_IDS.AGENTS);
-                    if (agentsSection) {
-                        agentsSection.scrollIntoView({ behavior: 'smooth' });
+    
+                return;
+            }
+    
+            // FIX: First ensure we're in 'explore' tab when handling other link types
+            setActiveTab('explore');
+    
+            // Handle other link types (market, restaurants, etc.)
+            switch (link.type) {
+                case 'market':
+                    console.log('Activating market trends tab');
+                    // First ensure market trends data is loaded
+                    if (!marketTrends && zipCode) {
+                        fetchMarketTrends(undefined, zipCode);
                     }
-                }, 100);
-                break;
-
-            default:
-                console.warn('Unknown UI link type:', link.type);
-        }
-    };
-*/
+    
+                    // Scroll to the market section after a short delay to ensure UI is updated
+                    setTimeout(() => {
+                        const marketSection = document.getElementById(SECTION_IDS.MARKET);
+                        if (marketSection) {
+                            marketSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                    break;
+    
+                case 'property':
+                    console.log('Activating properties tab');
+    
+                    // If data includes a specific property, select it
+                    if (link.data && typeof link.data === 'object') {
+                        setSelectedProperty(link.data);
+                    }
+    
+                    // Scroll to the properties section
+                    setTimeout(() => {
+                        const propertiesSection = document.getElementById(SECTION_IDS.PROPERTIES);
+                        if (propertiesSection) {
+                            propertiesSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                    break;
+    
+                case 'restaurants':
+                    console.log('Activating restaurants tab');
+                    if (locationData?.restaurants?.length === 0 && zipCode) {
+                        fetchLocationData(zipCode);
+                    }
+    
+                    // Scroll to the restaurants section
+                    setTimeout(() => {
+                        const amenitiesSection = document.getElementById(SECTION_IDS.AMENITIES);
+                        if (amenitiesSection) {
+                            amenitiesSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                    break;
+    
+                case 'transit':
+                    console.log('Activating transit tab');
+                    if (locationData?.transit?.length === 0 && zipCode) {
+                        fetchLocationData(zipCode);
+                    }
+    
+                    // Scroll to the transit section
+                    setTimeout(() => {
+                        const transitSection = document.getElementById(SECTION_IDS.TRANSIT);
+                        if (transitSection) {
+                            transitSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                    break;
+    
+                case 'propertyMarket':
+                    console.log('Viewing property market analysis');
+                    if (isPropertyChat && propertyDetails) {
+                        setTimeout(() => {
+                            console.log('Dispatching switchToPropertyMarketTab event');
+                            document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                        }, 100);
+                    } else if (selectedProperty) {
+                        console.log('Loading property before switching to market tab');
+                        loadPropertyChat(selectedProperty.zpid);
+    
+                        setTimeout(() => {
+                            console.log('Dispatching switchToPropertyMarketTab event after loading property');
+                            document.dispatchEvent(new CustomEvent('switchToPropertyMarketTab'));
+                        }, 1000);
+                    }
+                    break;
+    
+                case 'agents':
+                    console.log('Activating agents tab');
+                    if (locationData?.agents?.length === 0 && zipCode) {
+                        fetchLocationData(zipCode);
+                    }
+    
+                    // Scroll to the agents section
+                    setTimeout(() => {
+                        const agentsSection = document.getElementById(SECTION_IDS.AGENTS);
+                        if (agentsSection) {
+                            agentsSection.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }, 100);
+                    break;
+    
+                default:
+                    console.warn('Unknown UI link type:', link.type);
+            }
+        };
+    */
 
     // Add this improved handleUILink function to your ChatContext.tsx
 
-// Updated handleUILink function for cross-tab navigation
-// Add this improved handleUILink function to your ChatContext.tsx
+    // Updated handleUILink function for cross-tab navigation
+    // Add this improved handleUILink function to your ChatContext.tsx
 
-// Updated handleUILink function for cross-tab navigation
-const handleUILink = (link: UIComponentLink) => {
-    console.log('UI link clicked:', link);
-    
-    // Extract data attributes from the link element
-    const forceTabSwitch = link.element?.dataset.forceTab === 'true';
-    const targetTab = link.element?.dataset.tab;
-    const propertyTab = link.element?.dataset.propertyTab;
-    const section = link.element?.dataset.section;
-    
-    // If forceTabSwitch is true and a target tab is specified, switch to that tab
-    if (forceTabSwitch && targetTab) {
-        console.log(`Forcing tab switch to: ${targetTab}`);
-        setActiveTab(targetTab as any);
-    }
-    
-    // Handle property-specific links
-    if (propertyTab && (isPropertyChat || selectedProperty)) {
-        // If we're not already in property chat mode, load the property first
-        if (!isPropertyChat && selectedProperty) {
-            console.log('Loading property before switching tabs');
-            loadPropertyChat(selectedProperty.zpid);
-            
-            // Set a timeout to allow property to load
-            setTimeout(() => {
-                // Dispatch event to switch to the specific property tab
+    // Updated handleUILink function for cross-tab navigation
+    const handleUILink = (link: UIComponentLink) => {
+        console.log('UI link clicked:', link);
+
+        // Extract data attributes from the link element
+        const forceTabSwitch = link.element?.dataset.forceTab === 'true';
+        const targetTab = link.element?.dataset.tab;
+        const propertyTab = link.element?.dataset.propertyTab;
+        const section = link.element?.dataset.section;
+
+        // If forceTabSwitch is true and a target tab is specified, switch to that tab
+        if (forceTabSwitch && targetTab) {
+            console.log(`Forcing tab switch to: ${targetTab}`);
+            setActiveTab(targetTab as any);
+        }
+
+        // Handle property-specific links
+        if (propertyTab && (isPropertyChat || selectedProperty)) {
+            // If we're not already in property chat mode, load the property first
+            if (!isPropertyChat && selectedProperty) {
+                console.log('Loading property before switching tabs');
+                loadPropertyChat(selectedProperty.zpid);
+
+                // Set a timeout to allow property to load
+                setTimeout(() => {
+                    // Dispatch event to switch to the specific property tab
+                    console.log(`Switching to property tab: ${propertyTab}`);
+                    document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
+                        detail: {
+                            tabId: propertyTab,
+                            section: section // Pass section if specified (for scrolling to subsections)
+                        }
+                    }));
+                }, 1000);
+            } else {
+                // We're already in property chat, just switch tabs
                 console.log(`Switching to property tab: ${propertyTab}`);
                 document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
-                    detail: { 
+                    detail: {
                         tabId: propertyTab,
-                        section: section // Pass section if specified (for scrolling to subsections)
+                        section: section
                     }
                 }));
-            }, 1000);
-        } else {
-            // We're already in property chat, just switch tabs
-            console.log(`Switching to property tab: ${propertyTab}`);
-            document.dispatchEvent(new CustomEvent('switchToPropertyTab', {
-                detail: { 
-                    tabId: propertyTab,
-                    section: section
-                }
-            }));
+            }
+            return;
         }
-        return;
-    }
-    
-    // Handle main section links when we're in the explore tab
-    if (activeTab === 'explore' || forceTabSwitch) {
-        switch (link.type) {
-            case 'market':
-                scrollToSection(SECTION_IDS.MARKET);
-                break;
-            case 'property':
-                scrollToSection(SECTION_IDS.PROPERTIES);
-                break;
-            case 'restaurants':
-                scrollToSection(SECTION_IDS.AMENITIES);
-                break;
-            case 'transit':
-                scrollToSection(SECTION_IDS.TRANSIT);
-                break;
-            case 'agents':
-                scrollToSection(SECTION_IDS.AGENTS);
-                break;
-            default:
-                console.warn('Unknown UI link type:', link.type);
+
+        // Handle main section links when we're in the explore tab
+        if (activeTab === 'explore' || forceTabSwitch) {
+            switch (link.type) {
+                case 'market':
+                    scrollToSection(SECTION_IDS.MARKET);
+                    break;
+                case 'property':
+                    scrollToSection(SECTION_IDS.PROPERTIES);
+                    break;
+                case 'restaurants':
+                    scrollToSection(SECTION_IDS.AMENITIES);
+                    break;
+                case 'transit':
+                    scrollToSection(SECTION_IDS.TRANSIT);
+                    break;
+                case 'agents':
+                    scrollToSection(SECTION_IDS.AGENTS);
+                    break;
+                default:
+                    console.warn('Unknown UI link type:', link.type);
+            }
         }
-    }
-};
+    };
 
 
-// Helper function to scroll to a section with a small delay to ensure rendering
-const scrollToSection = (sectionId: string) => {
-    setTimeout(() => {
-        const section = document.getElementById(sectionId);
-        if (section) {
-            section.scrollIntoView({ behavior: 'smooth' });
-        } else {
-            console.warn(`Section not found: ${sectionId}`);
-        }
-    }, 100);
-};
+    // Helper function to scroll to a section with a small delay to ensure rendering
+    const scrollToSection = (sectionId: string) => {
+        setTimeout(() => {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                console.warn(`Section not found: ${sectionId}`);
+            }
+        }, 100);
+    };
     // Update the createLinkableContent function
     // Enhanced createLinkableContent function
-// 2. Update the createLinkableContent function to better handle HTML content
-const createLinkableContent = (message: string) => {
-    if (!message || typeof message !== 'string') {
-        return message;
-    }
+    // 2. Update the createLinkableContent function to better handle HTML content
+    const createLinkableContent = (message: string) => {
+        if (!message || typeof message !== 'string') {
+            return message;
+        }
 
-    // Check if the message already contains HTML with data-ui-link attributes
-    if (message.includes('data-ui-link')) {
-        console.log("Message already contains UI links, skipping processing");
-        return message;
-    }
+        // Check if the message already contains HTML with data-ui-link attributes
+        if (message.includes('data-ui-link')) {
+            console.log("Message already contains UI links, skipping processing");
+            return message;
+        }
 
-    // Process the UI links in the message
-    return processUILinks(message);
-};
+        // Process the UI links in the message
+        return processUILinks(message);
+    };
     const fetchMarketTrends = async (location?: string, zipCode?: string) => {
         console.log('Fetching market trends for:', location || zipCode);
 
@@ -1034,6 +1046,9 @@ const createLinkableContent = (message: string) => {
                 agentMessages,
                 addAgentToContacts,
                 sendMessageToAgent,
+                savedProperties,
+                setSavedProperties,
+                toggleSaveProperty,
             }}
         >
             {children}
@@ -1072,7 +1087,7 @@ const processUILinks = (text: string) => {
             regex: /\[\[agents\]\]/gi,
             replacement: `<a href="#${SECTION_IDS.AGENTS}" class="text-teal-600 hover:text-teal-800 underline" data-ui-link="agents" data-tab="explore" data-force-tab="true">top agents</a>`
         },
-        
+
         // Property tab links
         {
             regex: /\[\[property\s+details\]\]/gi,

@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { useChatContext } from 'context/ChatContext';
+import { FaHeart, FaRegHeart } from "react-icons/fa";
 
 const PropertyTab = ({ source = "main" }: { source?: "main" | "nearby" }) => {
     const {
@@ -11,6 +12,7 @@ const PropertyTab = ({ source = "main" }: { source?: "main" | "nearby" }) => {
         isLoadingProperties,
         setSelectedProperty,
         isPropertyChat,
+        savedProperties, toggleSaveProperty
     } = useChatContext();
 
     const list = source === "nearby" ? nearbyProperties : properties;
@@ -49,7 +51,21 @@ const PropertyTab = ({ source = "main" }: { source?: "main" | "nearby" }) => {
                                     e.currentTarget.src = "https://via.placeholder.com/300x200?text=No+Image";
                                 }}
                             />
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSaveProperty(property);
+                                }}
+                                className="absolute top-2 right-2 bg-white rounded-full p-1 shadow"
+                            >
+                                {savedProperties.some((p) => p.zpid === property.zpid) ? (
+                                    <FaHeart className="text-red-500" />
+                                ) : (
+                                    <FaRegHeart className="text-slate-400" />
+                                )}
+                            </button>
                         </div>
+
                     ) : (
                         <div className="h-32 bg-slate-100 flex items-center justify-center">
                             <span className="text-slate-400">No image available</span>
