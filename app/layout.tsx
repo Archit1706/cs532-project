@@ -16,8 +16,8 @@ import {
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "RealEstateAI Assistant",
-  description: "Your AI-powered real estate assistant",
+  title: "Keya - AI Real Estate Assistant",
+  description: "The Smartest Way to Find Your Next Home",
 };
 
 export default function RootLayout({
