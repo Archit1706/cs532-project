@@ -64,21 +64,25 @@ const AIWorkflowTab = () => {
   const workflowMounted = useRef<boolean>(false);
 
   // Extract the last user message when messages change
-  useEffect(() => {
-    if (!workflowMounted.current) {
-      workflowMounted.current = true;
-      return;
-    }
+// In AIWorkflowTab.tsx
+useEffect(() => {
+  if (!workflowMounted.current) {
+    workflowMounted.current = true;
+    return;
+  }
+  
+  // Filter out automated/system messages
+  const userMessages = messages.filter((msg: { type: string; isAutomatic?: boolean }) => 
+    msg.type === 'user' && !msg.isAutomatic);
     
-    const userMessages = messages.filter((msg: { type: string; }) => msg.type === 'user');
-    if (userMessages.length > 0) {
-      const lastMsg = userMessages[userMessages.length - 1].content;
-      if (lastMsg !== lastQuery) {
-        setLastQuery(lastMsg);
-        analyzeQuery(lastMsg);
-      }
+  if (userMessages.length > 0) {
+    const lastMsg = userMessages[userMessages.length - 1].content;
+    if (lastMsg !== lastQuery) {
+      setLastQuery(lastMsg);
+      analyzeQuery(lastMsg);
     }
-  }, [messages]);
+  }
+}, [messages]);
 
   // Initialize workflow state if idle
   useEffect(() => {
