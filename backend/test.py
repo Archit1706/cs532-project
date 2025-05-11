@@ -1,59 +1,16 @@
+import requests
 
-from serpapi import GoogleSearch
-from geopy.geocoders import Nominatim
-from geopy.distance import geodesic
+url = "https://zillow56.p.rapidapi.com/search_agents"
 
-def get_lat_long(address):
-    geolocator = Nominatim(user_agent="geo_locator")
-    location = geolocator.geocode(address)
-    if location:
-        return location.latitude, location.longitude
-    else:
-        return None
+querystring = {"location":"houston, tx","specialty":"Any","language":"English"}
 
-# User input address
-address = "1125 west washburne avenue, Chicago, 60608"  # Example address
-coords = get_lat_long(address)
-
-if coords:
-    latitude, longitude = coords
-    print(f"Address Coordinates: {latitude}, {longitude}")
-
-    # SerpAPI search using latitude/longitude
-    params = {
-    "engine": "google_local",
-    "q": "Restaurants",  # Search query
-    "ll": f"@{latitude},{longitude},15z",  # Latitude/Longitude
-    "location": 60608,  # Explicit location to improve relevance
-    "hl": "en",
-    "api_key": "from the env"
+headers = {
+	"x-rapidapi-key": "2e7283f7f8mshf019ae6ebf68fcfp1485c1jsn766258fde394",
+	"x-rapidapi-host": "zillow56.p.rapidapi.com"
 }
 
+response = requests.get(url, headers=headers, params=querystring)
 
-    search = GoogleSearch(params)
-    results = search.get_dict()
-    local_results = results.get("local_results", [])
+print(response.json())
 
-    # # Print sorted results
-    # for place in local_results:
-    #     print(f"{place.get('title', 'Unknown')} - {place.get('address', 'No address')}")
-else:
-    print("Could not find coordinates for the given address.")
-
-
-def calculate_distance(result):
-    if "gps_coordinates" in result:
-        lat = result["gps_coordinates"].get("latitude")
-        lon = result["gps_coordinates"].get("longitude")
-        if lat is not None and lon is not None:
-            return geodesic(coords, (lat, lon)).miles  # Distance in miles
-    return float('inf')  # If no GPS data, move to the end
-
-# Sort results based on distance
-sorted_results = sorted(local_results, key=calculate_distance)
-
-# Print sorted results
-for place in sorted_results:
-    print(f"{place.get('title', 'Unknown')} - {place.get('address', 'No address')} - Distance: {calculate_distance(place):.2f} miles")
-
-
+[{'businessName': 'Corcoran Prestige Realty', 'encodedZuid': 'X1-ZUz3fc6ch3xp8p_10irz', 'fullName': 'James Krueger', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Houston, TX', 'numTotalReviews': 2473, 'phoneNumber': '(346) 980-4783', 'profileLink': '/profile/JamesKrueger', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/d8629bd048ad262c0ebc3065fc03a431-h_g.jpg', 'reviewExcerpt': 'Whenever a problem arises, she always come with solution already in place.', 'reviewExcerptDate': '2025-04-25 16:12:00', 'reviewLink': '/profile/JamesKrueger#reviews', 'reviewStarsRating': 5, 'reviews': '2473 reviews', 'saleCountAllTime': 3442, 'saleCountLastYear': 214, 'salePriceRangeThreeYearMax': 3450000, 'salePriceRangeThreeYearMin': 50000, 'username': 'JamesKrueger'}, {'businessName': 'Parodi Real Estate Firm  "Hablo Español" ', 'encodedZuid': 'X1-ZUydhl1y0gev49_2avjk', 'fullName': 'Alfonso Parodi', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Cypress, TX', 'numTotalReviews': 963, 'phoneNumber': '(832) 981-1346', 'profileLink': '/profile/tparodi', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/098bc1689f5847bb2dbea4629a7903a8-h_g.jpg', 'reviewExcerpt': 'She made the whole process so easy and stress-free for me.', 'reviewExcerptDate': '2025-04-23 13:11:00', 'reviewLink': '/profile/tparodi#reviews', 'reviewStarsRating': 5, 'reviews': '963 reviews', 'saleCountAllTime': 5223, 'saleCountLastYear': 202, 'salePriceRangeThreeYearMax': 1447500, 'salePriceRangeThreeYearMin': 50000, 'username': 'tparodi'}, {'businessName': 'Camelot Realty Group', 'encodedZuid': 'X1-ZUzabm46rbiv49_9abc3', 'fullName': 'Tom Cervone', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Houston, TX', 'numTotalReviews': 506, 'phoneNumber': '(713) 201-7488', 'profileLink': '/profile/Tom-Cervone', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/5da7813a129789db3ddac71a42bd71b2-h_g.jpg', 'reviewExcerpt': 'Thanks to him, what started as a daunting process turned into an exciting ...', 'reviewExcerptDate': '2025-04-24 07:59:00', 'reviewLink': '/profile/Tom-Cervone#reviews', 'reviewStarsRating': 5, 'reviews': '506 reviews', 'saleCountAllTime': 1459, 'saleCountLastYear': 159, 'salePriceRangeThreeYearMax': 2286700, 'salePriceRangeThreeYearMin': 55000, 'username': 'Tom-Cervone'}, {'businessName': 'Zillow Team - Houston ', 'encodedZuid': 'X1-ZU10btlf9s1phc9_2t4xp', 'fullName': 'Zillow Houston Realtor Team', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Houston, TX', 'numTotalReviews': 340, 'phoneNumber': '(832) 981-1162', 'profileLink': '/profile/Houston-team', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/e6bba942162c4d6bde5b005214b3c9a1-h_g.jpg', 'reviewExcerpt': 'Karina has been Excellent and Helpful with us and keeping us informed ...', 'reviewExcerptDate': '2025-03-01 18:16:00', 'reviewLink': '/profile/Houston-team#reviews', 'reviewStarsRating': 5, 'reviews': '340 reviews', 'saleCountAllTime': 902, 'saleCountLastYear': 78, 'salePriceRangeThreeYearMax': 2450000, 'salePriceRangeThreeYearMin': 75000, 'username': 'Houston-team'}, {'businessName': 'Monica Foster Team - eXp Realty', 'encodedZuid': 'X1-ZUz87ibursn5s9_29gz3', 'fullName': 'Monica Foster', 'isTeamLead': True, 'isTopAgent': True, 'location': 'League City, TX', 'numTotalReviews': 1015, 'phoneNumber': '(346) 202-7307', 'profileLink': '/profile/RealtyByMonica', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/f29cc77b17113d9210d9605e14aeaf30-h_g.jpg', 'reviewExcerpt': 'Monica Foster and her team, including my agent Jennifer Bolton, did an ...', 'reviewExcerptDate': '2024-12-12 08:33:00', 'reviewLink': '/profile/RealtyByMonica#reviews', 'reviewStarsRating': 5, 'reviews': '1015 reviews', 'saleCountAllTime': 3953, 'saleCountLastYear': 399, 'salePriceRangeThreeYearMax': 2250000, 'salePriceRangeThreeYearMin': 13500, 'username': 'RealtyByMonica'}, {'businessName': 'The Realty TX', 'encodedZuid': 'X1-ZUzvg20f6gjwuh_5rw5l', 'fullName': 'Trinh Nguyen', 'isTeamLead': True, 'isTopAgent': False, 'location': 'Houston, TX', 'numTotalReviews': 311, 'phoneNumber': '(832) 356-8746', 'profileLink': '/profile/TheTrinhNguyen', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/e6852deee33df8d36335ac4535867438-h_g.jpg', 'reviewExcerpt': 'Her negotiation skills were exceptional, securing a deal that was better ...', 'reviewExcerptDate': '2024-06-27 07:48:00', 'reviewLink': '/profile/TheTrinhNguyen#reviews', 'reviewStarsRating': 5, 'reviews': '311 reviews', 'saleCountAllTime': 1025, 'saleCountLastYear': 25, 'salePriceRangeThreeYearMax': 1950000, 'salePriceRangeThreeYearMin': 85000, 'username': 'TheTrinhNguyen'}, {'businessName': 'Corcoran Prestige Realty', 'encodedZuid': 'X1-ZUx8yemfta80zt_9y704', 'fullName': 'Erin McKie', 'isTeamLead': False, 'isTopAgent': True, 'location': 'Houston, TX', 'numTotalReviews': 214, 'phoneNumber': '(832) 746-7629', 'profileLink': '/profile/erin484', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/988a97bbbc2dc0543386c1c75f3b62a5-h_g.jpg', 'reviewExcerpt': 'Whenever a problem arises, she always come with solution already in place.', 'reviewExcerptDate': '2025-04-25 16:12:00', 'reviewLink': '/profile/erin484#reviews', 'reviewStarsRating': 5, 'reviews': '214 reviews', 'saleCountAllTime': 254, 'saleCountLastYear': 20, 'salePriceRangeThreeYearMax': 2445200, 'salePriceRangeThreeYearMin': 218000, 'username': 'erin484'}, {'businessName': 'Christy Buck Team, Infinity Real Estate Group', 'encodedZuid': 'X1-ZUy3x5ja7vc64p_77v72', 'fullName': 'Christy Buck Team', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Pearland, TX', 'numTotalReviews': 801, 'phoneNumber': '(832) 517-8414', 'profileLink': '/profile/ChristyBuck', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/9f14b6cedce7ec9ead6f1ceaf82caf9d-h_g.jpg', 'reviewExcerpt': 'She made sure that I had the best deal and found me an investor super ...', 'reviewExcerptDate': '2025-01-27 19:18:00', 'reviewLink': '/profile/ChristyBuck#reviews', 'reviewStarsRating': 5, 'reviews': '801 reviews', 'saleCountAllTime': 2807, 'saleCountLastYear': 180, 'salePriceRangeThreeYearMax': 1700000, 'salePriceRangeThreeYearMin': 14500, 'username': 'ChristyBuck'}, {'businessName': 'Realty of America', 'encodedZuid': 'X1-ZUyu7kf7zux2ix_1oeg0', 'fullName': 'Mark Dimas', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Cypress, TX', 'numTotalReviews': 400, 'phoneNumber': '(713) 478-6672', 'profileLink': '/profile/mark-dimas-team', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/8a4bf0b6705935e4d54c17b29a5f25e2-h_g.jpg', 'reviewExcerpt': 'I had absolutely zero knowledge about buying a home but she was always ...', 'reviewExcerptDate': '2025-04-14 12:04:00', 'reviewLink': '/profile/mark-dimas-team#reviews', 'reviewStarsRating': 4.9, 'reviews': '400 reviews', 'saleCountAllTime': 3490, 'saleCountLastYear': 124, 'salePriceRangeThreeYearMax': 70114266, 'salePriceRangeThreeYearMin': 28500, 'username': 'mark-dimas-team'}, {'businessName': 'Realty of America, LLC', 'encodedZuid': 'X1-ZUyu9w57ngygp5_3jtqo', 'fullName': 'Creston Inderrieden', 'isTeamLead': True, 'isTopAgent': False, 'location': 'Houston, TX', 'numTotalReviews': 176, 'phoneNumber': '(713) 301-4054', 'profileLink': '/profile/crestonindy', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/402715b9ea1a9717547a97aa60a9931f-h_g.jpg', 'reviewLink': '/profile/crestonindy#reviews', 'reviewStarsRating': 5, 'reviews': '176 reviews', 'saleCountAllTime': 758, 'saleCountLastYear': 0, 'salePriceRangeThreeYearMax': 1093000, 'salePriceRangeThreeYearMin': 330000, 'username': 'crestonindy'}, {'businessName': 'CB Realty', 'encodedZuid': 'X1-ZUzfom331s86x5_97i75', 'fullName': 'Chris Boyles', 'isTeamLead': False, 'isTopAgent': False, 'location': 'Houston, TX', 'numTotalReviews': 194, 'phoneNumber': '(832) 581-3661', 'profileLink': '/profile/Chris-Boyles', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/44a7fe59d2560f3425027bb0e38135ff-h_g.jpg', 'reviewLink': '/profile/Chris-Boyles#reviews', 'reviewStarsRating': 5, 'reviews': '194 reviews', 'saleCountAllTime': 596, 'saleCountLastYear': 3, 'salePriceRangeThreeYearMax': 1900000, 'salePriceRangeThreeYearMin': 27099, 'username': 'Chris-Boyles'}, {'businessName': 'Simien Properties', 'encodedZuid': 'X1-ZUyxenw4j32eix_963mo', 'fullName': 'Jimmy Simien', 'isTeamLead': True, 'isTopAgent': True, 'location': 'Webster, TX', 'numTotalReviews': 384, 'phoneNumber': '(832) 929-8630', 'profileLink': '/profile/The-Simien-Team', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/f80299033355417da3ba7a0b5099fbbf-h_g.jpg', 'reviewExcerpt': 'Kris demonstrated a high level of professionalism, expertise, and dedication,...', 'reviewExcerptDate': '2025-04-22 11:42:00', 'reviewLink': '/profile/The-Simien-Team#reviews', 'reviewStarsRating': 5, 'reviews': '384 reviews', 'saleCountAllTime': 1834, 'saleCountLastYear': 168, 'salePriceRangeThreeYearMax': 1900000, 'salePriceRangeThreeYearMin': 70000, 'username': 'The-Simien-Team'}, {'businessName': 'VIVE Realty', 'encodedZuid': 'X1-ZUzlqzhw5qik95_634pd', 'fullName': 'Jose Rayo', 'isTeamLead': True, 'isTopAgent': False, 'location': 'Houston, TX', 'numTotalReviews': 192, 'phoneNumber': '(713) 428-1012', 'profileLink': '/profile/VIVE-Realty', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/8e24a52eaf036f6ec10da1512425466f-h_g.jpg', 'reviewLink': '/profile/VIVE-Realty#reviews', 'reviewStarsRating': 5, 'reviews': '192 reviews', 'saleCountAllTime': 993, 'saleCountLastYear': 13, 'salePriceRangeThreeYearMax': 1400000, 'salePriceRangeThreeYearMin': 16000, 'username': 'VIVE-Realty'}, {'businessName': 'NextGen Real Estate', 'encodedZuid': 'X1-ZUv6rjtmn6uqrt_2avjk', 'fullName': 'Stephanie Liu', 'isTeamLead': False, 'isTopAgent': False, 'location': 'Houston, TX', 'numTotalReviews': 151, 'phoneNumber': '(832) 283-2912', 'profileLink': '/profile/stephanieliurealtor', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/f69e817cf50f5014c798d066b36716f9-h_g.jpg', 'reviewLink': '/profile/stephanieliurealtor#reviews', 'reviewStarsRating': 5, 'reviews': '151 reviews', 'saleCountAllTime': 65, 'saleCountLastYear': 3, 'salePriceRangeThreeYearMax': 1248000, 'salePriceRangeThreeYearMin': 295500, 'username': 'stephanieliurealtor'}, {'businessName': 'Camelot Realty Group', 'encodedZuid': 'X1-ZU12disxzriuuq1_5886z', 'fullName': 'Bao Ly', 'isTeamLead': False, 'isTopAgent': True, 'location': 'HOUSTON, TX', 'numTotalReviews': 130, 'phoneNumber': '(832) 244-3480', 'profileLink': '/profile/Bao-Ly', 'profilePhotoSrc': 'https://photos.zillowstatic.com/fp/044a1f7d3e238761738050dacfd27a74-h_g.jpg', 'reviewLink': '/profile/Bao-Ly#reviews', 'reviewStarsRating': 5, 'reviews': '130 reviews', 'saleCountAllTime': 302, 'saleCountLastYear': 52, 'salePriceRangeThreeYearMax': 2286700, 'salePriceRangeThreeYearMin': 99000, 'username': 'Bao-Ly'}]
