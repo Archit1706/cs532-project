@@ -1,8 +1,8 @@
-# RealEstateAI
+# Keya - Agentic AI assistant for Real Estate
 
-A conversational AI platform for real estate inquiries, property searches, and market insights.
+A conversational AI platform for real estate inquiries, property searches, and market insights. 
 
-![Screenshot from the website](https://github.com/Archit1706/cs532-project/blob/b3c8f1ef0725064c2bb3f15fe939987865140497/screenshot.png)
+![Screenshot from the website](https://github.com/Archit1706/cs532-project/blob/057c03ac3c4882b8689cf597c137932c886cd8e7/keya.png)
 
 ---
 
@@ -17,6 +17,10 @@ A conversational AI platform for real estate inquiries, property searches, and m
 -   🧠 Context-aware response generation using zip code, search filters, and location info
 -   🧭 Tabs for Properties, Restaurants, Transit, Market Analysis
 -   🧩 Modular code with reusable components and centralized state using React Context API
+
+---
+
+![Screenshot from the website](https://github.com/Archit1706/cs532-project/blob/057c03ac3c4882b8689cf597c137932c886cd8e7/keya2.png)
 
 ---
 
